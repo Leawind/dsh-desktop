@@ -77,8 +77,10 @@ pnpm run frontend:test
 pnpm run rust:test
 ```
 
-构建不含平台安装包的桌面可执行文件：
+构建当前平台支持的桌面安装包：
 
 ```sh
 pnpm run build
 ```
+
+Tauri 会在 Cargo target 目录的 `release/bundle/` 下按当前操作系统生成安装文件。未自定义 Cargo target 目录时，本项目的默认位置是 `apps/desktop/target/release/bundle/`；设置了 `CARGO_TARGET_DIR` 或 Cargo 全局 target 目录时，产物随之移动。Linux 构建生成 DEB、RPM 和 AppImage，Windows 与 macOS 构建分别生成其平台支持的安装包；不同操作系统的安装包需要在对应平台上构建。

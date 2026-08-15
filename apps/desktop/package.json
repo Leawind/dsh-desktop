@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tauri dev",
-    "build": "tauri build --no-bundle"
+    "build": "tauri build"
   },
   "dependencies": {
     "@dsh-desktop/frontend": "workspace:*"
