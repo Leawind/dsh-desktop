@@ -2,8 +2,12 @@ use url::Url;
 
 use crate::error::{AppError, AppResult};
 
-pub fn default_dsh_url(port: u16) -> String {
-    format!("http://127.0.0.1:{port}")
+pub fn dsh_url(host: &str, port: u16) -> String {
+    if host.contains(':') {
+        format!("http://[{host}]:{port}")
+    } else {
+        format!("http://{host}:{port}")
+    }
 }
 
 pub fn normalize_dsh_url(input: &str) -> AppResult<String> {

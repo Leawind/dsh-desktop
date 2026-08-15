@@ -13,8 +13,12 @@
     "cancel": "取消",
     "close": "关闭",
     "details": "详细信息",
+    "add": "添加",
     "reload": "重新加载",
     "retry": "重试",
+    "remove": "移除",
+    "moveUp": "上移",
+    "moveDown": "下移",
     "save": "保存",
     "settings": "设置"
   },
@@ -41,13 +45,39 @@
     "title": "设置",
     "global": "全局设置",
     "language": "界面语言",
-    "defaultPort": "DSH 默认端口",
-    "defaultPortHint": "新窗口将在此端口复用或启动本地 DSH。",
     "executable": "DSH 可执行文件",
-    "executableHint": "留空时从系统 PATH 查找 dsh。",
+    "executableHint": "指定自定义 dsh 可执行文件的完整路径。",
+    "source": {
+      "label": "DSH 来源",
+      "hint": "仅在启动新服务时使用，不影响连接已有服务。",
+      "type": {
+        "none": "不启动 DSH",
+        "built-in": "内置 DSH",
+        "system": "系统 PATH 中的 DSH",
+        "custom": "自定义可执行文件"
+      }
+    },
+    "attempt": {
+      "label": "新窗口启动尝试",
+      "hint": "创建窗口时按从上到下的顺序执行，成功后停止。",
+      "host": "IP 地址",
+      "port": "端口",
+      "startPort": "起始端口",
+      "endPort": "结束端口",
+      "type": {
+        "known-services": "连接已知服务",
+        "connect-fixed": "连接指定 IP 和端口",
+        "start-fixed": "在指定端口启动服务",
+        "start-range": "在端口范围内启动服务"
+      }
+    },
     "saved": "设置已保存。",
     "error": {
       "invalidPort": "端口号必须在 1 到 65535 之间。",
+      "invalidPortRange": "起始端口不能大于结束端口。",
+      "invalidIpAddress": "请输入有效的 IP 地址。",
+      "invalidAttempt": "请检查启动尝试中的 IP 地址和端口。",
+      "emptyExecutable": "自定义 DSH 可执行文件路径不能为空。",
       "saveFailed": "无法保存设置。"
     }
   },
@@ -68,7 +98,16 @@
       "processExited": "DSH 进程在启动期间退出。",
       "startTimeout": "等待 DSH 在端口 {port} 启动超时。",
       "invalidExecutable": "配置的程序不是可用的 dsh 命令。",
-      "executableNotFound": "找不到 dsh 命令，请在全局设置中指定其路径。"
+      "executableNotFound": "找不到 dsh 命令，请在全局设置中指定其路径。",
+      "sourceDisabled": "当前设置不允许启动新的 DSH 服务。",
+      "builtInUnavailable": "当前安装包不包含内置 DSH。",
+      "noKnownServices": "运行期间还没有成功连接过任何 DSH 服务。",
+      "unreachable": "无法访问 {url}。",
+      "connectionLost": "当前窗口对应的 DSH 服务 {url} 已不可用。",
+      "notDsh": "{url} 可访问，但它不是受支持的 DSH 服务。",
+      "noFreePort": "端口范围 {startPort}–{endPort} 中没有可用端口。",
+      "unsupportedBindAddress": "当前 DSH 版本不支持在 {host} 上启动服务。",
+      "allAttemptsFailed": "所有启动尝试均已失败。"
     }
   },
   "locale": {

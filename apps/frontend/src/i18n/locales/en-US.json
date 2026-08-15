@@ -13,8 +13,12 @@
     "cancel": "Cancel",
     "close": "Close",
     "details": "Details",
+    "add": "Add",
     "reload": "Reload",
     "retry": "Retry",
+    "remove": "Remove",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
     "save": "Save",
     "settings": "Settings"
   },
@@ -41,13 +45,39 @@
     "title": "Settings",
     "global": "Global settings",
     "language": "Interface language",
-    "defaultPort": "Default DSH port",
-    "defaultPortHint": "New windows reuse or start local DSH on this port.",
     "executable": "DSH executable",
-    "executableHint": "Leave empty to find dsh on the system PATH.",
+    "executableHint": "Enter the full path to a custom dsh executable.",
+    "source": {
+      "label": "DSH source",
+      "hint": "Used only to start new services; existing service connections are unaffected.",
+      "type": {
+        "none": "Do not start DSH",
+        "built-in": "Built-in DSH",
+        "system": "DSH on system PATH",
+        "custom": "Custom executable"
+      }
+    },
+    "attempt": {
+      "label": "New-window startup attempts",
+      "hint": "Run from top to bottom when a window opens and stop after the first success.",
+      "host": "IP address",
+      "port": "Port",
+      "startPort": "Start port",
+      "endPort": "End port",
+      "type": {
+        "known-services": "Connect to a known service",
+        "connect-fixed": "Connect to a specific IP and port",
+        "start-fixed": "Start a service on a fixed port",
+        "start-range": "Start a service in a port range"
+      }
+    },
     "saved": "Settings saved.",
     "error": {
       "invalidPort": "The port must be between 1 and 65535.",
+      "invalidPortRange": "The start port cannot be greater than the end port.",
+      "invalidIpAddress": "Enter a valid IP address.",
+      "invalidAttempt": "Check the IP addresses and ports in the startup attempts.",
+      "emptyExecutable": "The custom DSH executable path cannot be empty.",
       "saveFailed": "The settings could not be saved."
     }
   },
@@ -68,7 +98,16 @@
       "processExited": "The DSH process exited during startup.",
       "startTimeout": "Timed out waiting for DSH to start on port {port}.",
       "invalidExecutable": "The configured program is not a usable dsh command.",
-      "executableNotFound": "The dsh command was not found. Set its path in global settings."
+      "executableNotFound": "The dsh command was not found. Set its path in global settings.",
+      "sourceDisabled": "The current settings do not allow starting a new DSH service.",
+      "builtInUnavailable": "This package does not include a built-in DSH runtime.",
+      "noKnownServices": "No DSH service has been connected successfully during this run.",
+      "unreachable": "Unable to reach {url}.",
+      "connectionLost": "The DSH service for this window at {url} is no longer available.",
+      "notDsh": "{url} is reachable, but it is not a supported DSH service.",
+      "noFreePort": "No available port was found between {startPort} and {endPort}.",
+      "unsupportedBindAddress": "The current DSH version cannot start a service on {host}.",
+      "allAttemptsFailed": "All startup attempts failed."
     }
   },
   "locale": {

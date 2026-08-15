@@ -8,7 +8,9 @@ mod settings;
 mod state;
 mod windows;
 
-use tauri::{Manager, RunEvent, WindowEvent};
+use std::time::Duration;
+
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 use state::AppState;
 
@@ -27,7 +29,18 @@ pub fn run() {
             let settings = settings::load(&config_dir);
             let state = AppState::new(config_dir, settings);
             state.register_window("main");
-            app.manage(state);
+            app.manage(state.clone());
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                while !state.monitor_stopped() {
+                    std::thread::sleep(Duration::from_secs(5));
+                    if state.monitor_stopped() {
+                        break;
+                    }
+                    let snapshot = state.refresh_endpoint_health();
+                    let _ = app_handle.emit("host-snapshot-changed", snapshot);
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -35,7 +48,7 @@ pub fn run() {
             commands::create_app_window,
             commands::get_host_snapshot,
             commands::set_window_target,
-            commands::ensure_default_service,
+            commands::start_window,
             commands::update_global_settings,
         ])
         .build(tauri::generate_context!())

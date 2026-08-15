@@ -9,7 +9,9 @@ import type {
   GlobalSettingsPatch,
   HostSnapshot,
   ServiceStatus,
+  StartupAttemptFailure,
   WindowSnapshot,
+  WindowStartupResult,
 } from "@/types/desktop";
 
 const emptyHost: HostSnapshot = { windows: [], endpoints: [] };
@@ -25,14 +27,20 @@ export function resolveFrameUrl(window: WindowSnapshot | null, status: ServiceSt
 
 export function useDesktopApp() {
   const settings = ref<GlobalSettings>({
-    defaultDshPort: 3080,
     locale: null,
-    dshExecutable: null,
+    dshSource: { type: "system" },
+    windowStartupAttempts: [
+      { type: "known-services" },
+      { type: "connect-fixed", host: "127.0.0.1", port: 3080 },
+      { type: "start-fixed", host: "127.0.0.1", port: 3080 },
+      { type: "start-range", host: "127.0.0.1", startPort: 3081, endPort: 3090 },
+    ],
   });
   const currentWindow = ref<WindowSnapshot | null>(null);
   const host = ref<HostSnapshot>(emptyHost);
   const startupStatus = ref<ServiceStatus>("starting");
   const error = ref<AppError | null>(null);
+  const startupFailures = ref<StartupAttemptFailure[]>([]);
   const settingsOpen = ref(false);
   const frameRevision = ref(0);
   const unlisteners: UnlistenFn[] = [];
@@ -59,9 +67,7 @@ export function useDesktopApp() {
       );
 
       startupStatus.value = "starting";
-      host.value = await desktopBridge.ensureDefaultService();
-      syncWindowFromHost();
-      startupStatus.value = "running";
+      applyStartupResult(await desktopBridge.startWindow());
     } catch (cause) {
       error.value = cause as AppError;
       startupStatus.value = "failed";
@@ -75,19 +81,22 @@ export function useDesktopApp() {
       frameRevision.value += 1;
       host.value = await desktopBridge.getHostSnapshot();
       startupStatus.value = currentWindow.value.status;
+      if (currentWindow.value.status !== "running") {
+        error.value = { code: "service.error.unreachable", args: { url } };
+      }
     } catch (cause) {
       error.value = cause as AppError;
     }
   }
 
-  async function retryDefaultService(): Promise<void> {
+  async function retryStartup(): Promise<void> {
     error.value = null;
+    startupFailures.value = [];
     startupStatus.value = "starting";
     try {
-      host.value = await desktopBridge.ensureDefaultService();
-      syncWindowFromHost();
-      startupStatus.value = "running";
-      frameRevision.value += 1;
+      const result = await desktopBridge.startWindow();
+      applyStartupResult(result);
+      if (result.connected) frameRevision.value += 1;
     } catch (cause) {
       error.value = cause as AppError;
       startupStatus.value = "failed";
@@ -113,7 +122,30 @@ export function useDesktopApp() {
     const label = currentWindow.value?.label;
     if (!label) return;
     const updated = host.value.windows.find((window) => window.label === label);
-    if (updated) currentWindow.value = updated;
+    if (!updated) return;
+    const wasRunning = currentWindow.value?.status === "running";
+    currentWindow.value = updated;
+    if (startupStatus.value === "starting") return;
+    startupStatus.value = updated.status;
+    if (wasRunning && updated.status !== "running") {
+      error.value = {
+        code: "service.error.connectionLost",
+        args: { url: updated.url },
+      };
+    } else if (
+      updated.status === "running" &&
+      error.value?.code === "service.error.connectionLost"
+    ) {
+      error.value = null;
+    }
+  }
+
+  function applyStartupResult(result: WindowStartupResult): void {
+    host.value = result.host;
+    currentWindow.value = result.window;
+    startupFailures.value = result.failures;
+    startupStatus.value = result.connected ? "running" : "failed";
+    error.value = result.connected ? null : { code: "service.error.allAttemptsFailed" };
   }
 
   onBeforeUnmount(() => {
@@ -126,12 +158,13 @@ export function useDesktopApp() {
     host: readonly(host),
     startupStatus: readonly(startupStatus),
     error: readonly(error),
+    startupFailures: readonly(startupFailures),
     settingsOpen,
     frameRevision: readonly(frameRevision),
     frameUrl,
     initialize,
     setTarget,
-    retryDefaultService,
+    retryStartup,
     saveGlobalSettings,
     reloadFrame,
   };

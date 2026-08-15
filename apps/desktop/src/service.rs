@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use reqwest::blocking::Client;
 
 use crate::error::{AppError, AppResult};
+use crate::model::DshSource;
 
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -32,6 +33,12 @@ pub struct ManagedService {
     pub executable: PathBuf,
     pub runtime_version: String,
     pub logs: Arc<Mutex<VecDeque<String>>>,
+}
+
+pub struct ResolvedDshRuntime {
+    executable: PathBuf,
+    runtime_path: Option<OsString>,
+    runtime_version: String,
 }
 
 impl ManagedService {
@@ -97,10 +104,26 @@ fn tcp_port_is_reachable(url: &str) -> bool {
         .any(|address| TcpStream::connect_timeout(&address, PROBE_TIMEOUT).is_ok())
 }
 
-pub fn start(executable_setting: Option<&str>, port: u16) -> AppResult<ManagedService> {
+pub fn resolve_runtime(source: &DshSource) -> AppResult<ResolvedDshRuntime> {
     let runtime_path = effective_path();
-    let executable = resolve_executable(executable_setting, runtime_path.as_deref())?;
+    let executable = match source {
+        DshSource::None => return Err(AppError::new("service.error.sourceDisabled")),
+        DshSource::BuiltIn => return Err(AppError::new("service.error.builtInUnavailable")),
+        DshSource::System => resolve_executable(None, runtime_path.as_deref())?,
+        DshSource::Custom { executable } => {
+            resolve_executable(Some(executable), runtime_path.as_deref())?
+        }
+    };
     let runtime_version = read_version(&executable, runtime_path.as_deref())?;
+    Ok(ResolvedDshRuntime {
+        executable,
+        runtime_path,
+        runtime_version,
+    })
+}
+
+pub fn start(runtime: &ResolvedDshRuntime, port: u16) -> AppResult<ManagedService> {
+    let executable = &runtime.executable;
     let mut command = Command::new(&executable);
     command
         .args(["web", "--host", "127.0.0.1", "--port", &port.to_string()])
@@ -109,7 +132,7 @@ pub fn start(executable_setting: Option<&str>, port: u16) -> AppResult<ManagedSe
         .stderr(Stdio::piped());
     #[cfg(target_os = "linux")]
     crate::direct_network::restore_child_proxy_environment(&mut command);
-    if let Some(runtime_path) = runtime_path.as_ref() {
+    if let Some(runtime_path) = runtime.runtime_path.as_ref() {
         command.env("PATH", runtime_path);
     }
     let mut child = command.spawn().map_err(|error| {
@@ -163,8 +186,8 @@ pub fn start(executable_setting: Option<&str>, port: u16) -> AppResult<ManagedSe
 
     Ok(ManagedService {
         child,
-        executable,
-        runtime_version,
+        executable: executable.clone(),
+        runtime_version: runtime.runtime_version.clone(),
         logs,
     })
 }

@@ -8,6 +8,7 @@ import type {
   GlobalSettings,
   GlobalSettingsPatch,
   HostSnapshot,
+  WindowStartupResult,
   WindowSnapshot,
 } from "@/types/desktop";
 
@@ -39,7 +40,7 @@ export const desktopBridge = {
 
   getHostSnapshot: (): Promise<HostSnapshot> => command("get_host_snapshot"),
 
-  ensureDefaultService: (): Promise<HostSnapshot> => command("ensure_default_service"),
+  startWindow: (): Promise<WindowStartupResult> => command("start_window"),
 
   setWindowTarget: (url: string): Promise<WindowSnapshot> => command("set_window_target", { url }),
 

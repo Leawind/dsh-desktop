@@ -18,6 +18,10 @@ function errorMessage(): string {
   return t(error.code, error.args ?? {});
 }
 
+function attemptName(type: string): string {
+  return t(`settings.attempt.type.${type}`);
+}
+
 onMounted(desktop.initialize);
 </script>
 
@@ -42,7 +46,13 @@ onMounted(desktop.initialize);
           <summary>{{ t("common.details") }}</summary>
           <pre>{{ desktop.error.value.technicalDetails }}</pre>
         </details>
-        <UiButton variant="primary" @click="desktop.retryDefaultService">
+        <ol v-if="desktop.startupFailures.value.length" class="connection-state__failures">
+          <li v-for="(failure, index) in desktop.startupFailures.value" :key="index">
+            <strong>{{ attemptName(failure.attempt.type) }}</strong>
+            <span>{{ t(failure.error.code, failure.error.args ?? {}) }}</span>
+          </li>
+        </ol>
+        <UiButton variant="primary" @click="desktop.retryStartup">
           {{ t("common.retry") }}
         </UiButton>
       </section>
@@ -110,5 +120,21 @@ onMounted(desktop.initialize);
   max-height: 12rem;
   overflow: auto;
   white-space: pre-wrap;
+}
+
+.connection-state__failures {
+  display: grid;
+  width: min(100%, 42rem);
+  max-height: 14rem;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.5rem;
+  overflow: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.connection-state__failures li span {
+  display: block;
 }
 </style>

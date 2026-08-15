@@ -5,7 +5,14 @@ import { useI18n } from "vue-i18n";
 import { UiButton, UiInput, UiSelect, UiSettingRow, UiStatus } from "@dsh-desktop/ui";
 
 import { desktopBridge } from "@/bridge/desktop";
-import type { AppLocale, GlobalSettings, HostSnapshot } from "@/types/desktop";
+import type {
+  AppLocale,
+  DshSource,
+  GlobalSettings,
+  GlobalSettingsPatch,
+  HostSnapshot,
+  WindowStartupAttempt,
+} from "@/types/desktop";
 
 const props = defineProps<{
   currentUrl: string;
@@ -16,7 +23,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   setTarget: [url: string];
-  saveSettings: [settings: GlobalSettings];
+  saveSettings: [settings: GlobalSettingsPatch];
   reload: [];
 }>();
 
@@ -26,10 +33,13 @@ type SettingsTab = (typeof tabs)[number];
 const { t } = useI18n();
 const activeTab = ref<SettingsTab>("window");
 const url = ref(props.currentUrl);
-const port = ref(String(props.settings.defaultDshPort));
 const locale = ref<AppLocale>(props.settings.locale ?? "zh-CN");
-const executable = ref(props.settings.dshExecutable ?? "");
-const portError = ref("");
+const sourceType = ref<DshSource["type"]>(props.settings.dshSource.type);
+const customExecutable = ref(
+  props.settings.dshSource.type === "custom" ? props.settings.dshSource.executable : "",
+);
+const attempts = ref<WindowStartupAttempt[]>(cloneAttempts(props.settings.windowStartupAttempts));
+const settingsError = ref("");
 
 watch(
   () => props.currentUrl,
@@ -41,9 +51,10 @@ watch(
 watch(
   () => props.settings,
   (value) => {
-    port.value = String(value.defaultDshPort);
     locale.value = value.locale ?? "zh-CN";
-    executable.value = value.dshExecutable ?? "";
+    sourceType.value = value.dshSource.type;
+    customExecutable.value = value.dshSource.type === "custom" ? value.dshSource.executable : "";
+    attempts.value = cloneAttempts(value.windowStartupAttempts);
   },
 );
 
@@ -52,18 +63,97 @@ const localeOptions = computed(() => [
   { value: "en-US", label: t("locale.en-US") },
 ]);
 
+const sourceOptions = computed(() => [
+  { value: "none", label: t("settings.source.type.none") },
+  { value: "built-in", label: t("settings.source.type.built-in") },
+  { value: "system", label: t("settings.source.type.system") },
+  { value: "custom", label: t("settings.source.type.custom") },
+]);
+
+const attemptOptions = computed(() => [
+  { value: "known-services", label: t("settings.attempt.type.known-services") },
+  { value: "connect-fixed", label: t("settings.attempt.type.connect-fixed") },
+  { value: "start-fixed", label: t("settings.attempt.type.start-fixed") },
+  { value: "start-range", label: t("settings.attempt.type.start-range") },
+]);
+
+function cloneAttempts(value: readonly WindowStartupAttempt[]): WindowStartupAttempt[] {
+  return value.map((attempt) => ({ ...attempt }));
+}
+
 function save(): void {
-  const numericPort = Number(port.value);
-  if (!Number.isInteger(numericPort) || numericPort < 1 || numericPort > 65535) {
-    portError.value = t("settings.error.invalidPort");
+  if (sourceType.value === "custom" && !customExecutable.value.trim()) {
+    settingsError.value = t("settings.error.emptyExecutable");
     return;
   }
-  portError.value = "";
+  if (!attempts.value.every(validAttempt)) {
+    settingsError.value = t("settings.error.invalidAttempt");
+    return;
+  }
+  settingsError.value = "";
+  const dshSource: DshSource =
+    sourceType.value === "custom"
+      ? { type: "custom", executable: customExecutable.value.trim() }
+      : { type: sourceType.value };
   emit("saveSettings", {
-    defaultDshPort: numericPort,
     locale: locale.value,
-    dshExecutable: executable.value.trim() || null,
+    dshSource,
+    windowStartupAttempts: cloneAttempts(attempts.value),
   });
+}
+
+function validPort(port: number): boolean {
+  return Number.isInteger(port) && port >= 1 && port <= 65535;
+}
+
+function validAttempt(attempt: WindowStartupAttempt): boolean {
+  if (attempt.type === "known-services") return true;
+  if (!attempt.host.trim()) return false;
+  if (attempt.type === "start-range") {
+    return (
+      validPort(attempt.startPort) &&
+      validPort(attempt.endPort) &&
+      attempt.startPort <= attempt.endPort
+    );
+  }
+  return validPort(attempt.port);
+}
+
+function changeAttemptType(index: number, type: string): void {
+  const host = "127.0.0.1";
+  const replacements: Record<string, WindowStartupAttempt> = {
+    "known-services": { type: "known-services" },
+    "connect-fixed": { type: "connect-fixed", host, port: 3080 },
+    "start-fixed": { type: "start-fixed", host, port: 3080 },
+    "start-range": { type: "start-range", host, startPort: 3081, endPort: 3090 },
+  };
+  const replacement = replacements[type];
+  if (replacement) attempts.value[index] = replacement;
+}
+
+function setPort(
+  attempt: Exclude<WindowStartupAttempt, { type: "known-services" }>,
+  field: "port" | "startPort" | "endPort",
+  value: string,
+): void {
+  const port = Number(value);
+  if (field === "port" && attempt.type !== "start-range") attempt.port = port;
+  if (field === "startPort" && attempt.type === "start-range") attempt.startPort = port;
+  if (field === "endPort" && attempt.type === "start-range") attempt.endPort = port;
+}
+
+function addAttempt(): void {
+  attempts.value.push({ type: "connect-fixed", host: "127.0.0.1", port: 3080 });
+}
+
+function moveAttempt(index: number, offset: -1 | 1): void {
+  const target = index + offset;
+  if (target < 0 || target >= attempts.value.length) return;
+  const current = attempts.value[index];
+  const other = attempts.value[target];
+  if (!current || !other) return;
+  attempts.value[index] = other;
+  attempts.value[target] = current;
 }
 
 function endpointHint(endpoint: HostSnapshot["endpoints"][number]): string {
@@ -229,25 +319,86 @@ function onTabKeydown(event: KeyboardEvent): void {
             <UiSettingRow :label="t('settings.language')">
               <UiSelect v-model="locale" variant="pill" :options="localeOptions" />
             </UiSettingRow>
-            <UiSettingRow
-              control-id="default-port"
-              :label="t('settings.defaultPort')"
-              :hint="t('settings.defaultPortHint')"
-            >
-              <div class="settings__control-stack">
-                <UiInput id="default-port" v-model="port" type="number" />
-                <span v-if="portError" class="settings__error">{{ portError }}</span>
-              </div>
+            <UiSettingRow :label="t('settings.source.label')" :hint="t('settings.source.hint')">
+              <UiSelect v-model="sourceType" :options="sourceOptions" />
             </UiSettingRow>
             <UiSettingRow
+              v-if="sourceType === 'custom'"
               control-id="dsh-executable"
               :label="t('settings.executable')"
               :hint="t('settings.executableHint')"
             >
               <div class="settings__wide-control">
-                <UiInput id="dsh-executable" v-model="executable" />
+                <UiInput id="dsh-executable" v-model="customExecutable" />
               </div>
             </UiSettingRow>
+            <div class="settings__attempt-heading">
+              <div>
+                <h2>{{ t("settings.attempt.label") }}</h2>
+                <p>{{ t("settings.attempt.hint") }}</p>
+              </div>
+              <UiButton size="small" @click="addAttempt">{{ t("common.add") }}</UiButton>
+            </div>
+            <ol class="settings__attempts">
+              <li v-for="(attempt, index) in attempts" :key="index" class="settings__attempt">
+                <span class="settings__attempt-index">{{ index + 1 }}</span>
+                <div class="settings__attempt-fields">
+                  <UiSelect
+                    :model-value="attempt.type"
+                    :options="attemptOptions"
+                    @update:model-value="changeAttemptType(index, $event)"
+                  />
+                  <template v-if="attempt.type !== 'known-services'">
+                    <UiInput v-model="attempt.host" :placeholder="t('settings.attempt.host')" />
+                    <UiInput
+                      v-if="attempt.type !== 'start-range'"
+                      :model-value="String(attempt.port)"
+                      type="number"
+                      :placeholder="t('settings.attempt.port')"
+                      @update:model-value="setPort(attempt, 'port', $event)"
+                    />
+                    <template v-else>
+                      <UiInput
+                        :model-value="String(attempt.startPort)"
+                        type="number"
+                        :placeholder="t('settings.attempt.startPort')"
+                        @update:model-value="setPort(attempt, 'startPort', $event)"
+                      />
+                      <UiInput
+                        :model-value="String(attempt.endPort)"
+                        type="number"
+                        :placeholder="t('settings.attempt.endPort')"
+                        @update:model-value="setPort(attempt, 'endPort', $event)"
+                      />
+                    </template>
+                  </template>
+                </div>
+                <div class="settings__attempt-actions">
+                  <UiButton
+                    variant="ghost"
+                    size="small"
+                    :disabled="index === 0"
+                    @click="moveAttempt(index, -1)"
+                  >
+                    {{ t("common.moveUp") }}
+                  </UiButton>
+                  <UiButton
+                    variant="ghost"
+                    size="small"
+                    :disabled="index === attempts.length - 1"
+                    @click="moveAttempt(index, 1)"
+                  >
+                    {{ t("common.moveDown") }}
+                  </UiButton>
+                  <UiButton variant="ghost" size="small" @click="attempts.splice(index, 1)">
+                    {{ t("common.remove") }}
+                  </UiButton>
+                </div>
+              </li>
+            </ol>
+            <p v-if="settingsError" class="settings__error settings__error--block">
+              {{ settingsError }}
+            </p>
           </section>
 
           <section
@@ -481,6 +632,81 @@ function onTabKeydown(event: KeyboardEvent): void {
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-sm);
+}
+
+.settings__attempt-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) 0 var(--space-2);
+}
+
+.settings__attempt-heading h2,
+.settings__attempt-heading p {
+  margin: 0;
+}
+
+.settings__attempt-heading h2 {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.settings__attempt-heading p {
+  margin-top: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.settings__attempts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings__attempt {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-input);
+}
+
+.settings__attempt-index {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.settings__attempt-fields {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.settings__attempt-fields > :first-child {
+  grid-column: 1 / -1;
+}
+
+.settings__attempt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.settings__error--block {
+  display: block;
+  margin-top: var(--space-2);
 }
 
 @media (max-width: 40rem) {
