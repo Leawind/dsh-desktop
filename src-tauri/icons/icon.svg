@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="DSH Desktop">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6d86ff" />
+      <stop offset="1" stop-color="#405be0" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#background)" />
+  <path
+    fill="#fff"
+    d="M132 145h112c91 0 145 42 145 111s-54 111-145 111H132V145Zm77 61v100h38c40 0 63-18 63-50s-23-50-63-50h-38Z"
+  />
+</svg>

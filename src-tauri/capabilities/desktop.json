@@ -3,5 +3,12 @@
   "identifier": "desktop",
   "description": "Permissions for the trusted DSH Desktop top-level window.",
   "windows": ["main", "dsh-*"],
-  "permissions": ["core:default", "core:window:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "core:window:allow-is-maximized",
+    "core:window:allow-minimize",
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize"
+  ]
 }
