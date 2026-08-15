@@ -1,0 +1,31 @@
+# IDE
+.idea/
+.vscode/
+.vs/
+
+# npm
+node_modules/
+
+# AI tools
+/.ai/
+.agents/
+.claude/
+.clinerules/
+.codebuddy/
+.codex/
+.cursorrules/
+.kilo/
+.kilocode/
+.lingma/
+.marscode/
+.mimocode/
+.opencode/
+.qoder/
+.trae/
+
+AGENTS-*.md
+
+# dotenv
+.env
+.env.*
+!.env.example
