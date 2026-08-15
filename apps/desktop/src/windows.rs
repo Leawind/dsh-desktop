@@ -21,6 +21,8 @@ pub fn create(app: &AppHandle) -> AppResult<String> {
         .title_bar_style(TitleBarStyle::Overlay);
     #[cfg(not(target_os = "macos"))]
     let builder = builder.decorations(false);
+    #[cfg(target_os = "windows")]
+    let builder = builder.additional_browser_args(crate::direct_network::WINDOWS_BROWSER_ARGS);
     builder
         .build()
         .map_err(|error| AppError::new("window.error.createFailed").technical(error.to_string()))?;

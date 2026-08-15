@@ -55,7 +55,7 @@ impl ManagedService {
 }
 
 pub fn probe(url: &str) -> ProbeResult {
-    let client = match Client::builder().timeout(PROBE_TIMEOUT).build() {
+    let client = match Client::builder().no_proxy().timeout(PROBE_TIMEOUT).build() {
         Ok(client) => client,
         Err(_) => return ProbeResult::Unreachable,
     };
@@ -107,6 +107,8 @@ pub fn start(executable_setting: Option<&str>, port: u16) -> AppResult<ManagedSe
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    #[cfg(target_os = "linux")]
+    crate::direct_network::restore_child_proxy_environment(&mut command);
     if let Some(runtime_path) = runtime_path.as_ref() {
         command.env("PATH", runtime_path);
     }

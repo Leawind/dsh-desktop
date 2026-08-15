@@ -1,4 +1,5 @@
 mod commands;
+mod direct_network;
 mod endpoint;
 mod error;
 mod model;
@@ -13,6 +14,8 @@ use state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    direct_network::configure_process();
+
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Err(error) = windows::create(app) {

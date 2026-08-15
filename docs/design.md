@@ -151,6 +151,29 @@ type ServiceStatus =
 3. HTTP 页面能够访问；
 4. 启动过程未超过超时时间。
 
+### 网络与代理策略
+
+DSH Desktop 将桌面壳自身的连接与 DSH 服务进程的连接分开处理。
+
+桌面壳直接连接目标地址，不使用系统代理。这一规则适用于：
+
+- 开发模式下 WebView 加载本地 Vite 服务；
+- WebView 中的 DSH iframe；
+- Rust Host 对 DSH URL 的存活探测和类型识别；
+- 用户为窗口配置的远程 DSH URL。
+
+回环地址是否直连不依赖操作系统代理设置中的 localhost 忽略列表。这样，`127.0.0.1`、`localhost` 和 IPv6 回环地址不会因用户开启系统代理而被发送到代理服务器。
+
+Managed Process 使用另一条环境边界。应用启动时保存原有代理环境，配置桌面 WebView 直连；创建 DSH 子进程时恢复原值。DSH 因此仍可使用用户配置的 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、`NO_PROXY` 及对应的小写变量访问模型服务和其他外部资源。外部 DSH 进程的代理环境不受应用影响。
+
+各平台的实现如下：
+
+- Linux：在 WebKitGTK 创建首个 WebView 前选择 GIO 的 `environment` proxy resolver，并从桌面进程环境中移除标准代理变量；启动 Managed Process 时恢复这些变量；
+- Windows：主窗口和动态创建的窗口都向 WebView2 传入 `--no-proxy-server`；DSH 子进程自然继承原有环境；
+- macOS：Rust Host 的 DSH 探测直接连接，WKWebView 当前遵循 macOS 的平台网络策略。macOS 发布验证包含开启系统代理时的本地开发入口、回环 DSH iframe 和自定义远程 URL 测试。
+
+WebKitGTK 和 WebView2 的平台开关分别参考 [WebKitGTK network proxy settings](https://webkitgtk.org/reference/webkit2gtk/2.40.4/method.WebContext.set_network_proxy_settings.html) 和 [WebView2 browser flags](https://learn.microsoft.com/microsoft-edge/webview2/concepts/webview-features-flags)。
+
 ### 进程所有权与生命周期
 
 端点的身份与进程所有权分开记录：
