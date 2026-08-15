@@ -11,34 +11,21 @@
     "dev": "tauri dev",
     "build": "tauri build --no-bundle",
     "check": "pnpm run format-check && pnpm run frontend:lint && pnpm run frontend:test && pnpm run frontend:build && pnpm run rust:test",
-    "format": "pnpm run frontend:format && pnpm run rust:format",
-    "format-check": "pnpm run frontend:format-check && pnpm run rust:format-check",
-    "frontend:dev": "vite",
-    "frontend:build": "pnpm run frontend:typecheck && vite build",
-    "frontend:format": "prettier --write .github index.html package.json src src-tauri/capabilities src-tauri/*.json tsconfig.json vite.config.ts",
-    "frontend:format-check": "prettier --check .github index.html package.json src src-tauri/capabilities src-tauri/*.json tsconfig.json vite.config.ts",
-    "frontend:lint": "oxlint src vite.config.ts",
-    "frontend:test": "vitest run",
-    "frontend:typecheck": "vue-tsc --noEmit",
+    "format": "prettier --write .github .oxlintrc.json .prettierrc.json package.json pnpm-workspace.yaml apps/frontend packages/ui src-tauri/capabilities src-tauri/*.json && pnpm run rust:format",
+    "format-check": "prettier --check .github .oxlintrc.json .prettierrc.json package.json pnpm-workspace.yaml apps/frontend packages/ui src-tauri/capabilities src-tauri/*.json && pnpm run rust:format-check",
+    "frontend:dev": "pnpm --filter @dsh-desktop/frontend run dev",
+    "frontend:build": "pnpm --filter @dsh-desktop/frontend run build",
+    "frontend:format": "pnpm --filter @dsh-desktop/frontend run format && pnpm --filter @dsh-desktop/ui run format",
+    "frontend:format-check": "pnpm --filter @dsh-desktop/frontend run format-check && pnpm --filter @dsh-desktop/ui run format-check",
+    "frontend:lint": "pnpm --filter @dsh-desktop/frontend run lint && pnpm --filter @dsh-desktop/ui run lint",
+    "frontend:test": "pnpm --filter @dsh-desktop/frontend run test",
+    "frontend:typecheck": "pnpm --filter @dsh-desktop/ui run typecheck && pnpm --filter @dsh-desktop/frontend run typecheck",
     "rust:format": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "rust:format-check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
     "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
-  "dependencies": {
-    "@tauri-apps/api": "^2.11.1",
-    "vue": "^3.5.40",
-    "vue-i18n": "^11.4.8"
-  },
   "devDependencies": {
-    "@intlify/unplugin-vue-i18n": "^11.2.4",
     "@tauri-apps/cli": "^2.11.4",
-    "@types/node": "^24.0.0",
-    "@vitejs/plugin-vue": "^6.0.8",
-    "oxlint": "^1.76.0",
-    "prettier": "^3.9.6",
-    "typescript": "^6.0.3",
-    "vite": "^8.1.5",
-    "vitest": "^4.1.10",
-    "vue-tsc": "^3.3.9"
+    "prettier": "^3.9.6"
   }
 }

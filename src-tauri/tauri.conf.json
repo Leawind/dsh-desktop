@@ -7,7 +7,7 @@
     "beforeDevCommand": "pnpm run frontend:dev",
     "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": "pnpm run frontend:build",
-    "frontendDist": "../dist"
+    "frontendDist": "../apps/frontend/dist"
   },
   "app": {
     "windows": [

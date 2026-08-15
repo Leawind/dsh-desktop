@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 
+import { UiButton } from "@dsh-desktop/ui";
+
 import { desktopBridge } from "@/bridge/desktop";
-import { UiButton } from "@/ui";
 
 defineEmits<{
   settings: [];

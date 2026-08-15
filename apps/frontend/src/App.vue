@@ -2,11 +2,12 @@
 import { onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 
+import { UiButton, UiStatus } from "@dsh-desktop/ui";
+
 import { useDesktopApp } from "@/composables/useDesktopApp";
 import DshFrame from "@/features/dsh-frame/DshFrame.vue";
 import SettingsOverlay from "@/features/settings/SettingsOverlay.vue";
 import AppTitlebar from "@/features/titlebar/AppTitlebar.vue";
-import { UiButton, UiStatus } from "@/ui";
 
 const { t } = useI18n();
 const desktop = useDesktopApp();

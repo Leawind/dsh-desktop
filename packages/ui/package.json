@@ -1,0 +1,30 @@
+{
+  "name": "@dsh-desktop/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles": "./src/styles/index.css"
+  },
+  "sideEffects": [
+    "./src/styles/*.css"
+  ],
+  "scripts": {
+    "format": "prettier --write .",
+    "format-check": "prettier --check .",
+    "lint": "oxlint src",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.40"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.8",
+    "oxlint": "^1.76.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vue": "^3.5.40",
+    "vue-tsc": "^3.3.9"
+  }
+}

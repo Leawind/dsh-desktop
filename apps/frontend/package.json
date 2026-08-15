@@ -1,0 +1,32 @@
+{
+  "name": "@dsh-desktop/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "pnpm run typecheck && vite build",
+    "format": "prettier --write .",
+    "format-check": "prettier --check .",
+    "lint": "oxlint src vite.config.ts",
+    "test": "vitest run",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@dsh-desktop/ui": "workspace:*",
+    "@tauri-apps/api": "^2.11.1",
+    "vue": "^3.5.40",
+    "vue-i18n": "^11.4.8"
+  },
+  "devDependencies": {
+    "@intlify/unplugin-vue-i18n": "^11.2.4",
+    "@types/node": "^24.0.0",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "oxlint": "^1.76.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.3.9"
+  }
+}

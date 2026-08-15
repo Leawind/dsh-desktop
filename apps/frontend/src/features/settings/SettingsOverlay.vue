@@ -2,9 +2,10 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
+import { UiButton, UiField, UiInput, UiSelect, UiStatus } from "@dsh-desktop/ui";
+
 import { desktopBridge } from "@/bridge/desktop";
 import type { AppLocale, GlobalSettings, HostSnapshot } from "@/types/desktop";
-import { UiButton, UiField, UiInput, UiSelect, UiStatus } from "@/ui";
 
 const props = defineProps<{
   currentUrl: string;
