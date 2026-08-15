@@ -1,86 +1,30 @@
 # DSH Desktop
 
-DSH Desktop 是基于 Tauri 和 Vue 3 的 DeepSeek Harness 桌面客户端。应用可以复用默认端口上已经运行的 DSH，也可以通过系统中安装的 `dsh` 命令启动本地服务。
+> [!IMPORTANT]
+>
+> 本项目由社区开发，并非 DeepSeek 官方项目，也未获得 DeepSeek 的官方认可或背书。
 
-当前实现包括：
+DSH Desktop 是面向 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 的跨平台桌面客户端。它会自动启动或连接现有的本地 DSH Web 服务，你可以像使用普通桌面应用一样打开 DSH，而不必手动输入命令。
 
-- 单个 Host 进程管理多个应用窗口；
-- 自定义标题栏和常驻的 DSH iframe；
-- 当前窗口 URL 设置和全局默认端口设置；
-- 系统 `dsh` 探测、启动、进程所有权和退出清理；
-- `zh-CN` 和 `en-US` 界面语言；
-- Vue 3 内部 UI 组件层及与 DSH 对齐的设计 token。
+DSH Desktop 使用 Tauri/Rust + Vue 3 开发。Host 负责窗口、全局设置和 DSH 服务管理，Vue 前端提供桌面界面，并通过 `<iframe>` 显示 DSH Web 界面。
 
-详细设计见[设计文档](./docs/design.md)，DSH 的客观背景信息见[参考资料](./docs/refer.md)。
+## 功能
 
-## 仓库结构
+- 支持 Windows、Linux 和 macOS
+- 启动时自动连接默认端口上的 DSH；服务不存在时通过系统中的 `dsh` 命令启动它
+- 在同一个应用进程中打开多个窗口，并尽可能复用同一个本地 DSH 服务
+- 为每个窗口单独设置 DSH URL，也可以连接远程 DSH 服务
+- 在应用内查看 DSH 服务状态，配置默认端口和 `dsh` 可执行文件
+- 提供中英界面
 
-```text
-apps/
-├── desktop/   Tauri 配置、Rust Host 与桌面应用构建入口
-└── frontend/  Vue 3 应用界面与 Vite 构建入口
-packages/
-└── ui/        可复用的 Vue 组件与设计 token
-```
+## 安装
 
-根目录的 `package.json` 和 `pnpm-workspace.yaml` 负责工作区编排，并为本地开发与 CI 提供统一命令。应用专用界面保留在 `apps/frontend`，不含 DSH Desktop 业务逻辑的通用界面能力放在 `packages/ui`。
-
-## 开发环境
-
-需要安装：
-
-- Node.js 22.19.0 或更高版本；
-- pnpm 11.21.0；
-- Rust 工具链；
-- Tauri 对应平台的系统依赖；
-- 可以运行的 `dsh` 命令。
-
-Debian 或 Ubuntu 上可以安装 Tauri 的 Linux 开发依赖：
+当前版本需要系统中存在可用的 `dsh` 命令。可以通过 npm 全局安装 DSH：
 
 ```sh
-sudo apt install libwebkit2gtk-4.1-dev \
-  build-essential \
-  curl \
-  wget \
-  file \
-  libxdo-dev \
-  libssl-dev \
-  libayatana-appindicator3-dev \
-  librsvg2-dev
+npm install -g @deepseek-ai/dsh
 ```
 
-安装项目依赖并启动开发版本：
+DSH 仍处于开发预览阶段，安装和配置方式以其[官方文档](https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md)为准。
 
-```sh
-pnpm install
-pnpm run dev
-```
-
-应用默认连接 `http://127.0.0.1:3080`。也可以在全局设置中指定 `dsh` 可执行文件的绝对路径。
-
-DSH Desktop 自身的 WebView 和 DSH 可达性探测直接连接目标地址，不要求在系统代理中额外配置 localhost 忽略规则。应用启动的 DSH 子进程仍继承原有代理环境，因此 DSH 访问模型服务时可以继续使用用户配置的代理。具体的平台实现和边界见[网络与代理策略](./docs/design.md#网络与代理策略)。
-
-## 检查
-
-运行与 CI 相同的全部格式检查、静态检查、测试、类型检查和前端生产构建：
-
-```sh
-pnpm run check
-```
-
-也可以分别执行具体检查：
-
-```sh
-pnpm run format-check
-pnpm run frontend:lint
-pnpm run frontend:test
-pnpm run rust:test
-```
-
-构建当前平台支持的桌面安装包：
-
-```sh
-pnpm run build
-```
-
-Tauri 会在 Cargo target 目录的 `release/bundle/` 下按当前操作系统生成安装文件。未自定义 Cargo target 目录时，本项目的默认位置是 `apps/desktop/target/release/bundle/`；设置了 `CARGO_TARGET_DIR` 或 Cargo 全局 target 目录时，产物随之移动。Linux 构建生成 DEB、RPM 和 AppImage，Windows 与 macOS 构建分别生成其平台支持的安装包；不同操作系统的安装包需要在对应平台上构建。
+DSH Desktop 目前尚未发布稳定安装包。希望试用当前版本时，可以按照[贡献指南](./CONTRIBUTING.md#构建安装包)从源码构建当前平台的安装文件。
