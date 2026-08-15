@@ -5,6 +5,17 @@
 
 # npm
 node_modules/
+dist/
+
+# Rust
+target/
+src-tauri/target/
+
+# Tauri
+src-tauri/gen/
+
+# Test output
+coverage/
 
 # AI tools
 /.ai/

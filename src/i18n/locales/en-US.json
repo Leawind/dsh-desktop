@@ -1,0 +1,9 @@
+{
+  "app": {
+    "name": "DSH Desktop",
+    "initializing": "Preparing the DSH desktop environment…"
+  },
+  "common": {
+    "settings": "Settings"
+  }
+}

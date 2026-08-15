@@ -1,0 +1,9 @@
+{
+  "app": {
+    "name": "DSH Desktop",
+    "initializing": "正在准备 DSH 桌面环境…"
+  },
+  "common": {
+    "settings": "设置"
+  }
+}
