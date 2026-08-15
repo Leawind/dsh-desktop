@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::env;
-use std::io::{BufRead, BufReader};
+use std::ffi::{OsStr, OsString};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -13,7 +14,9 @@ use crate::error::{AppError, AppResult};
 
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+const SHELL_PATH_TIMEOUT: Duration = Duration::from_secs(3);
 const MAX_LOG_LINES: usize = 400;
+const PATH_MARKER: &str = "__DSH_DESKTOP_PATH__";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProbeResult {
@@ -73,19 +76,23 @@ pub fn probe(url: &str) -> ProbeResult {
 }
 
 pub fn start(executable_setting: Option<&str>, port: u16) -> AppResult<ManagedService> {
-    let executable = resolve_executable(executable_setting)?;
-    let runtime_version = read_version(&executable)?;
-    let mut child = Command::new(&executable)
+    let runtime_path = effective_path();
+    let executable = resolve_executable(executable_setting, runtime_path.as_deref())?;
+    let runtime_version = read_version(&executable, runtime_path.as_deref())?;
+    let mut command = Command::new(&executable);
+    command
         .args(["web", "--host", "127.0.0.1", "--port", &port.to_string()])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| {
-            AppError::new("service.error.startFailed")
-                .arg("executable", executable.display().to_string())
-                .technical(error.to_string())
-        })?;
+        .stderr(Stdio::piped());
+    if let Some(runtime_path) = runtime_path.as_ref() {
+        command.env("PATH", runtime_path);
+    }
+    let mut child = command.spawn().map_err(|error| {
+        AppError::new("service.error.startFailed")
+            .arg("executable", executable.display().to_string())
+            .technical(error.to_string())
+    })?;
 
     let logs = Arc::new(Mutex::new(VecDeque::new()));
     if let Some(stdout) = child.stdout.take() {
@@ -161,14 +168,15 @@ fn recent_logs(logs: &Arc<Mutex<VecDeque<String>>>) -> String {
         .unwrap_or_default()
 }
 
-fn read_version(executable: &Path) -> AppResult<String> {
-    let output = Command::new(executable)
-        .arg("--version")
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|error| {
-            AppError::new("service.error.invalidExecutable").technical(error.to_string())
-        })?;
+fn read_version(executable: &Path, runtime_path: Option<&OsStr>) -> AppResult<String> {
+    let mut command = Command::new(executable);
+    command.arg("--version").stdin(Stdio::null());
+    if let Some(runtime_path) = runtime_path {
+        command.env("PATH", runtime_path);
+    }
+    let output = command.output().map_err(|error| {
+        AppError::new("service.error.invalidExecutable").technical(error.to_string())
+    })?;
     if !output.status.success() {
         return Err(AppError::new("service.error.invalidExecutable")
             .technical(String::from_utf8_lossy(&output.stderr)));
@@ -176,7 +184,7 @@ fn read_version(executable: &Path) -> AppResult<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
-fn resolve_executable(setting: Option<&str>) -> AppResult<PathBuf> {
+fn resolve_executable(setting: Option<&str>, runtime_path: Option<&OsStr>) -> AppResult<PathBuf> {
     if let Some(setting) = setting {
         let path = PathBuf::from(setting);
         if path.is_file() {
@@ -187,16 +195,64 @@ fn resolve_executable(setting: Option<&str>) -> AppResult<PathBuf> {
         );
     }
 
-    find_on_path("dsh").ok_or_else(|| AppError::new("service.error.executableNotFound"))
+    runtime_path
+        .and_then(|path| find_on_path("dsh", path))
+        .ok_or_else(|| AppError::new("service.error.executableNotFound"))
 }
 
-fn find_on_path(command: &str) -> Option<PathBuf> {
-    let path = env::var_os("PATH")?;
+fn find_on_path(command: &str, path: &OsStr) -> Option<PathBuf> {
     let candidates = executable_names(command);
-    env::split_paths(&path)
+    env::split_paths(path)
         .flat_map(|directory| candidates.iter().map(move |name| directory.join(name)))
         .find(|candidate| candidate.is_file())
         .map(|path| path.canonicalize().unwrap_or(path))
+}
+
+fn effective_path() -> Option<OsString> {
+    shell_path().or_else(|| env::var_os("PATH"))
+}
+
+#[cfg(windows)]
+fn shell_path() -> Option<OsString> {
+    None
+}
+
+#[cfg(unix)]
+fn shell_path() -> Option<OsString> {
+    let shell = env::var_os("SHELL").unwrap_or_else(|| OsString::from("/bin/sh"));
+    let mut child = Command::new(shell)
+        .args(["-ilc", "printf '\\n__DSH_DESKTOP_PATH__%s\\n' \"$PATH\""])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let started_at = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => break,
+            Ok(Some(_)) | Err(_) => return None,
+            Ok(None) if started_at.elapsed() < SHELL_PATH_TIMEOUT => {
+                thread::sleep(Duration::from_millis(25));
+            }
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+    }
+    let mut output = String::new();
+    child.stdout.take()?.read_to_string(&mut output).ok()?;
+    extract_marked_path(&output).map(OsString::from)
+}
+
+fn extract_marked_path(output: &str) -> Option<&str> {
+    output
+        .lines()
+        .rev()
+        .find_map(|line| line.strip_prefix(PATH_MARKER))
+        .filter(|path| !path.is_empty())
 }
 
 #[cfg(windows)]
@@ -211,4 +267,15 @@ fn executable_names(command: &str) -> Vec<String> {
 #[cfg(not(windows))]
 fn executable_names(command: &str) -> Vec<String> {
     vec![command.to_owned()]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_marked_path;
+
+    #[test]
+    fn extracts_path_after_shell_startup_output() {
+        let output = "shell banner\n__DSH_DESKTOP_PATH__/usr/local/bin:/usr/bin\n";
+        assert_eq!(extract_marked_path(output), Some("/usr/local/bin:/usr/bin"));
+    }
 }
