@@ -26,6 +26,10 @@ jobs:
         with:
           components: rustfmt
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
       - name: Install Tauri system dependencies
         run: |
           sudo apt-get update
