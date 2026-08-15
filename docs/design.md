@@ -24,9 +24,16 @@ DSH Desktop 面向以下桌面平台发布：
 - Linux；
 - macOS。
 
-各平台安装包包含 Tauri 应用和运行 DSH 所需的 Node.js 运行时。默认使用由应用管理的 DSH，不要求用户预先安装 Node.js、npm 或 `dsh` 命令。
+每个平台同时发布两种发行变体：
 
-应用同时支持使用系统中已经安装的 `dsh`，并允许只连接已有 DSH 服务。
+| 变体      | 内容                                        | 适用场景                                                     |
+| --------- | ------------------------------------------- | ------------------------------------------------------------ |
+| `bundled` | Tauri 应用、Node.js、DSH、pnpm 和运行时清单 | 安装后直接使用，不要求用户另外安装或下载运行环境             |
+| `slim`    | Tauri 应用                                  | 使用系统 `PATH` 中的 DSH、用户指定的 DSH，或者只连接已有服务 |
+
+两种变体提供相同的桌面功能。`bundled` 是面向多数用户的推荐下载，`slim` 提供更小的安装包。发行变体是构建产物的固有能力，不是可以在运行时修改的全局设置。
+
+两个变体使用相同的应用版本号，通过安装包文件名中的 `bundled` 或 `slim` 后缀区分。应用更新保持当前发行变体，不在自动更新过程中切换到另一变体。
 
 ## 总体架构
 
@@ -39,8 +46,8 @@ DSH Desktop Host
 │   ├── Window B ──→ http://127.0.0.1:3080
 │   └── Window C ──→ https://dsh.example.com
 ├── Endpoint Registry
-│   ├── http://127.0.0.1:3080 ──→ Managed Process
-│   └── https://dsh.example.com ──→ External
+│   ├── https://dsh.example.com ──→ External
+│   └── http://127.0.0.1:3080 ──→ Managed Process
 ├── Runtime Registry
 │   ├── DSH Runtime 0.1.0-rc.6
 │   └── DSH Runtime 0.1.0-rc.7
@@ -49,14 +56,14 @@ DSH Desktop Host
 
 核心对象如下：
 
-| 对象 | 职责 |
-| --- | --- |
-| Desktop Host | 保存全局状态，管理窗口、服务、运行时和更新 |
-| App Window | 承载自定义标题栏、设置界面和一个 DSH iframe |
-| Service Endpoint | 一个由规范化 URL 识别的 DSH 连接目标 |
-| Managed Process | 由 Desktop Host 启动并仍持有进程所有权的本地 `dsh web` 进程 |
-| DSH Runtime | 一个已安装、经过验证且可以独立启动的确切 DSH 版本 |
-| DSH Home | 一个 Managed Process 使用的配置、凭据、插件和会话数据目录 |
+| 对象             | 职责                                                        |
+| ---------------- | ----------------------------------------------------------- |
+| Desktop Host     | 保存全局状态，管理窗口、服务、运行时和更新                  |
+| App Window       | 承载自定义标题栏、设置界面和一个 DSH iframe                 |
+| Service Endpoint | Endpoint Registry 中由规范化 URL 识别的运行时连接目标       |
+| Managed Process  | 由 Desktop Host 启动并仍持有进程所有权的本地 `dsh web` 进程 |
+| DSH Runtime      | 一个已安装、经过验证且可以独立启动的确切 DSH 版本           |
+| DSH Home         | 一个 Managed Process 使用的配置、凭据、插件和会话数据目录   |
 
 ## 应用实例与窗口
 
@@ -76,13 +83,7 @@ DSH Desktop 使用单进程、多窗口模型。
 
 ## 窗口连接目标
 
-每个窗口直接保存一个规范化后的 DSH URL：
-
-```ts
-type WindowTarget = {
-  url: string;
-};
-```
+每个窗口直接保存一个规范化后的 DSH URL。
 
 用户可以为特定窗口输入和保存自定义 URL，例如：
 
@@ -96,53 +97,87 @@ https://dsh.example.com
 
 不同 URL 即使最终指向同一个 DSH 进程，也作为不同端点保存。应用不扫描或推断外部服务背后的进程关系。
 
+窗口在创建时获得一个连接目标。服务停止或暂时不可访问时，窗口保留当前 URL 并显示连接状态，不自动切换到其他服务。用户可以在当前窗口设置中显式输入新 URL、选择 Endpoint Registry 中最近连接的服务，或者要求 Host 重新执行窗口启动策略；切换成功后，Host 更新窗口与端点的关联。
+
 ## DSH 服务管理
 
-### 全局默认端口
+### DSH 原子来源
 
-全局设置保存由应用启动的 DSH 服务的默认端口号。默认端点由回环地址和该端口构造：
+全局设置保存启动新 DSH 进程时使用的唯一来源：
 
-```text
-defaultDshPort = 3080
-defaultDshUrl = http://127.0.0.1:3080
-```
+| 来源       | 含义                                       |
+| ---------- | ------------------------------------------ |
+| `none`     | 不启动 DSH 进程，只连接已有服务            |
+| `built-in` | 使用并管理 `bundled` 发行变体附带的 DSH    |
+| `system`   | 从 Desktop Host 的有效 `PATH` 中查找 `dsh` |
+| `custom`   | 使用用户指定的 DSH 可执行文件或启动脚本    |
 
-修改默认端口只影响之后创建的窗口和之后启动的默认服务，已打开窗口保持当前 URL。
+`bundled` 支持全部来源；`slim` 不提供 `built-in`。设置界面根据发行变体展示可用来源。读取到当前变体不支持的持久化来源时，Host 保留该设置并要求用户重新选择，不静默切换来源。
+
+首次运行时，`bundled` 默认选择 `built-in`，`slim` 默认选择 `system`。
+
+来源是原子选择，不构成自动回退链。`system` 或 `custom` 无法解析、验证或启动时，本次启动尝试失败。已在运行的服务不因全局来源发生变化而被替换；新来源在下一次启动服务或用户显式重启服务时生效。
+
+### 窗口启动尝试
+
+全局设置保存一个有序的窗口启动尝试列表：
+
+尝试按列表顺序执行，第一个成功结果成为窗口连接目标：
+
+| 尝试             | 行为                                                            | 是否使用 DSH 来源 |
+| ---------------- | --------------------------------------------------------------- | ----------------- |
+| `known-services` | 从 Endpoint Registry 中选择第一个最近成功连接且当前可访问的 DSH | 否                |
+| `connect-fixed`  | 连接 `http://<host>:<port>`，不启动进程                         | 否                |
+| `start-fixed`    | 在指定回环地址和端口启动新的 DSH；端口被占用时失败              | 是                |
+| `start-range`    | 按端口从小到大依次尝试启动新的 DSH                              | 是                |
+
+当前 DSH Web CLI 只用于启动绑定 `127.0.0.1` 的 Managed Process。`connect-fixed` 可以连接用户明确配置的其他 IP 地址；域名、HTTPS 和带路径的目标由窗口自定义 URL 与 Endpoint Registry 承载。
+
+`start-fixed` 不复用端口上已有的 DSH，因为复用行为属于 `known-services` 和 `connect-fixed`。`start-range` 不先扫描再选择端口，而是按顺序直接尝试启动，端口冲突后继续下一个候选，避免检查与启动之间的端口竞争。
+
+默认的 `bundled` 策略依次尝试已知服务、连接 `127.0.0.1:3080`、在 `127.0.0.1:3080` 启动服务，最后在 `3081` 至 `3090` 范围内启动服务。
+
+`none` 不影响连接类尝试；启动类尝试遇到 `none` 时以“未配置 DSH 启动来源”失败，并继续执行后续尝试。
+
+### Endpoint Registry 与已知服务
+
+Host 在内存中维护唯一的 Endpoint Registry，不另外保存已知服务列表。注册表以规范化 URL 为键，记录端点状态、进程所有权、关联窗口以及最近一次成功连接的顺序。
+
+任一窗口成功连接端点后，Host 将对应端点标记为已知，并提升到最近成功连接顺序的开头。`known-services` 从该注册表派生候选项，按最近成功连接顺序探测并返回第一个可用服务。一次临时失败不会改变顺序。
+
+Endpoint Registry 只在当前 Host 进程生命周期内存在，不持久化到文件。Host 启动时注册表为空；Host 退出后，最近成功连接顺序随之清空。没有关联窗口的已知外部端点可以保留到当前 Host 退出，以供之后创建的窗口复用。
 
 ### 新窗口启动流程
 
-在没有显式指定自定义 URL 时，Host 按以下流程创建窗口：
+没有显式连接目标的新窗口按以下流程启动：
 
-1. 读取全局默认端口并构造默认 URL；
-2. 检查该 URL 是否有可访问的 DSH 服务；
-3. DSH 可访问时直接创建连接该 URL 的窗口；
-4. DSH 不可访问时，获取该 URL 对应的全局启动锁；
-5. 获得锁后再次检查 URL；
-6. 仍无 DSH 时，在默认端口启动 `dsh web`；
-7. 等待服务可访问，然后将窗口连接到默认 URL。
+1. Host 获取窗口服务分配锁，串行化并发的新窗口启动；
+2. 依次执行全局窗口启动尝试；
+3. 连接类尝试探测目标是否为可访问的 DSH；
+4. 启动类尝试按全局 DSH 来源解析并验证启动命令；
+5. 第一个成功尝试返回规范化 URL，Host 将其分配给窗口并更新 Endpoint Registry 的最近成功连接顺序；
+6. 所有尝试失败时，窗口显示每项尝试及其结构化失败原因。
 
-启动锁的键是规范化 URL，用于防止多个窗口重复启动同一端口的 DSH。
+一次启动流程只解析一次 DSH 来源。来源解析失败时，所有依赖该来源的启动类尝试记录相应错误，列表中后续的连接类尝试仍可继续执行。
 
-检查结果分为：
+失败原因至少区分：Endpoint Registry 中没有已知服务、已知服务均不可用、连接目标不可访问、目标不是 DSH、来源为 `none`、当前变体没有内置运行时、系统 DSH 不存在、自定义路径无效、端口被占用、端口范围耗尽、进程提前退出和启动超时。
 
-- 端口未被占用：可以启动 DSH；
-- 已有 DSH 可访问：直接连接；
-- 端口被其他服务占用：显示端口冲突，由用户修改默认端口或窗口 URL。
+### 窗口连接稳定性
 
-应用不自动切换到随机端口。
+窗口启动策略只在窗口没有连接目标，或者用户明确要求重新执行时运行。窗口对应的服务停止或不可访问时：
+
+- 保留原 URL 和窗口与端点的关联；
+- 显示服务已停止或连接不可用；
+- 可以继续探测并重连同一 URL；
+- 不自动执行启动尝试列表；
+- 不自动连接 Endpoint Registry 中的其他服务；
+- 不自动在其他端口启动服务。
+
+用户可以显式重试当前 URL、重启当前 Managed Process、选择最近连接的服务、输入新 URL，或者重新执行窗口启动策略。手动切换成功后更新窗口关联和 Endpoint Registry 的最近成功连接顺序。旧 Managed Process 是否停止由独立的空闲生命周期策略决定。
 
 ### 连接状态
 
-```ts
-type ServiceStatus =
-  | "unreachable"
-  | "starting"
-  | "running"
-  | "stopping"
-  | "restarting"
-  | "updating"
-  | "failed";
-```
+服务状态区分不可访问、正在启动、运行中、正在停止、正在重启、正在更新和失败。
 
 由应用启动的服务完成就绪需要满足以下条件：
 
@@ -176,13 +211,7 @@ WebKitGTK 和 WebView2 的平台开关分别参考 [WebKitGTK network proxy sett
 
 ### 进程所有权与生命周期
 
-端点的身份与进程所有权分开记录：
-
-```ts
-type EndpointOwnership =
-  | { type: "managed"; processId: string }
-  | { type: "external" };
-```
+端点的身份与进程所有权分开记录，所有权分为 Host 管理的进程和外部服务。
 
 只有 Desktop Host 启动并仍持有有效进程句柄的 DSH 才是 Managed Process。进程所有权决定应用是否可以停止、重启或更新该 DSH，不参与 URL 去重。
 
@@ -241,8 +270,9 @@ ownerNonce
 
 - 查看当前 URL 和连接状态；
 - 修改当前窗口的 DSH URL；
+- 从 Endpoint Registry 中选择最近连接的服务；
+- 显式重新执行窗口启动策略；
 - 重新加载页面或重新连接；
-- 保存和选择常用 URL；
 - 在系统浏览器中打开当前 URL；
 - 复制当前 URL；
 - 当应用拥有目标进程时查看服务日志；
@@ -270,16 +300,18 @@ ownerNonce
 
 ##### 运行时
 
+- 选择 `none`、`built-in`、`system` 或 `custom` DSH 来源；
 - 查看已安装的 DSH 版本；
 - 查看兼容版本和推荐版本；
-- 安装、验证或删除 Managed Runtime；
+- 在 `bundled` 变体中安装、验证或删除内置运行时；
 - 查看各运行时的使用情况和磁盘占用；
-- 配置系统 `dsh` 可执行文件。
+- 查看系统 PATH 解析到的 DSH；
+- 配置自定义 DSH 路径。
 
 ##### 应用设置
 
 - 界面语言；
-- DSH 服务默认端口号；
+- 有序的窗口启动尝试列表及各项参数；
 - DSH 更新通道；
 - 自动检查和自动下载策略；
 - 服务空闲期限；
@@ -293,12 +325,7 @@ ownerNonce
 
 ### 技术栈与编码要求
 
-前端使用 Vue 3、TypeScript 和 Vite 开发，Vue 组件使用 Composition API。单文件组件中的脚本使用：
-
-```vue
-<script setup lang="ts">
-</script>
-```
+前端使用 Vue 3、TypeScript 和 Vite 开发，Vue 组件使用 Composition API。单文件组件使用 TypeScript 编写的 `<script setup>`。
 
 项目自有的前端源码、测试、构建脚本和配置脚本使用 TypeScript，不直接编写 JavaScript 业务脚本。工具链支持 TypeScript 配置时使用 `.ts`；工具强制要求 JavaScript 文件时，该文件只保留必要的声明式配置，不承载业务逻辑。
 
@@ -401,32 +428,21 @@ Managed Process 仅绑定本机回环地址。DSH Desktop 不通过 Managed Proc
 
 ## DSH 运行时
 
-### 运行时来源
+### 内置运行时
 
-```ts
-type RuntimeSource =
-  | { type: "managed"; version: string }
-  | { type: "system"; executable: string };
-```
+`bundled` 发行变体包含对应平台和架构的 Node.js sidecar、初始 DSH、pnpm、运行时清单及第三方许可证。安装后不依赖系统 Node.js、npm、pnpm 或 `dsh`。Host 使用私有 Node.js 直接运行内置 DSH 的 CLI 入口，并为子进程提供只作用于该进程树的运行时 `PATH`。
 
-#### Managed Runtime
+安装包附带的 DSH 是内置运行时的初始版本。Host 将运行时安装到应用数据目录，以确切版本保存、验证和切换；多个 DSH 版本可以并存。更新不修改系统全局 npm 环境，也不修改 `system` 或 `custom` 来源。
 
-Managed Runtime 是默认运行方式：
+`slim` 发行变体不包含或管理内置运行时。它可以使用 `none`、`system` 和 `custom` 来源，并提供与 `bundled` 相同的窗口、连接和服务状态界面。
 
-- 应用捆绑对应平台的 Node.js；
-- DSH 安装在应用数据目录；
-- 多个 DSH 版本可以并存；
-- 安装和更新不修改系统全局 npm 环境；
-- 应用负责版本解析、安装、验证和清理。
+### 系统和自定义运行时
 
-#### System Runtime
+`system` 在每次需要解析启动命令时从有效 `PATH` 查找 `dsh`。Unix 平台优先取得用户登录 Shell 的 PATH，失败时使用 Desktop Host 继承的 PATH；Windows 遵循进程环境和可执行文件扩展规则。Host 记录本次实际解析到的路径和版本，用于运行状态与诊断，不由应用更新或修改该安装。
 
-System Runtime 使用用户指定或应用检测到的 `dsh` 可执行文件：
+`custom` 保存用户配置的可执行文件或启动脚本路径。Host 在使用前验证路径、执行 `--version` 并检查兼容性。自定义来源的安装、依赖和更新由用户负责。
 
-- 保存可执行文件的绝对路径；
-- 启动前读取和验证版本；
-- 可以由应用启动和停止；
-- 不由应用自动更新或修改。
+`system` 和 `custom` 启动的进程在 Host 仍持有进程所有权时也是 Managed Process，因此可以停止和重启；“内置运行时”描述安装与更新所有权，“Managed Process”描述当前进程所有权。
 
 ### 目录结构
 
@@ -437,7 +453,7 @@ app-data/
 │       ├── 0.1.0-rc.6/
 │       └── 0.1.0-rc.7/
 ├── services/
-│   └── default/
+│   └── <service-id>/
 │       ├── service.json
 │       ├── homes/
 │       │   ├── generation-1/
@@ -516,15 +532,17 @@ DSH 版本与其写入的数据格式作为一个可回滚单元管理。
 
 ## 版本兼容性
 
-DSH Desktop 使用远程兼容性清单确定当前应用版本允许使用的 DSH 版本。版本线规则作为附加边界：
+DSH 处于快速迭代阶段，命令行、Web 页面、运行时依赖、嵌入策略和数据格式都可能发生破坏性变化。DSH Desktop 使用远程兼容性清单确定当前应用版本允许使用的 DSH 版本，并以实际验证结果为准。
 
 - DSH major 大于 `0` 时不自动跨 major 更新；
 - DSH major 等于 `0` 时不自动跨 minor 更新；
-- 自动更新必须位于兼容性清单的允许范围内；
+- 预发布版本即使位于同一 minor 版本线，也必须明确加入兼容性清单；
+- 内置运行时的安装和自动更新必须位于兼容性清单的允许范围内；
 - Runtime 安装始终使用确切版本；
-- 手动选择范围外版本时将其标记为未经当前应用版本验证。
+- `system` 和 `custom` 来源的范围外版本标记为未经当前应用版本验证，已知不兼容版本标记为阻止使用；
+- `none` 和外部服务无法取得可靠版本时，通过连接与 iframe 行为验证其可用性，不推断版本。
 
-兼容性判断同时考虑 DSH 版本和应用捆绑的 Node.js 版本。
+兼容性判断同时考虑 DSH 版本和 `bundled` 发行变体捆绑的 Node.js 版本。DSH Desktop 使用的上游行为、破坏影响和验证方式集中记录在 [DSH 兼容性契约](./dsh-compatibility.md) 中。
 
 ## 兼容性清单
 
@@ -537,9 +555,7 @@ DSH Desktop 使用远程兼容性清单确定当前应用版本允许使用的 D
   "apps": {
     "0.1.0": {
       "dsh": {
-        "allowedRanges": [
-          ">=0.1.0-rc.6 <=0.1.0-rc.9"
-        ],
+        "allowedRanges": [">=0.1.0-rc.6 <=0.1.0-rc.9"],
         "recommended": "0.1.0-rc.8",
         "blocked": [
           {
@@ -549,10 +565,7 @@ DSH Desktop 使用远程兼容性清单确定当前应用版本允许使用的 D
         ]
       },
       "node": {
-        "allowedRanges": [
-          "^22.19.0",
-          ">=24.0.0 <25.0.0"
-        ]
+        "allowedRanges": ["^22.19.0", ">=24.0.0 <25.0.0"]
       }
     }
   }
@@ -561,11 +574,11 @@ DSH Desktop 使用远程兼容性清单确定当前应用版本允许使用的 D
 
 字段含义：
 
-| 字段 | 含义 |
-| --- | --- |
+| 字段            | 含义                                           |
+| --------------- | ---------------------------------------------- |
 | `allowedRanges` | 当前应用版本已经验证的 DSH 或 Node.js 版本范围 |
-| `recommended` | 默认提供给用户的 DSH 版本 |
-| `blocked` | 已知不能使用的确切版本及原因 |
+| `recommended`   | 默认提供给用户的 DSH 版本                      |
+| `blocked`       | 已知不能使用的确切版本及原因                   |
 
 应用内置发布时的兼容性清单，并缓存最近一次验证成功的远程清单。读取优先级如下：
 
@@ -612,9 +625,9 @@ Desktop Host 保存每个服务的结构化状态和滚动日志：
 
 DSH Desktop 首期支持以下 locale：
 
-| Locale | 显示名称 |
-| --- | --- |
-| `zh-CN` | 简体中文 |
+| Locale  | 显示名称                |
+| ------- | ----------------------- |
+| `zh-CN` | 简体中文                |
 | `en-US` | English (United States) |
 
 locale 使用 BCP 47 语言标签。全局设置保存用户明确选择的 locale，修改后立即同步到所有已打开窗口，无需重启应用。
@@ -654,15 +667,7 @@ runtime.update.confirm
 
 ### Rust 与前端边界
 
-Rust Host 向前端返回结构化错误代码和参数：
-
-```ts
-type AppError = {
-  code: string;
-  args?: Record<string, string | number>;
-  technicalDetails?: string;
-};
-```
+Rust Host 向前端返回结构化错误代码、插值参数和可选的技术详情。
 
 前端根据 `code` 选择消息键并完成本地化。`technicalDetails`、DSH stdout/stderr 和原始进程错误作为诊断信息保留原文，不作为面向用户的主错误消息。
 
@@ -693,20 +698,23 @@ type AppError = {
 - 建立类型化 Tauri bridge 和基础权限边界；
 - 实现单实例、多窗口和自定义标题栏；
 - 实现 DSH iframe 和当前窗口的 URL 设置；
-- 实现默认端口检查，并通过 System Runtime 启动本地 DSH；
+- 实现已知服务、固定连接、固定端口启动和端口范围启动策略；
+- 实现 `none`、`system` 和 `custom` 来源；
+- 实现窗口连接状态和用户显式切换目标；
 - 实现窗口内设置层和最小全局设置；
 - 实现 `zh-CN` 和 `en-US` 语言资源、locale 切换与回退；
 - 建立 TypeScript、国际化资源、Vue 组件和 Rust 核心逻辑的 CI 检查。
 
-该阶段的完成标准是：用户能够直接启动桌面应用，在默认端口复用或启动系统中的 DSH，并在多个窗口中使用 DSH Web UI。
+该阶段的完成标准是：用户能够按全局启动尝试列表连接或启动系统中的 DSH，在多个窗口中使用 DSH Web UI，并在服务不可用时保持窗口原目标直至用户显式切换。
 
 ### 受管运行时与服务管理
 
-- 随应用提供对应平台的 Node.js；
-- 从 npm 安装和验证确切 DSH 版本；
-- 实现版本隔离的 Managed Runtime 目录；
+- 建立 `bundled` 和 `slim` 两种发行构建；
+- 为 `bundled` 提供对应平台的 Node.js、DSH 和 pnpm；
+- 安装和验证确切 DSH 版本；
+- 实现 `built-in` 来源和版本隔离的内置运行时目录；
 - 实现 DSH Home 与 Runtime 分离；
-- 实现进程所有权、启动锁、停止、重启和空闲回收；
+- 实现进程所有权、窗口服务分配锁、停止、重启和空闲回收；
 - 实现全局窗口、端点、运行时和日志管理；
 - 实现多端点与多 Managed Process。
 
@@ -725,13 +733,13 @@ type AppError = {
 
 ### 跨平台发行与维护
 
-- 生成 Windows、Linux 和 macOS 安装包；
+- 为 Windows、Linux 和 macOS 生成 `bundled` 与 `slim` 安装包；
 - 建立 DSH 和 iframe 的跨平台兼容性测试；
 - 实现 DSH Desktop 应用更新；
 - 完善诊断、故障恢复和日志导出；
 - 验证两种语言、浅色与深色主题、键盘操作和主要界面布局。
 
-该阶段的完成标准是：三个目标平台均能通过安装包完成全新安装、首次启动、DSH 会话、更新和卸载验证。
+该阶段的完成标准是：三个目标平台的两种发行变体均能完成全新安装、首次启动、DSH 会话和卸载验证；`bundled` 额外完成内置 DSH 更新验证。
 
 ### 后续演进：多子 WebView
 
