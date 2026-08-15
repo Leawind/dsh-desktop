@@ -1,7 +1,8 @@
 use std::fs;
-use std::io::Read;
+use std::io::{Error, ErrorKind, Read};
 use std::path::{Component, Path, PathBuf};
 
+use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -23,6 +24,7 @@ struct RuntimeManifest {
     node_executable: String,
     dsh_entrypoint: String,
     pnpm_entrypoint: String,
+    archive: RuntimeFile,
     files: Vec<RuntimeFile>,
 }
 
@@ -121,7 +123,7 @@ impl RuntimeManager {
                 .arg("expected", env!("DSH_DESKTOP_TARGET"))
                 .arg("actual", &manifest.target));
         }
-        self.validate_installation(&self.seed_directory, &manifest)?;
+        self.validate_seed(&manifest)?;
         let installation = self.install_root.join(&manifest.runtime_id);
         if self
             .validate_installation(&installation, &manifest)
@@ -159,7 +161,19 @@ impl RuntimeManager {
         if staging.exists() {
             fs::remove_dir_all(&staging).map_err(runtime_install_error)?;
         }
-        copy_directory(&self.seed_directory, &staging).map_err(runtime_install_error)?;
+        fs::create_dir_all(&staging).map_err(runtime_install_error)?;
+        fs::copy(
+            self.seed_directory.join(MANIFEST_FILE),
+            staging.join(MANIFEST_FILE),
+        )
+        .map_err(runtime_install_error)?;
+        let notices = self.seed_directory.join("THIRD_PARTY_NOTICES.md");
+        if notices.is_file() {
+            fs::copy(notices, staging.join("THIRD_PARTY_NOTICES.md"))
+                .map_err(runtime_install_error)?;
+        }
+        let archive = resolve_manifest_path(&self.seed_directory, &manifest.archive.path)?;
+        extract_payload(&archive, &staging).map_err(runtime_install_error)?;
         self.validate_installation(&staging, manifest)?;
         if installation.exists() {
             fs::remove_dir_all(installation).map_err(runtime_install_error)?;
@@ -174,6 +188,24 @@ impl RuntimeManager {
         serde_json::from_str(&contents).map_err(|error| {
             AppError::new("runtime.error.invalidManifest").technical(error.to_string())
         })
+    }
+
+    fn validate_seed(&self, expected: &RuntimeManifest) -> AppResult<()> {
+        let actual = self.read_manifest(&self.seed_directory)?;
+        if actual != *expected {
+            return Err(AppError::new("runtime.error.invalidManifest"));
+        }
+        let archive = resolve_manifest_path(&self.seed_directory, &actual.archive.path)?;
+        let hash = file_sha256(&archive).map_err(|error| {
+            AppError::new("runtime.error.integrityFailed")
+                .arg("path", actual.archive.path.clone())
+                .technical(error.to_string())
+        })?;
+        if hash != actual.archive.sha256 {
+            return Err(AppError::new("runtime.error.integrityFailed")
+                .arg("path", actual.archive.path.clone()));
+        }
+        Ok(())
     }
 
     fn validate_installation(&self, directory: &Path, expected: &RuntimeManifest) -> AppResult<()> {
@@ -228,16 +260,33 @@ fn file_sha256(path: &Path) -> std::io::Result<String> {
     Ok(format!("{:x}", digest.finalize()))
 }
 
-fn copy_directory(source: &Path, destination: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let destination = destination.join(entry.file_name());
-        if file_type.is_dir() {
-            copy_directory(&entry.path(), &destination)?;
-        } else if file_type.is_file() {
-            fs::copy(entry.path(), destination)?;
+fn extract_payload(source: &Path, destination: &Path) -> std::io::Result<()> {
+    let mut archive = tar::Archive::new(GzDecoder::new(fs::File::open(source)?));
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let entry_type = entry.header().entry_type();
+        if entry_type.is_symlink() || entry_type.is_hard_link() {
+            continue;
+        }
+        if !entry_type.is_dir() && !entry_type.is_file() {
+            continue;
+        }
+        let path = entry.path()?.into_owned();
+        if path
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+            || !path.starts_with("payload")
+        {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "invalid runtime archive path",
+            ));
+        }
+        if !entry.unpack_in(destination)? {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "runtime archive path escaped installation directory",
+            ));
         }
     }
     Ok(())
@@ -281,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    fn copies_and_validates_seed_runtime() {
+    fn extracts_and_validates_archived_runtime() {
         let root = temporary_directory("runtime");
         let seed = root.join("seed");
         let installs = root.join("installs");
@@ -294,6 +343,20 @@ mod tests {
             b"dsh",
         )
         .expect("write fixture");
+        let archive_path = seed.join("payload.tar.gz");
+        let encoder = flate2::write::GzEncoder::new(
+            fs::File::create(&archive_path).expect("create archive"),
+            flate2::Compression::default(),
+        );
+        let mut archive = tar::Builder::new(encoder);
+        archive
+            .append_dir_all("payload", seed.join("payload"))
+            .expect("append fixture");
+        archive
+            .into_inner()
+            .expect("finish tar archive")
+            .finish()
+            .expect("finish gzip stream");
         let manifest = RuntimeManifest {
             schema_version: 1,
             runtime_id: "fixture".to_owned(),
@@ -305,6 +368,10 @@ mod tests {
             node_executable: "payload/node/bin/node".to_owned(),
             dsh_entrypoint: "payload/app/node_modules/@deepseek-ai/dsh/lib/bin.js".to_owned(),
             pnpm_entrypoint: "payload/app/node_modules/pnpm/bin/pnpm.cjs".to_owned(),
+            archive: RuntimeFile {
+                path: "payload.tar.gz".to_owned(),
+                sha256: file_sha256(&archive_path).expect("hash archive"),
+            },
             files: vec![RuntimeFile {
                 path: "payload/node/bin/node".to_owned(),
                 sha256: file_sha256(&seed.join("payload/node/bin/node")).expect("hash fixture"),
@@ -315,6 +382,7 @@ mod tests {
             serde_json::to_vec(&manifest).expect("serialize manifest"),
         )
         .expect("write manifest");
+        fs::remove_dir_all(seed.join("payload")).expect("remove unpacked fixture");
         let manager = RuntimeManager::for_test(DistributionVariant::Bundled, seed, installs);
         let runtime = manager.resolve_built_in().expect("install runtime");
         assert_eq!(runtime.dsh_version, "0.1.0");

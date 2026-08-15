@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createReadStream, createWriteStream } from "node:fs";
 import {
   chmod,
   cp,
@@ -15,6 +16,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { pipeline } from "node:stream/promises";
+import { constants as zlibConstants, createGzip } from "node:zlib";
 
 type Platform = "linux" | "darwin" | "win32";
 type Architecture = "x64" | "arm64";
@@ -46,6 +49,7 @@ interface RuntimeManifest {
   dshVersion: string;
   pnpmVersion: string;
   definitionSha256: string;
+  archive: RuntimeFile;
   files: RuntimeFile[];
 }
 
@@ -166,10 +170,7 @@ async function runtimeIsCurrent(
     ) {
       return false;
     }
-    const results = await Promise.all(
-      manifest.files.map(async (file) => (await sha256(join(output, file.path))) === file.sha256),
-    );
-    return results.every(Boolean);
+    return (await sha256(join(output, manifest.archive.path))) === manifest.archive.sha256;
   } catch {
     return false;
   }
@@ -224,6 +225,40 @@ async function collectPackageNotices(root: string): Promise<PackageNotice[]> {
   }
   return [...notices.values()].toSorted((left, right) =>
     `${left.name}@${left.version}`.localeCompare(`${right.name}@${right.version}`),
+  );
+}
+
+async function pruneIncompatibleLinuxNativeArtifacts(
+  appDirectory: string,
+  target: RuntimeTarget,
+): Promise<void> {
+  if (target.platform !== "linux") return;
+
+  const koffiPackages = join(appDirectory, "node_modules", "@koromix");
+  let packages;
+  try {
+    packages = await readdir(koffiPackages, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  await Promise.all(
+    packages
+      .filter(
+        (packageEntry) =>
+          packageEntry.isDirectory() && packageEntry.name.startsWith("koffi-linux-"),
+      )
+      .map(async (packageEntry) => {
+        const packageDirectory = join(koffiPackages, packageEntry.name);
+        const binaryDirectories = await readdir(packageDirectory, { withFileTypes: true });
+        await Promise.all(
+          binaryDirectories
+            .filter((entry) => entry.isDirectory() && entry.name.startsWith("musl_"))
+            .map((entry) =>
+              rm(join(packageDirectory, entry.name), { recursive: true, force: true }),
+            ),
+        );
+      }),
   );
 }
 
@@ -292,6 +327,7 @@ async function main(): Promise<void> {
     [npmEntrypoint, "ci", "--omit=dev", "--no-audit", "--no-fund", `--registry=${npmRegistry}`],
     appDirectory,
   );
+  await pruneIncompatibleLinuxNativeArtifacts(appDirectory, target);
 
   const dshEntrypoint = join(appDirectory, "node_modules/@deepseek-ai/dsh/lib/bin.js");
   const pnpmEntrypoint = join(appDirectory, "node_modules/pnpm/bin/pnpm.cjs");
@@ -337,21 +373,6 @@ async function main(): Promise<void> {
     })),
   );
   const runtimeId = `dsh-${versions.dsh}-node-${versions.node}-${target.triple}`;
-  const manifest = {
-    schemaVersion: 1,
-    runtimeId,
-    target: target.triple,
-    nodeVersion: versions.node,
-    dshVersion: versions.dsh,
-    pnpmVersion: versions.pnpm,
-    definitionSha256: definition,
-    nodeExecutable: portablePath(assembled, nodeExecutable),
-    dshEntrypoint: portablePath(assembled, dshEntrypoint),
-    pnpmEntrypoint: portablePath(assembled, pnpmEntrypoint),
-    files,
-  };
-  await writeFile(join(assembled, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-
   const notices = await collectPackageNotices(join(appDirectory, "node_modules"));
   const noticeLines = [
     "# Bundled runtime third-party packages",
@@ -364,6 +385,35 @@ async function main(): Promise<void> {
     "",
   ];
   await writeFile(join(assembled, "THIRD_PARTY_NOTICES.md"), noticeLines.join("\n"));
+
+  const uncompressedArchivePath = join(assembled, "payload.tar");
+  const archivePath = join(assembled, "payload.tar.gz");
+  await run("tar", ["-cf", uncompressedArchivePath, "-C", assembled, "payload"]);
+  await pipeline(
+    createReadStream(uncompressedArchivePath),
+    createGzip({ level: zlibConstants.Z_BEST_COMPRESSION }),
+    createWriteStream(archivePath),
+  );
+  await rm(uncompressedArchivePath, { force: true });
+  const manifest = {
+    schemaVersion: 1,
+    runtimeId,
+    target: target.triple,
+    nodeVersion: versions.node,
+    dshVersion: versions.dsh,
+    pnpmVersion: versions.pnpm,
+    definitionSha256: definition,
+    nodeExecutable: portablePath(assembled, nodeExecutable),
+    dshEntrypoint: portablePath(assembled, dshEntrypoint),
+    pnpmEntrypoint: portablePath(assembled, pnpmEntrypoint),
+    archive: {
+      path: portablePath(assembled, archivePath),
+      sha256: await sha256(archivePath),
+    },
+    files,
+  };
+  await writeFile(join(assembled, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  await rm(payload, { recursive: true, force: true });
 
   await mkdir(dirname(output), { recursive: true });
   await rm(output, { recursive: true, force: true });

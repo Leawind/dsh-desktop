@@ -125,10 +125,10 @@ pnpm run build:slim
 pnpm run build:all
 ```
 
-Tauri 会在 Cargo target 目录的 `release/bundle/` 下生成当前操作系统支持的安装文件。文件名包含 `bundled` 或 `slim`。未自定义 Cargo target 目录时，默认位置为：
+Tauri 会在 Cargo target 目录的 `release/bundle/installers/` 下汇总当前操作系统支持的安装文件。文件名包含 `bundled` 或 `slim`。未自定义 Cargo target 目录时，默认位置为：
 
 ```text
-apps/desktop/target/release/bundle/
+apps/desktop/target/release/bundle/installers/
 ```
 
 设置了 `CARGO_TARGET_DIR` 或 Cargo 全局 target 目录时，产物会写入对应目录。
@@ -139,6 +139,12 @@ apps/desktop/target/release/bundle/
 
 不同操作系统的安装包需要在对应平台上构建。
 
+排查单一格式时，可以将 Tauri 的 bundle target 交给统一构建入口，例如：
+
+```sh
+pnpm run build:bundled -- --bundles appimage
+```
+
 ### 内置运行时准备
 
 内置运行时版本记录在 `runtime/versions.json`，生产依赖闭包由 `runtime/package-lock.json` 固定。准备脚本完成以下工作：
@@ -146,7 +152,9 @@ apps/desktop/target/release/bundle/
 - 从 Node.js 官方发布目录下载当前平台和架构的归档，并按官方 `SHASUMS256.txt` 校验；
 - 从 npm 官方注册表按 lockfile 安装 DSH 和 pnpm；
 - 只运行 `runtime/package.json` 中明确允许的依赖安装脚本；
-- 验证 Node.js、DSH 和 pnpm 版本，生成运行时文件摘要和第三方包清单。
+- 为 GNU/Linux 目标移除依赖包中仅供 musl 使用的备用原生模块；
+- 验证 Node.js、DSH 和 pnpm 版本，生成运行时文件摘要和第三方包清单；
+- 将 payload 写入经校验的 `payload.tar.gz`，供 Host 首次启动时解包。
 
 `curl` 和 npm 会正常使用环境中的代理设置。Node.js 归档下载较慢时，可以手动下载脚本输出的 URL，再指定本地文件：
 
@@ -161,6 +169,10 @@ pnpm run runtime:prepare -- --node-archive /path/to/node-archive
 Linux 构建脚本会为 `appimagetool` 准备当前架构的 AppImage runtime，按
 `scripts/appimage-runtimes.json` 中固定的 SHA-256 校验后缓存到
 `.cache/build-tools/appimage/`。`bundled` 与 `slim` 共用该缓存，后续构建不再重复下载。
+构建入口同时禁止 `linuxdeploy` strip AppDir 中的 ELF；内置运行时位于压缩归档中，不会被
+AppImage 工具扫描或改写。
+
+`bundled` RPM 不再对已经压缩的 payload 重复压缩；`slim` RPM 使用 Tauri 默认压缩设置。
 
 首次下载会继承 `curl` 支持的代理环境。如果自动下载较慢，也可以手动下载构建日志中的
 `runtime-x86_64` 或 `runtime-aarch64`，再将本地文件传给任一构建命令：

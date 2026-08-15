@@ -1,5 +1,12 @@
 {
   "bundle": {
+    "linux": {
+      "rpm": {
+        "compression": {
+          "type": "none"
+        }
+      }
+    },
     "resources": {
       "runtime/bundled/": "runtime/bundled/"
     }

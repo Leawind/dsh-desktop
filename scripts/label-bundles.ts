@@ -1,4 +1,4 @@
-import { readdir, rename } from "node:fs/promises";
+import { mkdir, readdir, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -61,21 +61,41 @@ const metadata = JSON.parse(
   ]),
 ) as { target_directory: string };
 const bundleDirectory = join(metadata.target_directory, "release", "bundle");
-const entries = await readdir(bundleDirectory, { recursive: true, withFileTypes: true });
-const renames = entries.flatMap((entry) => {
+const installersDirectory = join(bundleDirectory, "installers");
+const formatDirectories = (await readdir(bundleDirectory, { withFileTypes: true })).filter(
+  (entry) => entry.isDirectory() && entry.name !== "installers",
+);
+const entries = (
+  await Promise.all(
+    formatDirectories.map(async (formatDirectory) => {
+      const directory = join(bundleDirectory, formatDirectory.name);
+      return (await readdir(directory, { withFileTypes: true })).map((entry) => ({
+        directory,
+        entry,
+      }));
+    }),
+  )
+).flat();
+const renames = entries.flatMap(({ directory, entry }) => {
   if (!entry.isFile()) return [];
   const labeledName = variantName(entry.name);
   if (!labeledName) return [];
   return [
     {
-      source: join(entry.parentPath, entry.name),
-      destination: join(entry.parentPath, labeledName),
+      source: join(directory, entry.name),
+      destination: join(installersDirectory, labeledName),
     },
   ];
 });
 if (renames.length === 0)
   throw new Error(`No unlabeled installer bundles found in ${bundleDirectory}`);
-await Promise.all(renames.map(({ source, destination }) => rename(source, destination)));
+await mkdir(installersDirectory, { recursive: true });
+await Promise.all(
+  renames.map(async ({ source, destination }) => {
+    await rm(destination, { force: true });
+    await rename(source, destination);
+  }),
+);
 for (const { source, destination } of renames) {
   console.log(`${basename(source)} -> ${basename(destination)}`);
 }
