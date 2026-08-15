@@ -1,8 +1,20 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
-import { fallbackLocale, localeMessages, supportedLocales } from "./index";
+import { fallbackLocale, supportedLocales } from "./index";
 
 type MessageTree = { readonly [key: string]: string | MessageTree };
+
+const localeSources = {
+  "zh-CN": readLocale("zh-CN"),
+  "en-US": readLocale("en-US"),
+};
+
+function readLocale(locale: string): MessageTree {
+  const url = new URL(`./locales/${locale}.json`, import.meta.url);
+  return JSON.parse(readFileSync(url, "utf8")) as MessageTree;
+}
 
 function flattenMessages(tree: MessageTree, prefix = ""): Map<string, string> {
   const messages = new Map<string, string>();
@@ -28,9 +40,9 @@ describe("locale resources", () => {
   });
 
   it("keeps keys and interpolation parameters aligned", () => {
-    const fallback = flattenMessages(localeMessages[fallbackLocale]);
+    const fallback = flattenMessages(localeSources[fallbackLocale]);
     for (const locale of supportedLocales) {
-      const messages = flattenMessages(localeMessages[locale]);
+      const messages = flattenMessages(localeSources[locale]);
       expect(new Set(messages.keys())).toEqual(new Set(fallback.keys()));
       for (const [key, fallbackMessage] of fallback) {
         expect(parameters(messages.get(key) ?? ""), key).toEqual(parameters(fallbackMessage));
