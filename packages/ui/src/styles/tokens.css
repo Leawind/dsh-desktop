@@ -37,6 +37,8 @@
   --color-control-hover: #f1f3f5;
   --color-interactive-hover: rgb(38 49 72 / 6%);
   --color-interactive-active: rgb(38 49 72 / 10%);
+  --color-nav-hover: #f1f3f5;
+  --color-nav-active: #ebeef2;
   --color-input: #ffffff;
   --color-menu: #ffffff;
   --color-border: rgb(0 0 0 / 10%);
@@ -54,6 +56,8 @@
   --color-warning: #dd8629;
   --color-danger: #ec1313;
   --color-danger-contrast: #ffffff;
+  --color-mask: rgb(0 0 0 / 24%);
+  --backdrop-mask: blur(2px);
   --shadow-panel: 0 12px 36px rgb(16 24 40 / 8%);
   --shadow-menu:
     0 0 1px 0 rgb(0 0 0 / 20%), 0 0 4px 0 rgb(0 0 0 / 2%), 0 12px 32px 0 rgb(0 0 0 / 8%);
@@ -68,6 +72,8 @@
     --color-control-hover: #43454a;
     --color-interactive-hover: rgb(255 255 255 / 8%);
     --color-interactive-active: rgb(255 255 255 / 14%);
+    --color-nav-hover: #2c2c2e;
+    --color-nav-active: #43454a;
     --color-input: #232324;
     --color-menu: #353638;
     --color-border: rgb(255 255 255 / 12%);
@@ -85,6 +91,7 @@
     --color-warning: #f7ad31;
     --color-danger: #f25a5a;
     --color-danger-contrast: #1d1111;
+    --color-mask: rgb(0 0 0 / 50%);
     --shadow-panel: 0 16px 48px rgb(0 0 0 / 30%);
   }
 }

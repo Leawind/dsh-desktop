@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
-import { UiButton, UiField, UiInput, UiSelect, UiStatus } from "@dsh-desktop/ui";
+import { UiButton, UiInput, UiSelect, UiSettingRow, UiStatus } from "@dsh-desktop/ui";
 
 import { desktopBridge } from "@/bridge/desktop";
 import type { AppLocale, GlobalSettings, HostSnapshot } from "@/types/desktop";
@@ -20,7 +20,11 @@ const emit = defineEmits<{
   reload: [];
 }>();
 
+const tabs = ["window", "general", "services"] as const;
+type SettingsTab = (typeof tabs)[number];
+
 const { t } = useI18n();
+const activeTab = ref<SettingsTab>("window");
 const url = ref(props.currentUrl);
 const port = ref(String(props.settings.defaultDshPort));
 const locale = ref<AppLocale>(props.settings.locale ?? "zh-CN");
@@ -61,78 +65,213 @@ function save(): void {
     dshExecutable: executable.value.trim() || null,
   });
 }
+
+function endpointHint(endpoint: HostSnapshot["endpoints"][number]): string {
+  const details = [
+    t(`service.${endpoint.ownership}`),
+    t("service.windows", endpoint.connectedWindows),
+  ];
+  if (endpoint.runtimeVersion) details.push(`DSH ${endpoint.runtimeVersion}`);
+  if (endpoint.pid) details.push(`PID ${endpoint.pid}`);
+  return details.join(" · ");
+}
+
+function onTabKeydown(event: KeyboardEvent): void {
+  let targetIndex: number | undefined;
+  const currentIndex = tabs.indexOf(activeTab.value);
+
+  if (event.key === "ArrowDown") targetIndex = (currentIndex + 1) % tabs.length;
+  else if (event.key === "ArrowUp") targetIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  else if (event.key === "Home") targetIndex = 0;
+  else if (event.key === "End") targetIndex = tabs.length - 1;
+  else return;
+
+  event.preventDefault();
+  const targetTab = tabs[targetIndex];
+  if (!targetTab) return;
+  activeTab.value = targetTab;
+  const buttons = Array.from(
+    (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>(
+      '[role="tab"]',
+    ) ?? [],
+  );
+  buttons[targetIndex]?.focus();
+}
 </script>
 
 <template>
-  <section class="settings" role="dialog" aria-modal="true" :aria-label="t('settings.title')">
-    <div class="settings__panel">
-      <header class="settings__header">
-        <h1>{{ t("settings.title") }}</h1>
-        <UiButton variant="ghost" size="small" @click="$emit('close')">
-          {{ t("common.close") }}
-        </UiButton>
-      </header>
+  <section class="settings" role="presentation" @keydown.esc="$emit('close')">
+    <div class="settings__mask" aria-hidden="true" @click="$emit('close')" />
+    <div class="settings__panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <nav class="settings__nav" :aria-label="t('settings.title')">
+        <h1 id="settings-title" class="settings__title">{{ t("settings.title") }}</h1>
+        <div class="settings__tabs" role="tablist" :aria-label="t('settings.title')">
+          <button
+            id="settings-tab-window"
+            class="settings__tab"
+            :class="{ 'settings__tab--active': activeTab === 'window' }"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'window'"
+            aria-controls="settings-panel-window"
+            :tabindex="activeTab === 'window' ? 0 : -1"
+            @click="activeTab = 'window'"
+            @keydown="onTabKeydown"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="2.25" y="3" width="11.5" height="9.5" rx="1.5" />
+              <path d="M5.5 14h5" />
+            </svg>
+            <span>{{ t("window.current") }}</span>
+          </button>
+          <button
+            id="settings-tab-general"
+            class="settings__tab"
+            :class="{ 'settings__tab--active': activeTab === 'general' }"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'general'"
+            aria-controls="settings-panel-general"
+            :tabindex="activeTab === 'general' ? 0 : -1"
+            @click="activeTab = 'general'"
+            @keydown="onTabKeydown"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="2.25" />
+              <path
+                d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.58 3.58l1.06 1.06M11.36 11.36l1.06 1.06M12.42 3.58l-1.06 1.06M4.64 11.36l-1.06 1.06"
+              />
+            </svg>
+            <span>{{ t("settings.global") }}</span>
+          </button>
+          <button
+            id="settings-tab-services"
+            class="settings__tab"
+            :class="{ 'settings__tab--active': activeTab === 'services' }"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'services'"
+            aria-controls="settings-panel-services"
+            :tabindex="activeTab === 'services' ? 0 : -1"
+            @click="activeTab = 'services'"
+            @keydown="onTabKeydown"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <ellipse cx="8" cy="3.5" rx="5.25" ry="2" />
+              <path
+                d="M2.75 3.5v4c0 1.1 2.35 2 5.25 2s5.25-.9 5.25-2v-4M2.75 7.5v4c0 1.1 2.35 2 5.25 2s5.25-.9 5.25-2v-4"
+              />
+            </svg>
+            <span>{{ t("service.section") }}</span>
+          </button>
+        </div>
+      </nav>
 
       <div class="settings__content">
-        <section class="settings__section">
-          <h2>{{ t("window.current") }}</h2>
-          <UiField input-id="current-url" :label="t('window.url')" :hint="t('window.urlHint')">
-            <UiInput id="current-url" v-model="url" type="url" />
-          </UiField>
-          <div class="settings__actions">
-            <UiButton variant="primary" @click="$emit('setTarget', url)">
+        <header class="settings__header">
+          <div class="settings__header-actions">
+            <UiButton v-if="activeTab === 'general'" variant="primary" size="small" @click="save">
               {{ t("common.save") }}
             </UiButton>
-            <UiButton @click="$emit('reload')">{{ t("common.reload") }}</UiButton>
-            <UiButton @click="desktopBridge.createWindow()">{{ t("window.new") }}</UiButton>
           </div>
-        </section>
-
-        <section class="settings__section">
-          <h2>{{ t("settings.global") }}</h2>
-          <UiField
-            input-id="default-port"
-            :label="t('settings.defaultPort')"
-            :hint="t('settings.defaultPortHint')"
-            :error="portError"
+          <button
+            class="settings__close"
+            type="button"
+            :aria-label="t('common.close')"
+            autofocus
+            @click="$emit('close')"
           >
-            <UiInput id="default-port" v-model="port" type="number" />
-          </UiField>
-          <UiField input-id="locale" :label="t('settings.language')">
-            <UiSelect id="locale" v-model="locale" :options="localeOptions" />
-          </UiField>
-          <UiField
-            input-id="dsh-executable"
-            :label="t('settings.executable')"
-            :hint="t('settings.executableHint')"
-          >
-            <UiInput id="dsh-executable" v-model="executable" />
-          </UiField>
-          <div class="settings__actions">
-            <UiButton variant="primary" @click="save">{{ t("common.save") }}</UiButton>
-          </div>
-        </section>
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="m3 3 8 8M11 3l-8 8" />
+            </svg>
+          </button>
+        </header>
 
-        <section class="settings__section">
-          <h2>{{ t("service.section") }}</h2>
-          <p v-if="host.endpoints.length === 0" class="settings__empty">
-            {{ t("service.status.unreachable") }}
-          </p>
-          <article v-for="endpoint in host.endpoints" :key="endpoint.url" class="endpoint">
-            <div class="endpoint__summary">
-              <code>{{ endpoint.url }}</code>
+        <div class="settings__options">
+          <section
+            v-show="activeTab === 'window'"
+            id="settings-panel-window"
+            class="settings__tabpanel"
+            role="tabpanel"
+            aria-labelledby="settings-tab-window"
+          >
+            <UiSettingRow
+              control-id="current-url"
+              :label="t('window.url')"
+              :hint="t('window.urlHint')"
+            >
+              <div class="settings__inline-control settings__inline-control--wide">
+                <UiInput id="current-url" v-model="url" type="url" />
+                <UiButton variant="primary" size="small" @click="$emit('setTarget', url)">
+                  {{ t("common.save") }}
+                </UiButton>
+              </div>
+            </UiSettingRow>
+            <UiSettingRow :label="t('window.actions')" :hint="t('window.actionsHint')">
+              <div class="settings__inline-control">
+                <UiButton size="small" @click="$emit('reload')">
+                  {{ t("common.reload") }}
+                </UiButton>
+                <UiButton size="small" @click="desktopBridge.createWindow()">
+                  {{ t("window.new") }}
+                </UiButton>
+              </div>
+            </UiSettingRow>
+          </section>
+
+          <section
+            v-show="activeTab === 'general'"
+            id="settings-panel-general"
+            class="settings__tabpanel"
+            role="tabpanel"
+            aria-labelledby="settings-tab-general"
+          >
+            <UiSettingRow :label="t('settings.language')">
+              <UiSelect v-model="locale" variant="pill" :options="localeOptions" />
+            </UiSettingRow>
+            <UiSettingRow
+              control-id="default-port"
+              :label="t('settings.defaultPort')"
+              :hint="t('settings.defaultPortHint')"
+            >
+              <div class="settings__control-stack">
+                <UiInput id="default-port" v-model="port" type="number" />
+                <span v-if="portError" class="settings__error">{{ portError }}</span>
+              </div>
+            </UiSettingRow>
+            <UiSettingRow
+              control-id="dsh-executable"
+              :label="t('settings.executable')"
+              :hint="t('settings.executableHint')"
+            >
+              <div class="settings__wide-control">
+                <UiInput id="dsh-executable" v-model="executable" />
+              </div>
+            </UiSettingRow>
+          </section>
+
+          <section
+            v-show="activeTab === 'services'"
+            id="settings-panel-services"
+            class="settings__tabpanel"
+            role="tabpanel"
+            aria-labelledby="settings-tab-services"
+          >
+            <p v-if="host.endpoints.length === 0" class="settings__empty">
+              {{ t("service.status.unreachable") }}
+            </p>
+            <UiSettingRow
+              v-for="endpoint in host.endpoints"
+              :key="endpoint.url"
+              :label="endpoint.url"
+              :hint="endpointHint(endpoint)"
+            >
               <UiStatus :tone="endpoint.status === 'running' ? 'success' : 'danger'">
                 {{ t(`service.status.${endpoint.status}`) }}
               </UiStatus>
-            </div>
-            <div class="endpoint__metadata">
-              <span>{{ t(`service.${endpoint.ownership}`) }}</span>
-              <span>{{ t("service.windows", endpoint.connectedWindows) }}</span>
-              <span v-if="endpoint.runtimeVersion">DSH {{ endpoint.runtimeVersion }}</span>
-              <span v-if="endpoint.pid">PID {{ endpoint.pid }}</span>
-            </div>
-          </article>
-        </section>
+            </UiSettingRow>
+          </section>
+        </div>
       </div>
     </div>
   </section>
@@ -143,99 +282,222 @@ function save(): void {
   position: absolute;
   z-index: 20;
   inset: 0;
-  display: grid;
-  justify-items: start;
-  overflow: auto;
-  padding: var(--space-6);
-  background: rgb(12 14 18 / 38%);
-  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings__mask {
+  position: absolute;
+  inset: 0;
+  background: var(--color-mask);
+  backdrop-filter: var(--backdrop-mask);
 }
 
 .settings__panel {
-  width: min(100%, 42rem);
-  min-height: 100%;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-panel);
-}
-
-.settings__header {
-  position: sticky;
+  position: relative;
   z-index: 1;
-  top: 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid var(--color-border);
-  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
-  background: var(--color-surface);
+  width: 800px;
+  height: min(800px, calc(100% - 48px));
+  max-width: calc(100% - 48px);
+  overflow: hidden;
+  border-radius: 24px;
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-menu);
 }
 
-.settings__header h1,
-.settings__section h2 {
+.settings__nav {
+  display: flex;
+  width: 188px;
+  flex: none;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 12px 0;
+}
+
+.settings__title {
   margin: 0;
+  padding: 0 12px;
   color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  font-weight: 500;
+  line-height: var(--line-height-md);
 }
 
-.settings__header h1 {
-  font-size: 1.125rem;
+.settings__tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
-.settings__content,
-.settings__section {
-  display: grid;
+.settings__tab {
+  display: flex;
+  height: 40px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 9px 16px 9px 12px;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings__tab:hover {
+  background: var(--color-nav-hover);
+}
+
+.settings__tab--active {
+  background: var(--color-nav-active);
+}
+
+.settings__tab svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.settings__tab span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings__content {
-  gap: var(--space-8);
-  padding: var(--space-6);
-}
-
-.settings__section {
-  gap: var(--space-4);
-}
-
-.settings__section h2 {
-  font-size: var(--font-size-sm);
-}
-
-.settings__actions,
-.endpoint__metadata,
-.endpoint__summary {
   display: flex;
-  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.settings__header {
+  display: flex;
+  height: 54px;
+  flex: none;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 20px 14px 8px 10px;
+}
+
+.settings__header-actions {
+  display: flex;
+  min-width: 0;
   align-items: center;
-  gap: var(--space-3);
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.settings__close {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--color-text-primary);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings__close:hover {
+  background: var(--color-interactive-hover);
+}
+
+.settings__close svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+}
+
+.settings__options {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 24px 24px;
+}
+
+.settings__tabpanel {
+  width: 100%;
+}
+
+.settings__tabpanel :deep(.ui-setting-row:last-child) {
+  border-bottom: 0;
+}
+
+.settings__inline-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.settings__inline-control--wide {
+  width: 320px;
+}
+
+.settings__inline-control--wide :deep(.ui-input) {
+  width: auto;
+  min-width: 0;
+  flex: 1;
+}
+
+.settings__control-stack,
+.settings__wide-control {
+  width: 280px;
+}
+
+.settings__control-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.settings__error {
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-xs);
 }
 
 .settings__empty {
   margin: 0;
+  padding: var(--space-4) 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
 }
 
-.endpoint {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-control);
-}
+@media (max-width: 40rem) {
+  .settings__panel {
+    max-width: calc(100% - 24px);
+  }
 
-.endpoint__summary {
-  justify-content: space-between;
-}
+  .settings__nav {
+    width: 148px;
+    padding-inline: var(--space-2);
+  }
 
-.endpoint__summary code {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.endpoint__metadata {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  .settings__inline-control,
+  .settings__inline-control--wide,
+  .settings__control-stack,
+  .settings__wide-control {
+    width: 100%;
+  }
 }
 </style>

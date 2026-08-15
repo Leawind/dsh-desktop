@@ -20,6 +20,8 @@
   },
   "window": {
     "current": "当前窗口",
+    "actions": "窗口操作",
+    "actionsHint": "重新加载当前 DSH 页面，或打开一个新的应用窗口。",
     "url": "DSH URL",
     "urlHint": "仅支持 HTTP 和 HTTPS 地址。",
     "new": "打开新窗口",

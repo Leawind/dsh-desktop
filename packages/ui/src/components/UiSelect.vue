@@ -13,9 +13,11 @@ const props = withDefaults(
     id?: string;
     options: readonly SelectOption[];
     disabled?: boolean;
+    variant?: "field" | "pill";
   }>(),
   {
     disabled: false,
+    variant: "field",
   },
 );
 
@@ -125,6 +127,7 @@ function onKeydown(event: KeyboardEvent): void {
     case "Escape":
       if (!open.value) return;
       event.preventDefault();
+      event.stopPropagation();
       closeMenu();
       break;
     case "Tab":
@@ -153,7 +156,7 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
 </script>
 
 <template>
-  <span ref="root" class="ui-select">
+  <span ref="root" class="ui-select" :class="`ui-select--${variant}`">
     <button
       :id="id"
       ref="trigger"
@@ -239,6 +242,24 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
   opacity: 0.4;
 }
 
+.ui-select--pill {
+  width: auto;
+}
+
+.ui-select--pill .ui-select__trigger {
+  width: auto;
+  height: var(--button-height-medium);
+  gap: var(--space-3);
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--radius-button-medium);
+  background: var(--color-control);
+}
+
+.ui-select--pill .ui-select__trigger:hover:not(:disabled) {
+  background: var(--color-interactive-hover);
+}
+
 .ui-select__value,
 .ui-select__option-label {
   min-width: 0;
@@ -280,6 +301,14 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
   border-radius: 12px;
   background: var(--color-menu);
   box-shadow: var(--shadow-menu);
+}
+
+.ui-select--pill .ui-select__menu {
+  right: 0;
+  left: auto;
+  width: max-content;
+  min-width: 218px;
+  max-width: min(360px, calc(100vw - 24px));
 }
 
 .ui-select__option {
