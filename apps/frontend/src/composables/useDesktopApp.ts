@@ -30,6 +30,7 @@ export function useDesktopApp() {
   const settings = ref<GlobalSettings>({
     locale: null,
     dshSource: { type: "system" },
+    dshHome: { type: "environment" },
     windowStartupAttempts: [
       { type: "known-services" },
       { type: "connect-fixed", host: "127.0.0.1", port: 3080 },

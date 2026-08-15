@@ -69,6 +69,16 @@
         "custom": "Custom executable"
       }
     },
+    "home": {
+      "label": "DSH user data directory",
+      "hint": "All DSH services started by the app use the same global directory. By default, DSH_HOME is inherited; when unset, DSH uses ~/.dsh.",
+      "path": "Custom directory",
+      "pathHint": "Use an absolute path or a path beginning with ~/. Startup fails if the directory is unavailable.",
+      "type": {
+        "environment": "Use $DSH_HOME (default)",
+        "custom": "Use a custom directory"
+      }
+    },
     "attempt": {
       "label": "New-window startup attempts",
       "hint": "Run from top to bottom when a window opens and stop after the first success.",
@@ -90,6 +100,8 @@
       "invalidIpAddress": "Enter a valid IP address.",
       "invalidAttempt": "Check the IP addresses and ports in the startup attempts.",
       "emptyExecutable": "The custom DSH executable path cannot be empty.",
+      "emptyDshHome": "The custom DSH user data directory cannot be empty.",
+      "relativeDshHome": "The DSH user data directory must be absolute or begin with ~/.",
       "unsupportedSource": "The selected DSH source is unavailable in this distribution variant.",
       "invalidIdleTimeout": "The idle timeout must be between 0 and 10080 minutes.",
       "saveFailed": "The settings could not be saved."
@@ -127,7 +139,6 @@
       "notDsh": "{url} is reachable, but it is not a supported DSH service.",
       "noFreePort": "No available port was found between {startPort} and {endPort}.",
       "unsupportedBindAddress": "The current DSH version cannot start a service on {host}.",
-      "homeUnavailable": "The DSH service data directory could not be prepared.",
       "notManaged": "{url} is not managed by this app.",
       "notRunning": "{url} does not have a running managed process.",
       "restartUnavailable": "The restart configuration for {url} is unavailable.",

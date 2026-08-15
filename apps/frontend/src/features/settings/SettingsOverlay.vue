@@ -8,6 +8,7 @@ import { desktopBridge } from "@/bridge/desktop";
 import type {
   AppLocale,
   DistributionSnapshot,
+  DshHome,
   DshSource,
   GlobalSettings,
   GlobalSettingsPatch,
@@ -44,6 +45,10 @@ const sourceType = ref<DshSource["type"]>(props.settings.dshSource.type);
 const customExecutable = ref(
   props.settings.dshSource.type === "custom" ? props.settings.dshSource.executable : "",
 );
+const homeType = ref<DshHome["type"]>(props.settings.dshHome.type);
+const customDshHome = ref(
+  props.settings.dshHome.type === "custom" ? props.settings.dshHome.path : "",
+);
 const attempts = ref<WindowStartupAttempt[]>(cloneAttempts(props.settings.windowStartupAttempts));
 const idleTimeoutMinutes = ref(props.settings.managedServiceIdleTimeoutSeconds / 60);
 const settingsError = ref("");
@@ -61,6 +66,8 @@ watch(
     locale.value = value.locale ?? "zh-CN";
     sourceType.value = value.dshSource.type;
     customExecutable.value = value.dshSource.type === "custom" ? value.dshSource.executable : "";
+    homeType.value = value.dshHome.type;
+    customDshHome.value = value.dshHome.type === "custom" ? value.dshHome.path : "";
     attempts.value = cloneAttempts(value.windowStartupAttempts);
     idleTimeoutMinutes.value = value.managedServiceIdleTimeoutSeconds / 60;
   },
@@ -80,6 +87,11 @@ const sourceOptions = computed(() => [
   },
   { value: "system", label: t("settings.source.type.system") },
   { value: "custom", label: t("settings.source.type.custom") },
+]);
+
+const homeOptions = computed(() => [
+  { value: "environment", label: t("settings.home.type.environment") },
+  { value: "custom", label: t("settings.home.type.custom") },
 ]);
 
 const attemptOptions = computed(() => [
@@ -103,6 +115,10 @@ function save(): void {
     settingsError.value = t("settings.error.emptyExecutable");
     return;
   }
+  if (homeType.value === "custom" && !customDshHome.value.trim()) {
+    settingsError.value = t("settings.error.emptyDshHome");
+    return;
+  }
   if (!attempts.value.every(validAttempt)) {
     settingsError.value = t("settings.error.invalidAttempt");
     return;
@@ -120,9 +136,14 @@ function save(): void {
     sourceType.value === "custom"
       ? { type: "custom", executable: customExecutable.value.trim() }
       : { type: sourceType.value };
+  const dshHome: DshHome =
+    homeType.value === "custom"
+      ? { type: "custom", path: customDshHome.value.trim() }
+      : { type: "environment" };
   emit("saveSettings", {
     locale: locale.value,
     dshSource,
+    dshHome,
     windowStartupAttempts: cloneAttempts(attempts.value),
     managedServiceIdleTimeoutSeconds: Math.round(idleTimeoutMinutes.value * 60),
   });
@@ -408,6 +429,29 @@ function onTabKeydown(event: KeyboardEvent): void {
               <UiSelect v-model="sourceType" :options="sourceOptions" />
             </UiSettingRow>
             <UiSettingRow
+              v-if="sourceType === 'custom'"
+              control-id="dsh-executable"
+              :label="t('settings.executable')"
+              :hint="t('settings.executableHint')"
+            >
+              <div class="settings__wide-control">
+                <UiInput id="dsh-executable" v-model="customExecutable" />
+              </div>
+            </UiSettingRow>
+            <UiSettingRow :label="t('settings.home.label')" :hint="t('settings.home.hint')">
+              <UiSelect v-model="homeType" :options="homeOptions" />
+            </UiSettingRow>
+            <UiSettingRow
+              v-if="homeType === 'custom'"
+              control-id="dsh-home"
+              :label="t('settings.home.path')"
+              :hint="t('settings.home.pathHint')"
+            >
+              <div class="settings__wide-control">
+                <UiInput id="dsh-home" v-model="customDshHome" />
+              </div>
+            </UiSettingRow>
+            <UiSettingRow
               control-id="idle-timeout"
               :label="t('settings.idleTimeout')"
               :hint="t('settings.idleTimeoutHint')"
@@ -421,16 +465,6 @@ function onTabKeydown(event: KeyboardEvent): void {
                   :placeholder="t('settings.idleTimeoutUnit')"
                   @update:model-value="idleTimeoutMinutes = Number($event)"
                 />
-              </div>
-            </UiSettingRow>
-            <UiSettingRow
-              v-if="sourceType === 'custom'"
-              control-id="dsh-executable"
-              :label="t('settings.executable')"
-              :hint="t('settings.executableHint')"
-            >
-              <div class="settings__wide-control">
-                <UiInput id="dsh-executable" v-model="customExecutable" />
               </div>
             </UiSettingRow>
             <div class="settings__attempt-heading">

@@ -34,6 +34,7 @@ pub struct DistributionSnapshot {
 pub struct GlobalSettings {
     pub locale: Option<AppLocale>,
     pub dsh_source: DshSource,
+    pub dsh_home: DshHome,
     pub window_startup_attempts: Vec<WindowStartupAttempt>,
     pub managed_service_idle_timeout_seconds: u64,
 }
@@ -43,6 +44,7 @@ impl Default for GlobalSettings {
         Self {
             locale: None,
             dsh_source: DshSource::System,
+            dsh_home: DshHome::Environment,
             window_startup_attempts: default_window_startup_attempts(),
             managed_service_idle_timeout_seconds: DEFAULT_SERVICE_IDLE_TIMEOUT_SECONDS,
         }
@@ -87,6 +89,13 @@ pub enum DshSource {
     BuiltIn,
     System,
     Custom { executable: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "kebab-case")]
+pub enum DshHome {
+    Environment,
+    Custom { path: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -69,6 +69,16 @@
         "custom": "自定义可执行文件"
       }
     },
+    "home": {
+      "label": "DSH 用户数据目录",
+      "hint": "所有由应用启动的 DSH 服务使用同一个全局目录。默认继承 $DSH_HOME；未设置时由 DSH 使用 ~/.dsh。",
+      "path": "自定义目录",
+      "pathHint": "使用绝对路径，或以 ~/ 开头的路径。目录不可用时启动会直接失败。",
+      "type": {
+        "environment": "使用 $DSH_HOME（默认）",
+        "custom": "使用自定义目录"
+      }
+    },
     "attempt": {
       "label": "新窗口启动尝试",
       "hint": "创建窗口时按从上到下的顺序执行，成功后停止。",
@@ -90,6 +100,8 @@
       "invalidIpAddress": "请输入有效的 IP 地址。",
       "invalidAttempt": "请检查启动尝试中的 IP 地址和端口。",
       "emptyExecutable": "自定义 DSH 可执行文件路径不能为空。",
+      "emptyDshHome": "自定义 DSH 用户数据目录不能为空。",
+      "relativeDshHome": "DSH 用户数据目录必须是绝对路径，或以 ~/ 开头。",
       "unsupportedSource": "当前发行变体不支持所选的 DSH 来源。",
       "invalidIdleTimeout": "空闲回收时间必须位于 0 到 10080 分钟之间。",
       "saveFailed": "无法保存设置。"
@@ -127,7 +139,6 @@
       "notDsh": "{url} 可访问，但它不是受支持的 DSH 服务。",
       "noFreePort": "端口范围 {startPort}–{endPort} 中没有可用端口。",
       "unsupportedBindAddress": "当前 DSH 版本不支持在 {host} 上启动服务。",
-      "homeUnavailable": "无法准备 DSH 服务的数据目录。",
       "notManaged": "{url} 不是由应用管理的服务。",
       "notRunning": "{url} 当前没有正在运行的受管进程。",
       "restartUnavailable": "无法取得 {url} 的重启配置。",

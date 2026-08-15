@@ -281,7 +281,7 @@ fn start_fixed(
         ProbeResult::Unreachable => {}
     }
     let runtime = resolve_runtime_once(resolved_runtime, settings, &state.runtime_manager)?;
-    let managed = service::start(&runtime, port, state.service_home(&url))?;
+    let managed = service::start(&runtime, port, settings.dsh_home.clone())?;
     register_managed_service(state, window_label, url, managed)
 }
 
@@ -301,7 +301,7 @@ fn start_range(
         if service::probe(&url) != ProbeResult::Unreachable {
             continue;
         }
-        let managed = service::start(&runtime, port, state.service_home(&url))?;
+        let managed = service::start(&runtime, port, settings.dsh_home.clone())?;
         return register_managed_service(state, window_label, url, managed);
     }
     Err(AppError::new("service.error.noFreePort")
@@ -440,6 +440,12 @@ fn restart_managed(state: &AppState, url: &str) -> AppResult<HostSnapshot> {
         .startup_lock
         .lock()
         .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    let dsh_home = state
+        .settings
+        .read()
+        .map_err(|_| AppError::new("app.error.stateUnavailable"))?
+        .dsh_home
+        .clone();
     let (mut process, launch) = {
         let mut host = state
             .host
@@ -453,7 +459,8 @@ fn restart_managed(state: &AppState, url: &str) -> AppResult<HostSnapshot> {
         let launch = endpoint
             .launch
             .clone()
-            .ok_or_else(|| AppError::new("service.error.restartUnavailable").arg("url", url))?;
+            .ok_or_else(|| AppError::new("service.error.restartUnavailable").arg("url", url))?
+            .with_dsh_home(dsh_home);
         let process = endpoint.process.take();
         endpoint.status = ServiceStatus::Restarting;
         set_window_status(&mut host, url, ServiceStatus::Restarting);
@@ -471,12 +478,14 @@ fn restart_managed(state: &AppState, url: &str) -> AppResult<HostSnapshot> {
     match service::start_launch(&launch) {
         Ok(process) => {
             let runtime_version = process.runtime_version.clone();
+            let launch = process.launch.clone();
             let mut host = state
                 .host
                 .lock()
                 .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
             if let Some(endpoint) = host.endpoints.get_mut(url) {
                 endpoint.process = Some(process);
+                endpoint.launch = Some(launch);
                 endpoint.runtime_version = Some(runtime_version);
                 endpoint.status = ServiceStatus::Running;
                 endpoint.last_error = None;

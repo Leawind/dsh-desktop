@@ -26,6 +26,8 @@ export type DshSource =
   | { type: "system" }
   | { type: "custom"; executable: string };
 
+export type DshHome = { type: "environment" } | { type: "custom"; path: string };
+
 export type WindowStartupAttempt =
   | { type: "known-services" }
   | { type: "connect-fixed"; host: string; port: number }
@@ -40,6 +42,7 @@ export type WindowStartupAttempt =
 export interface GlobalSettings {
   locale: AppLocale | null;
   dshSource: DshSource;
+  dshHome: DshHome;
   windowStartupAttempts: readonly WindowStartupAttempt[];
   managedServiceIdleTimeoutSeconds: number;
 }
@@ -47,6 +50,7 @@ export interface GlobalSettings {
 export interface GlobalSettingsPatch {
   locale: AppLocale | null;
   dshSource: DshSource;
+  dshHome: DshHome;
   windowStartupAttempts: WindowStartupAttempt[];
   managedServiceIdleTimeoutSeconds: number;
 }

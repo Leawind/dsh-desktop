@@ -4,8 +4,6 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
-use sha2::{Digest, Sha256};
-
 use crate::model::{
     EndpointOwnership, EndpointSnapshot, GlobalSettings, HostSnapshot, ServiceStatus,
     WindowSnapshot,
@@ -20,7 +18,6 @@ pub struct AppState {
     pub host: Arc<Mutex<HostState>>,
     pub startup_lock: Arc<Mutex<()>>,
     pub runtime_manager: RuntimeManager,
-    pub data_dir: PathBuf,
     monitor_stopped: Arc<AtomicBool>,
     next_window_id: Arc<AtomicU64>,
 }
@@ -69,7 +66,6 @@ impl AppState {
         config_dir: PathBuf,
         settings: GlobalSettings,
         runtime_manager: RuntimeManager,
-        data_dir: PathBuf,
     ) -> Self {
         Self {
             config_dir,
@@ -81,7 +77,6 @@ impl AppState {
             })),
             startup_lock: Arc::new(Mutex::new(())),
             runtime_manager,
-            data_dir,
             monitor_stopped: Arc::new(AtomicBool::new(false)),
             next_window_id: Arc::new(AtomicU64::new(1)),
         }
@@ -90,15 +85,6 @@ impl AppState {
     pub fn next_window_label(&self) -> String {
         let id = self.next_window_id.fetch_add(1, Ordering::Relaxed);
         format!("dsh-{id}")
-    }
-
-    pub fn service_home(&self, url: &str) -> PathBuf {
-        let service_id = format!("{:x}", Sha256::digest(url.as_bytes()));
-        self.data_dir
-            .join("services")
-            .join(service_id)
-            .join("homes")
-            .join("generation-1")
     }
 
     pub fn register_window(&self, label: &str) -> WindowSnapshot {

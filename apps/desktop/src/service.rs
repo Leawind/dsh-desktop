@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use reqwest::blocking::Client;
 
 use crate::error::{AppError, AppResult};
-use crate::model::DshSource;
+use crate::model::{DshHome, DshSource};
 use crate::runtime::RuntimeManager;
 
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
@@ -49,7 +49,14 @@ pub struct ResolvedDshRuntime {
 pub struct ManagedLaunch {
     runtime: ResolvedDshRuntime,
     port: u16,
-    dsh_home: PathBuf,
+    dsh_home: DshHome,
+}
+
+impl ManagedLaunch {
+    pub fn with_dsh_home(mut self, dsh_home: DshHome) -> Self {
+        self.dsh_home = dsh_home;
+        self
+    }
 }
 
 impl ManagedService {
@@ -172,7 +179,7 @@ pub fn resolve_runtime(
 pub fn start(
     runtime: &ResolvedDshRuntime,
     port: u16,
-    dsh_home: PathBuf,
+    dsh_home: DshHome,
 ) -> AppResult<ManagedService> {
     start_launch(&ManagedLaunch {
         runtime: runtime.clone(),
@@ -185,9 +192,6 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
     let runtime = &launch.runtime;
     let port = launch.port;
     let executable = &runtime.executable;
-    std::fs::create_dir_all(&launch.dsh_home).map_err(|error| {
-        AppError::new("service.error.homeUnavailable").technical(error.to_string())
-    })?;
     let mut command = Command::new(&executable);
     command
         .args(&runtime.prefix_args)
@@ -195,12 +199,7 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    command.env("DSH_HOME", &launch.dsh_home);
-    command.env("PNPM_HOME", launch.dsh_home.join("pnpm"));
-    command.env(
-        "npm_config_store_dir",
-        launch.dsh_home.join("pnpm").join("store"),
-    );
+    apply_dsh_home(&mut command, &launch.dsh_home);
     #[cfg(target_os = "linux")]
     crate::direct_network::restore_child_proxy_environment(&mut command);
     if let Some(runtime_path) = runtime.runtime_path.as_ref() {
@@ -279,6 +278,12 @@ fn capture_output(
             }
         }
     });
+}
+
+fn apply_dsh_home(command: &mut Command, dsh_home: &DshHome) {
+    if let DshHome::Custom { path } = dsh_home {
+        command.env("DSH_HOME", path);
+    }
 }
 
 fn recent_logs(logs: &Arc<Mutex<VecDeque<String>>>) -> String {
@@ -405,11 +410,36 @@ fn executable_names(command: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::extract_marked_path;
+    use std::process::Command;
+
+    use crate::model::DshHome;
+
+    use super::{apply_dsh_home, extract_marked_path};
 
     #[test]
     fn extracts_path_after_shell_startup_output() {
         let output = "shell banner\n__DSH_DESKTOP_PATH__/usr/local/bin:/usr/bin\n";
         assert_eq!(extract_marked_path(output), Some("/usr/local/bin:/usr/bin"));
+    }
+
+    #[test]
+    fn custom_home_sets_dsh_home_for_child_only() {
+        let mut command = Command::new("dsh");
+        apply_dsh_home(
+            &mut command,
+            &DshHome::Custom {
+                path: "/tmp/dsh-home".to_owned(),
+            },
+        );
+        assert!(command.get_envs().any(|(name, value)| {
+            name == "DSH_HOME" && value.is_some_and(|value| value == "/tmp/dsh-home")
+        }));
+    }
+
+    #[test]
+    fn environment_home_does_not_override_child_environment() {
+        let mut command = Command::new("dsh");
+        apply_dsh_home(&mut command, &DshHome::Environment);
+        assert!(command.get_envs().all(|(name, _)| name != "DSH_HOME"));
     }
 }

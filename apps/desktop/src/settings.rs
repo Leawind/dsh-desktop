@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{AppError, AppResult};
 use crate::model::{
-    DistributionVariant, DshSource, GlobalSettings, GlobalSettingsPatch, WindowStartupAttempt,
+    DistributionVariant, DshHome, DshSource, GlobalSettings, GlobalSettingsPatch,
+    WindowStartupAttempt,
 };
 
 const SETTINGS_FILE: &str = "settings.json";
@@ -35,6 +36,19 @@ pub fn validate(
         *executable = executable.trim().to_owned();
         if executable.is_empty() {
             return Err(AppError::new("settings.error.emptyExecutable"));
+        }
+    }
+    if let DshHome::Custom { path } = &mut patch.dsh_home {
+        *path = path.trim().to_owned();
+        if path.is_empty() {
+            return Err(AppError::new("settings.error.emptyDshHome"));
+        }
+        if !Path::new(path).is_absolute()
+            && path != "~"
+            && !path.starts_with("~/")
+            && !path.starts_with("~\\")
+        {
+            return Err(AppError::new("settings.error.relativeDshHome"));
         }
     }
 
@@ -104,6 +118,34 @@ mod tests {
                 start_port: 4000,
                 end_port: 3000,
             }],
+            ..GlobalSettings::default()
+        };
+        assert!(validate(settings, DistributionVariant::Slim).is_err());
+    }
+
+    #[test]
+    fn trims_custom_dsh_home() {
+        let settings = GlobalSettings {
+            dsh_home: DshHome::Custom {
+                path: "  ~/.dsh-desktop  ".to_owned(),
+            },
+            ..GlobalSettings::default()
+        };
+        let validated = validate(settings, DistributionVariant::Slim).expect("valid settings");
+        assert_eq!(
+            validated.dsh_home,
+            DshHome::Custom {
+                path: "~/.dsh-desktop".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_relative_custom_dsh_home() {
+        let settings = GlobalSettings {
+            dsh_home: DshHome::Custom {
+                path: "relative/dsh-home".to_owned(),
+            },
             ..GlobalSettings::default()
         };
         assert!(validate(settings, DistributionVariant::Slim).is_err());

@@ -31,7 +31,7 @@ pub fn run() {
             let resource_dir = app.path().resource_dir()?;
             let runtime_manager = runtime::RuntimeManager::new(resource_dir, data_dir.clone());
             let settings = settings::load(&config_dir, model::DistributionVariant::current());
-            let state = AppState::new(config_dir, settings, runtime_manager, data_dir);
+            let state = AppState::new(config_dir, settings, runtime_manager);
             state.register_window("main");
             app.manage(state.clone());
             let app_handle = app.handle().clone();

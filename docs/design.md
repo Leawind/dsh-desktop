@@ -63,7 +63,7 @@ DSH Desktop Host
 | Service Endpoint | Endpoint Registry 中由规范化 URL 识别的运行时连接目标       |
 | Managed Process  | 由 Desktop Host 启动并仍持有进程所有权的本地 `dsh web` 进程 |
 | DSH Runtime      | 一个已安装、经过验证且可以独立启动的确切 DSH 版本           |
-| DSH Home         | 一个 Managed Process 使用的配置、凭据、插件和会话数据目录   |
+| DSH Home         | 全局选择的 DSH 配置、凭据、插件和会话数据根目录             |
 
 ## 应用实例与窗口
 
@@ -311,6 +311,7 @@ ownerNonce
 ##### 应用设置
 
 - 界面语言；
+- DSH Home 来源与自定义目录；
 - 有序的窗口启动尝试列表及各项参数；
 - DSH 更新通道；
 - 自动检查和自动下载策略；
@@ -454,19 +455,23 @@ app-data/
 │   └── dsh/
 │       ├── 0.1.0-rc.6/
 │       └── 0.1.0-rc.7/
-├── services/
-│   └── <service-id>/
-│       ├── service.json
-│       ├── homes/
-│       │   ├── generation-1/
-│       │   └── generation-2/
-│       └── active-home.json
 ├── logs/
 ├── state.json
 └── compatibility-cache.json
 ```
 
-DSH Runtime 与 DSH Home 分开保存。Runtime 可以重新安装或删除，DSH Home 保存用户配置、凭据、插件和会话数据。用户 workspace 保留在原项目目录中。
+Runtime 可以重新安装或删除，不包含 DSH 的用户配置、凭据、插件和会话数据。用户 workspace 保留在原项目目录中。
+
+### DSH Home
+
+DSH Home 是独立于 Runtime 来源的全局设置。所有由 Desktop Host 启动的 Managed Process 使用同一个选择结果，端点 URL、端口和 Runtime 版本不参与数据目录选择。
+
+全局设置提供两种模式：
+
+- 使用 `$DSH_HOME`：默认模式。Host 不覆盖子进程的 `DSH_HOME`；环境变量未设置时，由 DSH 使用其默认的 `~/.dsh`；
+- 自定义目录：Host 将用户填写的绝对路径或 `~/` 路径作为子进程的 `DSH_HOME`。
+
+端点 URL、端口和进程数量不影响 DSH Home。自定义路径由 DSH 按自身规则创建和使用；所选目录不可用时启动直接失败，并保留失败状态和原始日志。修改全局设置不改变正在运行的进程，下一次启动或用户显式重启服务时生效。
 
 ## DSH 重启
 
@@ -479,7 +484,7 @@ DSH Desktop 支持在应用和窗口保持运行的情况下替换 DSH 服务进
 3. 请求当前 DSH 进程正常退出；
 4. 等待 DSH 完成资源释放；
 5. 超时后终止残留进程树；
-6. 使用相同 Runtime、DSH Home、启动配置和端口启动服务；
+6. 使用相同 Runtime、当前全局 DSH Home、启动配置和端口启动服务；
 7. 完成原 URL 的就绪检查；
 8. 通知所有关联窗口重新连接。
 
@@ -505,32 +510,18 @@ DSH 更新分为准备和切换两个阶段。
 
 1. 通知所有关联窗口；
 2. 停止旧 DSH 服务；
-3. 从当前 DSH Home 创建新的 generation；
-4. 使用新 Runtime 和新 generation 启动服务；
-5. 完成就绪检查；
-6. 更新 `active-home.json`；
-7. 通知窗口重新加载原 URL；
-8. 保留旧 Runtime 和旧 generation 供回滚。
+3. 使用新 Runtime 和当前全局 DSH Home 启动服务；
+4. 完成就绪检查；
+5. 通知窗口重新加载原 URL；
+6. 保留旧 Runtime 供兼容范围内的回滚。
 
 下载和安装新 Runtime 可以在当前服务运行期间完成，服务只在切换阶段短暂停止。
 
-## 数据 generation 与回滚
+## 更新与数据安全
 
-DSH 版本与其写入的数据格式作为一个可回滚单元管理。
+准备阶段使用一次性的测试目录验证新 Runtime，不将该目录作为用户的 DSH Home。切换阶段只使用用户当前选择的 DSH Home，不复制、替换或迁移其中的数据。
 
-```text
-升级前：active-home → generation-1
-
-升级时：generation-1 → generation-2
-
-升级成功：active-home → generation-2
-
-升级失败：active-home → generation-1
-```
-
-创建 generation 时先停止对源目录的写入。新 Runtime 只使用新 generation，旧 Runtime 和旧 generation 保持配对。
-
-应用根据保留策略清理不再使用的 Runtime 和 generation。复制凭据及其他敏感文件时保持仅当前用户可访问的文件权限。
+兼容性清单需要明确记录 DSH 数据格式兼容范围。只有确认旧 Runtime 能继续读取当前 DSH Home 时才提供自动回滚；存在破坏性数据迁移风险的版本不进入自动更新范围，并在用户显式更新前提示备份所选目录。
 
 ## 版本兼容性
 
@@ -715,7 +706,7 @@ Rust Host 向前端返回结构化错误代码、插值参数和可选的技术�
 - 为 `bundled` 提供对应平台的 Node.js、DSH 和 pnpm；
 - 安装和验证确切 DSH 版本；
 - 实现 `built-in` 来源和版本隔离的内置运行时目录；
-- 实现 DSH Home 与 Runtime 分离；
+- 实现全局 DSH Home 选择，并与 Runtime、端点和端口分离；
 - 实现进程所有权、窗口服务分配锁、停止、重启和空闲回收；
 - 实现全局窗口、端点、运行时和日志管理；
 - 实现多端点与多 Managed Process。
@@ -726,12 +717,11 @@ Rust Host 向前端返回结构化错误代码、插值参数和可选的技术�
 
 - 实现 Runtime staging 和启动验证；
 - 实现兼容性清单、签名、缓存和版本选择；
-- 实现 DSH Home generation；
-- 实现运行时热切换和更新失败自动回滚；
-- 实现 Runtime、generation 和日志的清理策略；
+- 实现运行时热切换和兼容范围内的更新失败自动回滚；
+- 实现 Runtime 和日志的清理策略；
 - 自动化生成并发布兼容性清单。
 
-该阶段的完成标准是：DSH 可以在不更新或重启 DSH Desktop 的情况下更新，失败后可以恢复到已验证的 Runtime 和 DSH Home。
+该阶段的完成标准是：DSH 可以在不更新或重启 DSH Desktop 的情况下更新，始终使用用户选择的 DSH Home，并在数据格式兼容时恢复到已验证的 Runtime。
 
 ### 跨平台发行与维护
 
