@@ -156,6 +156,22 @@ pnpm run runtime:prepare -- --node-archive /path/to/node-archive
 
 准备结果位于 `apps/desktop/runtime/bundled/`，属于本机构建产物，不提交到 Git。
 
+### AppImage 构建运行时
+
+Linux 构建脚本会为 `appimagetool` 准备当前架构的 AppImage runtime，按
+`scripts/appimage-runtimes.json` 中固定的 SHA-256 校验后缓存到
+`.cache/build-tools/appimage/`。`bundled` 与 `slim` 共用该缓存，后续构建不再重复下载。
+
+首次下载会继承 `curl` 支持的代理环境。如果自动下载较慢，也可以手动下载构建日志中的
+`runtime-x86_64` 或 `runtime-aarch64`，再将本地文件传给任一构建命令：
+
+```sh
+pnpm run build:slim -- --appimage-runtime /path/to/runtime-x86_64
+```
+
+本地文件同样必须通过项目固定的校验值。上游 runtime 发生变化时，应明确审查并更新 URL
+和校验值，而不是跳过校验。
+
 ## 前端约定
 
 - 应用前端使用 Vue 3 和 TypeScript；

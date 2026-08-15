@@ -5,10 +5,7 @@
   "scripts": {
     "dev": "pnpm run dev:slim",
     "dev:bundled": "pnpm --workspace-root run runtime:prepare && cross-env DSH_DESKTOP_VARIANT=bundled tauri dev --config tauri.bundled.conf.json",
-    "dev:slim": "cross-env DSH_DESKTOP_VARIANT=slim tauri dev --config tauri.slim.conf.json",
-    "build": "pnpm run build:bundled",
-    "build:bundled": "pnpm --workspace-root run runtime:prepare && cross-env DSH_DESKTOP_VARIANT=bundled tauri build --config tauri.bundled.conf.json && pnpm --workspace-root run bundle:label bundled",
-    "build:slim": "cross-env DSH_DESKTOP_VARIANT=slim tauri build --config tauri.slim.conf.json && pnpm --workspace-root run bundle:label slim"
+    "dev:slim": "cross-env DSH_DESKTOP_VARIANT=slim tauri dev --config tauri.slim.conf.json"
   },
   "dependencies": {
     "@dsh-desktop/frontend": "workspace:*"

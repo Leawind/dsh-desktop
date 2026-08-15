@@ -17,6 +17,7 @@ apps/desktop/runtime/bundled/
 
 # Runtime preparation cache
 .cache/runtime/
+.cache/build-tools/
 
 # Test output
 coverage/
