@@ -23,6 +23,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   setTarget: [url: string];
+  runStartup: [];
   saveSettings: [settings: GlobalSettingsPatch];
   reload: [];
 }>();
@@ -76,6 +77,7 @@ const attemptOptions = computed(() => [
   { value: "start-fixed", label: t("settings.attempt.type.start-fixed") },
   { value: "start-range", label: t("settings.attempt.type.start-range") },
 ]);
+const knownEndpoints = computed(() => props.host.endpoints.filter((endpoint) => endpoint.known));
 
 function cloneAttempts(value: readonly WindowStartupAttempt[]): WindowStartupAttempt[] {
   return value.map((attempt) => ({ ...attempt }));
@@ -299,6 +301,9 @@ function onTabKeydown(event: KeyboardEvent): void {
             </UiSettingRow>
             <UiSettingRow :label="t('window.actions')" :hint="t('window.actionsHint')">
               <div class="settings__inline-control">
+                <UiButton size="small" @click="$emit('runStartup')">
+                  {{ t("window.runStartup") }}
+                </UiButton>
                 <UiButton size="small" @click="$emit('reload')">
                   {{ t("common.reload") }}
                 </UiButton>
@@ -306,6 +311,16 @@ function onTabKeydown(event: KeyboardEvent): void {
                   {{ t("window.new") }}
                 </UiButton>
               </div>
+            </UiSettingRow>
+            <UiSettingRow
+              v-for="endpoint in knownEndpoints"
+              :key="endpoint.url"
+              :label="endpoint.url"
+              :hint="t('window.knownEndpointHint')"
+            >
+              <UiButton size="small" @click="$emit('setTarget', endpoint.url)">
+                {{ t("common.connect") }}
+              </UiButton>
             </UiSettingRow>
           </section>
 

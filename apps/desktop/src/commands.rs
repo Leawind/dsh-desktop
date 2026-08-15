@@ -108,8 +108,15 @@ fn run_window_startup(state: &AppState, window_label: &str) -> AppResult<WindowS
         .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
 
     let mut failures = Vec::new();
+    let mut resolved_runtime = None;
     for attempt in &settings.window_startup_attempts {
-        match run_attempt(state, window_label, &settings, attempt) {
+        match run_attempt(
+            state,
+            window_label,
+            &settings,
+            attempt,
+            &mut resolved_runtime,
+        ) {
             Ok(()) => return startup_result(state, window_label, true, failures),
             Err(error) => failures.push(StartupAttemptFailure {
                 attempt: attempt.clone(),
@@ -159,6 +166,7 @@ fn run_attempt(
     window_label: &str,
     settings: &GlobalSettings,
     attempt: &WindowStartupAttempt,
+    resolved_runtime: &mut Option<AppResult<service::ResolvedDshRuntime>>,
 ) -> AppResult<()> {
     match attempt {
         WindowStartupAttempt::KnownServices => connect_known_service(state, window_label),
@@ -166,13 +174,21 @@ fn run_attempt(
             connect_endpoint(state, window_label, &dsh_url(host, *port))
         }
         WindowStartupAttempt::StartFixed { host, port } => {
-            start_fixed(state, window_label, settings, host, *port)
+            start_fixed(state, window_label, settings, host, *port, resolved_runtime)
         }
         WindowStartupAttempt::StartRange {
             host,
             start_port,
             end_port,
-        } => start_range(state, window_label, settings, host, *start_port, *end_port),
+        } => start_range(
+            state,
+            window_label,
+            settings,
+            host,
+            *start_port,
+            *end_port,
+            resolved_runtime,
+        ),
     }
 }
 
@@ -186,14 +202,14 @@ fn connect_known_service(state: &AppState, window_label: &str) -> AppResult<()> 
         return Err(AppError::new("service.error.noKnownServices"));
     }
 
-    let mut last_error = None;
+    let mut errors = Vec::new();
     for url in urls {
         match connect_endpoint(state, window_label, &url) {
             Ok(()) => return Ok(()),
-            Err(error) => last_error = Some(error),
+            Err(error) => errors.push(format!("{url}: {}", error.code)),
         }
     }
-    Err(last_error.unwrap_or_else(|| AppError::new("service.error.noKnownServices")))
+    Err(AppError::new("service.error.knownServicesUnavailable").technical(errors.join("\n")))
 }
 
 fn connect_endpoint(state: &AppState, window_label: &str, url: &str) -> AppResult<()> {
@@ -230,6 +246,7 @@ fn start_fixed(
     settings: &GlobalSettings,
     host: &str,
     port: u16,
+    resolved_runtime: &mut Option<AppResult<service::ResolvedDshRuntime>>,
 ) -> AppResult<()> {
     validate_start_host(host)?;
     let url = dsh_url(host, port);
@@ -239,7 +256,7 @@ fn start_fixed(
         }
         ProbeResult::Unreachable => {}
     }
-    let runtime = service::resolve_runtime(&settings.dsh_source)?;
+    let runtime = resolve_runtime_once(resolved_runtime, settings)?;
     let managed = service::start(&runtime, port)?;
     register_managed_service(state, window_label, url, managed)
 }
@@ -251,9 +268,10 @@ fn start_range(
     host: &str,
     start_port: u16,
     end_port: u16,
+    resolved_runtime: &mut Option<AppResult<service::ResolvedDshRuntime>>,
 ) -> AppResult<()> {
     validate_start_host(host)?;
-    let runtime = service::resolve_runtime(&settings.dsh_source)?;
+    let runtime = resolve_runtime_once(resolved_runtime, settings)?;
     for port in start_port..=end_port {
         let url = dsh_url(host, port);
         if service::probe(&url) != ProbeResult::Unreachable {
@@ -265,6 +283,20 @@ fn start_range(
     Err(AppError::new("service.error.noFreePort")
         .arg("startPort", start_port)
         .arg("endPort", end_port))
+}
+
+fn resolve_runtime_once<'a>(
+    resolved_runtime: &'a mut Option<AppResult<service::ResolvedDshRuntime>>,
+    settings: &GlobalSettings,
+) -> AppResult<&'a service::ResolvedDshRuntime> {
+    if resolved_runtime.is_none() {
+        *resolved_runtime = Some(service::resolve_runtime(&settings.dsh_source));
+    }
+    resolved_runtime
+        .as_ref()
+        .expect("runtime result initialized")
+        .as_ref()
+        .map_err(Clone::clone)
 }
 
 fn validate_start_host(host: &str) -> AppResult<()> {

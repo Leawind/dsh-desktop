@@ -133,7 +133,7 @@ https://dsh.example.com
 
 当前 DSH Web CLI 只用于启动绑定 `127.0.0.1` 的 Managed Process。`connect-fixed` 可以连接用户明确配置的其他 IP 地址；域名、HTTPS 和带路径的目标由窗口自定义 URL 与 Endpoint Registry 承载。
 
-`start-fixed` 不复用端口上已有的 DSH，因为复用行为属于 `known-services` 和 `connect-fixed`。`start-range` 不先扫描再选择端口，而是按顺序直接尝试启动，端口冲突后继续下一个候选，避免检查与启动之间的端口竞争。
+`start-fixed` 不复用端口上已有的 DSH，因为复用行为属于 `known-services` 和 `connect-fixed`。`start-range` 按顺序检查候选端口并尝试启动，端口被占用时继续下一个候选；最终以 DSH 进程的启动和就绪结果为准。
 
 默认的 `bundled` 策略依次尝试已知服务、连接 `127.0.0.1:3080`、在 `127.0.0.1:3080` 启动服务，最后在 `3081` 至 `3090` 范围内启动服务。
 
