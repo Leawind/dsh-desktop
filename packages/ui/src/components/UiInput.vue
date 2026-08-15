@@ -32,8 +32,8 @@ withDefaults(
 <style scoped>
 .ui-input {
   width: 100%;
-  min-height: 2.25rem;
-  padding: 0 var(--space-3);
+  height: var(--control-height);
+  padding: 0 var(--space-2);
   color: var(--color-text-primary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
@@ -41,9 +41,7 @@ withDefaults(
   background: var(--color-input);
   font: inherit;
   font-size: var(--font-size-sm);
-  transition:
-    border-color var(--duration-fast),
-    box-shadow var(--duration-fast);
+  line-height: var(--line-height-sm);
 }
 
 .ui-input::placeholder {
@@ -52,6 +50,10 @@ withDefaults(
 
 .ui-input:focus {
   border-color: var(--color-focus);
-  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.ui-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 </style>

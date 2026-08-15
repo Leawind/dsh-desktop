@@ -33,26 +33,26 @@ withDefaults(
   justify-content: center;
   min-width: 0;
   border: 1px solid transparent;
-  border-radius: var(--radius-control);
+  gap: var(--space-1);
+  border-radius: var(--radius-button-medium);
   font: inherit;
   font-size: var(--font-size-sm);
-  font-weight: 550;
-  line-height: 1;
+  font-weight: 500;
+  line-height: var(--line-height-sm);
   cursor: pointer;
-  transition:
-    background-color var(--duration-fast),
-    border-color var(--duration-fast),
-    color var(--duration-fast);
 }
 
 .ui-button--medium {
-  min-height: 2.25rem;
-  padding: 0 var(--space-4);
+  height: var(--button-height-medium);
+  padding: 0 14px;
 }
 
 .ui-button--small {
-  min-height: 1.875rem;
-  padding: 0 var(--space-3);
+  height: var(--button-height-small);
+  padding: 0 10px;
+  border-radius: var(--radius-button-small);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-xs);
 }
 
 .ui-button--primary {
@@ -67,12 +67,17 @@ withDefaults(
 .ui-button--secondary {
   color: var(--color-text-primary);
   border-color: var(--color-border);
-  background: var(--color-control);
+  background: transparent;
 }
 
 .ui-button--secondary:hover:not(:disabled),
 .ui-button--ghost:hover:not(:disabled) {
-  background: var(--color-control-hover);
+  background: var(--color-interactive-hover);
+}
+
+.ui-button--secondary:active:not(:disabled),
+.ui-button--ghost:active:not(:disabled) {
+  background: var(--color-interactive-active);
 }
 
 .ui-button--ghost {
@@ -86,7 +91,7 @@ withDefaults(
 }
 
 .ui-button:disabled {
-  cursor: default;
-  opacity: 0.5;
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 </style>

@@ -6,6 +6,9 @@
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-md: 1rem;
+  --line-height-xs: 18px;
+  --line-height-sm: 22px;
+  --line-height-md: 24px;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -15,15 +18,25 @@
   --space-6: 1.5rem;
   --space-8: 2rem;
 
-  --radius-control: 0.5rem;
-  --radius-panel: 0.75rem;
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --radius-button-medium: 18px;
+  --radius-button-small: 14px;
+  --control-height: 32px;
+  --button-height-medium: 36px;
+  --button-height-small: 28px;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-fast: 100ms;
+  --duration-standard: 200ms;
+  --duration-slow: 300ms;
 
   --color-background: #ffffff;
   --color-surface: #ffffff;
   --color-surface-raised: #ffffff;
   --color-control: #f5f6f7;
   --color-control-hover: #f1f3f5;
+  --color-interactive-hover: rgb(38 49 72 / 6%);
+  --color-interactive-active: rgb(38 49 72 / 10%);
   --color-input: #ffffff;
   --color-border: rgb(0 0 0 / 10%);
   --color-text-primary: #0f1115;
@@ -49,7 +62,9 @@
     --color-surface-raised: #2c2c2e;
     --color-control: #353638;
     --color-control-hover: #43454a;
-    --color-input: #1b1b1c;
+    --color-interactive-hover: rgb(255 255 255 / 8%);
+    --color-interactive-active: rgb(255 255 255 / 14%);
+    --color-input: #232324;
     --color-border: rgb(255 255 255 / 12%);
     --color-text-primary: #f9fafb;
     --color-text-secondary: #cfd3d6;

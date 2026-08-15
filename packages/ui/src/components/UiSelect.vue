@@ -24,7 +24,7 @@ defineProps<{
 <style scoped>
 .ui-select {
   width: 100%;
-  min-height: 2.25rem;
+  height: var(--control-height);
   padding: 0 var(--space-8) 0 var(--space-3);
   color: var(--color-text-primary);
   border: 1px solid var(--color-border);
@@ -33,10 +33,15 @@ defineProps<{
   background: var(--color-input);
   font: inherit;
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
 }
 
 .ui-select:focus {
   border-color: var(--color-focus);
-  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.ui-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 </style>

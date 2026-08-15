@@ -32,7 +32,7 @@ onMounted(desktop.initialize);
         class="connection-state"
         aria-live="polite"
       >
-        <UiStatus tone="info">{{ t("app.initializing") }}</UiStatus>
+        <UiStatus tone="info" animated>{{ t("app.initializing") }}</UiStatus>
       </section>
 
       <section v-else-if="desktop.error.value" class="connection-state connection-state--error">

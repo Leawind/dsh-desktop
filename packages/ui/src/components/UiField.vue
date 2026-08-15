@@ -25,12 +25,14 @@ defineProps<{
 
 .ui-field__label {
   font-size: var(--font-size-sm);
-  font-weight: 550;
+  font-weight: 500;
+  line-height: var(--line-height-sm);
 }
 
 .ui-field__hint,
 .ui-field__error {
   font-size: var(--font-size-xs);
+  line-height: var(--line-height-xs);
 }
 
 .ui-field__hint {
