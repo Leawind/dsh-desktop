@@ -19,6 +19,10 @@ function setLocale(locale: ReturnType<typeof resolveInitialLocale>): void {
   document.documentElement.lang = i18n.global.locale.value;
 }
 
+export function resolveFrameUrl(window: WindowSnapshot | null, status: ServiceStatus): string {
+  return status === "running" && window ? window.url : "about:blank";
+}
+
 export function useDesktopApp() {
   const settings = ref<GlobalSettings>({
     defaultDshPort: 3080,
@@ -33,7 +37,7 @@ export function useDesktopApp() {
   const frameRevision = ref(0);
   const unlisteners: UnlistenFn[] = [];
 
-  const frameUrl = computed(() => currentWindow.value?.url ?? "about:blank");
+  const frameUrl = computed(() => resolveFrameUrl(currentWindow.value, startupStatus.value));
 
   async function initialize(): Promise<void> {
     try {
