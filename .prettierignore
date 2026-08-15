@@ -1,5 +1,5 @@
 dist/
 node_modules/
-src-tauri/target/
-src-tauri/Cargo.lock
+apps/desktop/target/
+apps/desktop/Cargo.lock
 pnpm-lock.yaml

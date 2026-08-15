@@ -8,11 +8,11 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "dev": "tauri dev",
-    "build": "tauri build --no-bundle",
+    "dev": "pnpm --filter @dsh-desktop/desktop run dev",
+    "build": "pnpm --filter @dsh-desktop/desktop run build",
     "check": "pnpm run format-check && pnpm run frontend:lint && pnpm run frontend:test && pnpm run frontend:build && pnpm run rust:test",
-    "format": "prettier --write .github .oxlintrc.json .prettierrc.json package.json pnpm-workspace.yaml apps/frontend packages/ui src-tauri/capabilities src-tauri/*.json && pnpm run rust:format",
-    "format-check": "prettier --check .github .oxlintrc.json .prettierrc.json package.json pnpm-workspace.yaml apps/frontend packages/ui src-tauri/capabilities src-tauri/*.json && pnpm run rust:format-check",
+    "format": "prettier --write .github .oxlintrc.json .prettierrc.json package.json pnpm-workspace.yaml apps/desktop/package.json apps/desktop/capabilities apps/desktop/*.json apps/frontend packages/ui && pnpm run rust:format",
+    "format-check": "prettier --check .github .oxlintrc.json .prettierrc.json package.json pnpm-workspace.yaml apps/desktop/package.json apps/desktop/capabilities apps/desktop/*.json apps/frontend packages/ui && pnpm run rust:format-check",
     "frontend:dev": "pnpm --filter @dsh-desktop/frontend run dev",
     "frontend:build": "pnpm --filter @dsh-desktop/frontend run build",
     "frontend:format": "pnpm --filter @dsh-desktop/frontend run format && pnpm --filter @dsh-desktop/ui run format",
@@ -20,12 +20,11 @@
     "frontend:lint": "pnpm --filter @dsh-desktop/frontend run lint && pnpm --filter @dsh-desktop/ui run lint",
     "frontend:test": "pnpm --filter @dsh-desktop/frontend run test",
     "frontend:typecheck": "pnpm --filter @dsh-desktop/ui run typecheck && pnpm --filter @dsh-desktop/frontend run typecheck",
-    "rust:format": "cargo fmt --manifest-path src-tauri/Cargo.toml",
-    "rust:format-check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
-    "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml"
+    "rust:format": "cargo fmt --manifest-path apps/desktop/Cargo.toml",
+    "rust:format-check": "cargo fmt --manifest-path apps/desktop/Cargo.toml -- --check",
+    "rust:test": "cargo test --manifest-path apps/desktop/Cargo.toml"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.4",
     "prettier": "^3.9.6"
   }
 }

@@ -8,12 +8,19 @@ importers:
 
   .:
     devDependencies:
-      '@tauri-apps/cli':
-        specifier: ^2.11.4
-        version: 2.11.4
       prettier:
         specifier: ^3.9.6
         version: 3.9.6
+
+  apps/desktop:
+    dependencies:
+      '@dsh-desktop/frontend':
+        specifier: workspace:*
+        version: link:../frontend
+    devDependencies:
+      '@tauri-apps/cli':
+        specifier: ^2.11.4
+        version: 2.11.4
 
   apps/frontend:
     dependencies:

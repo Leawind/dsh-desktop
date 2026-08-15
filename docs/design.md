@@ -294,22 +294,35 @@ TypeScript 启用严格检查。禁止使用未经说明的 `any`，Tauri IPC、
 
 普通组件使用 Vue 响应性和 composable 管理局部状态。只有出现跨多个不相关页面的复杂前端状态时才引入额外状态管理库。
 
-### 组件与目录组织
+### 组件与仓库目录组织
 
-前端按责任组织，页面组件不承担进程控制、持久化或 URL 规范化逻辑：
+仓库采用 pnpm workspace 分离桌面 Host、应用前端和通用界面组件：
 
 ```text
-src/
-├── components/       通用界面组件
-├── features/         窗口、服务、运行时和更新界面
-├── composables/      Vue 响应式组合逻辑
-├── bridge/           类型化 Tauri IPC 和事件边界
-├── i18n/             locale 清单和语言资源
-├── styles/           设计 token、全局样式和主题
-└── types/            前端共享类型
+apps/
+├── desktop/
+│   ├── src/           Rust Host
+│   ├── capabilities/  Tauri 权限配置
+│   └── tauri.conf.json
+└── frontend/
+    ├── src/
+    │   ├── bridge/      类型化 Tauri IPC 和事件边界
+    │   ├── composables/ Vue 响应式组合逻辑
+    │   ├── features/    窗口、服务和设置界面
+    │   ├── i18n/        locale 清单和语言资源
+    │   └── types/       前端共享类型
+    ├── index.html
+    └── vite.config.ts
+packages/
+└── ui/
+    └── src/
+        ├── components/ 通用 Vue 组件
+        └── styles/     设计 token、全局样式和主题
 ```
 
-通用交互元素封装为可复用 Vue 组件，包括按钮、输入框、选择器、切换项、对话框、状态标记和错误提示。功能页面使用这些组件，不重复实现基础交互和样式。
+`apps/desktop` 是窗口、全局设置、服务进程和持久化状态的实现边界。`apps/frontend` 只包含 DSH Desktop 应用专用的 Vue 界面与前端逻辑。`packages/ui` 提供不依赖应用业务状态的 Vue 组件和样式，并通过 `@dsh-desktop/ui` 包导出。
+
+页面组件不承担进程控制、持久化或 URL 规范化逻辑。通用交互元素封装为可复用 Vue 组件，包括按钮、输入框、选择器、切换项、对话框、状态标记和错误提示。功能页面使用这些组件，不重复实现基础交互和样式。
 
 ### 与 DSH 一致的视觉语言
 

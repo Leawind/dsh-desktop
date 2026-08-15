@@ -1,0 +1,15 @@
+{
+  "name": "@dsh-desktop/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build --no-bundle"
+  },
+  "dependencies": {
+    "@dsh-desktop/frontend": "workspace:*"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}

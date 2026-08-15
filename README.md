@@ -13,6 +13,18 @@ DSH Desktop 是基于 Tauri 和 Vue 3 的 DeepSeek Harness 桌面客户端。应
 
 详细设计见[设计文档](./docs/design.md)，DSH 的客观背景信息见[参考资料](./docs/refer.md)。
 
+## 仓库结构
+
+```text
+apps/
+├── desktop/   Tauri 配置、Rust Host 与桌面应用构建入口
+└── frontend/  Vue 3 应用界面与 Vite 构建入口
+packages/
+└── ui/        可复用的 Vue 组件与设计 token
+```
+
+根目录的 `package.json` 和 `pnpm-workspace.yaml` 负责工作区编排，并为本地开发与 CI 提供统一命令。应用专用界面保留在 `apps/frontend`，不含 DSH Desktop 业务逻辑的通用界面能力放在 `packages/ui`。
+
 ## 开发环境
 
 需要安装：

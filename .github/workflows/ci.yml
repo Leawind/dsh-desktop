@@ -28,7 +28,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: "./apps/desktop -> target"
 
       - name: Install Tauri system dependencies
         run: |

@@ -9,10 +9,10 @@ dist/
 
 # Rust
 target/
-src-tauri/target/
+apps/desktop/target/
 
 # Tauri
-src-tauri/gen/
+apps/desktop/gen/
 
 # Test output
 coverage/

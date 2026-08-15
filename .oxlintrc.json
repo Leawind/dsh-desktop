@@ -4,5 +4,5 @@
     "suspicious": "warn",
     "perf": "warn"
   },
-  "ignorePatterns": ["dist/**", "src-tauri/**"]
+  "ignorePatterns": ["dist/**", "apps/desktop/**"]
 }
