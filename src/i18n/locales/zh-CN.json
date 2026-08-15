@@ -1,9 +1,76 @@
 {
   "app": {
     "name": "DSH Desktop",
-    "initializing": "正在准备 DSH 桌面环境…"
+    "initializing": "正在启动 DSH…",
+    "error": {
+      "title": "无法连接到 DSH",
+      "unknown": "发生了未知错误。",
+      "stateUnavailable": "应用状态暂时不可用。",
+      "taskFailed": "后台任务执行失败。"
+    }
   },
   "common": {
+    "cancel": "取消",
+    "close": "关闭",
+    "details": "详细信息",
+    "reload": "重新加载",
+    "retry": "重试",
+    "save": "保存",
     "settings": "设置"
+  },
+  "window": {
+    "current": "当前窗口",
+    "url": "DSH URL",
+    "urlHint": "仅支持 HTTP 和 HTTPS 地址。",
+    "new": "打开新窗口",
+    "minimize": "最小化",
+    "maximize": "最大化或还原",
+    "close": "关闭窗口",
+    "settings": "打开设置",
+    "error": {
+      "invalidUrl": "URL 格式无效。",
+      "unsupportedUrl": "仅支持 HTTP 和 HTTPS URL。",
+      "urlCredentials": "URL 中不能包含用户名或密码。",
+      "createFailed": "无法创建新窗口。",
+      "notFound": "找不到当前窗口。"
+    }
+  },
+  "settings": {
+    "title": "设置",
+    "global": "全局设置",
+    "language": "界面语言",
+    "defaultPort": "DSH 默认端口",
+    "defaultPortHint": "新窗口将在此端口复用或启动本地 DSH。",
+    "executable": "DSH 可执行文件",
+    "executableHint": "留空时从系统 PATH 查找 dsh。",
+    "saved": "设置已保存。",
+    "error": {
+      "invalidPort": "端口号必须在 1 到 65535 之间。",
+      "saveFailed": "无法保存设置。"
+    }
+  },
+  "service": {
+    "section": "DSH 服务",
+    "external": "外部",
+    "managed": "由应用管理",
+    "windows": "{count} 个窗口",
+    "status": {
+      "unreachable": "无法访问",
+      "starting": "正在启动",
+      "running": "运行中",
+      "failed": "启动失败"
+    },
+    "error": {
+      "portOccupied": "端口 {port} 已被其他服务占用。",
+      "startFailed": "无法启动 DSH。",
+      "processExited": "DSH 进程在启动期间退出。",
+      "startTimeout": "等待 DSH 在端口 {port} 启动超时。",
+      "invalidExecutable": "配置的程序不是可用的 dsh 命令。",
+      "executableNotFound": "找不到 dsh 命令，请在全局设置中指定其路径。"
+    }
+  },
+  "locale": {
+    "zh-CN": "简体中文",
+    "en-US": "English (United States)"
   }
 }

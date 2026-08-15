@@ -10,6 +10,10 @@
   "scripts": {
     "dev": "vite",
     "build": "pnpm run typecheck && vite build",
+    "check": "pnpm run format:check && pnpm run lint && pnpm run test && pnpm run build",
+    "format": "prettier --write .github index.html package.json src src-tauri/capabilities src-tauri/*.json tsconfig.json vite.config.ts",
+    "format:check": "prettier --check .github index.html package.json src src-tauri/capabilities src-tauri/*.json tsconfig.json vite.config.ts",
+    "lint": "oxlint src vite.config.ts",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",
     "tauri": "tauri"
@@ -23,6 +27,8 @@
     "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^24.0.0",
     "@vitejs/plugin-vue": "^6.0.8",
+    "oxlint": "^1.76.0",
+    "prettier": "^3.9.6",
     "typescript": "^6.0.3",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",

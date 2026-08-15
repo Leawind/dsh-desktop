@@ -1,9 +1,76 @@
 {
   "app": {
     "name": "DSH Desktop",
-    "initializing": "Preparing the DSH desktop environment…"
+    "initializing": "Starting DSH…",
+    "error": {
+      "title": "Unable to connect to DSH",
+      "unknown": "An unknown error occurred.",
+      "stateUnavailable": "The application state is temporarily unavailable.",
+      "taskFailed": "The background task failed."
+    }
   },
   "common": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "details": "Details",
+    "reload": "Reload",
+    "retry": "Retry",
+    "save": "Save",
     "settings": "Settings"
+  },
+  "window": {
+    "current": "Current window",
+    "url": "DSH URL",
+    "urlHint": "Only HTTP and HTTPS addresses are supported.",
+    "new": "Open new window",
+    "minimize": "Minimize",
+    "maximize": "Maximize or restore",
+    "close": "Close window",
+    "settings": "Open settings",
+    "error": {
+      "invalidUrl": "The URL is invalid.",
+      "unsupportedUrl": "Only HTTP and HTTPS URLs are supported.",
+      "urlCredentials": "The URL cannot contain a username or password.",
+      "createFailed": "The new window could not be created.",
+      "notFound": "The current window could not be found."
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "global": "Global settings",
+    "language": "Interface language",
+    "defaultPort": "Default DSH port",
+    "defaultPortHint": "New windows reuse or start local DSH on this port.",
+    "executable": "DSH executable",
+    "executableHint": "Leave empty to find dsh on the system PATH.",
+    "saved": "Settings saved.",
+    "error": {
+      "invalidPort": "The port must be between 1 and 65535.",
+      "saveFailed": "The settings could not be saved."
+    }
+  },
+  "service": {
+    "section": "DSH services",
+    "external": "External",
+    "managed": "Managed by the app",
+    "windows": "{count} window | {count} windows",
+    "status": {
+      "unreachable": "Unreachable",
+      "starting": "Starting",
+      "running": "Running",
+      "failed": "Failed to start"
+    },
+    "error": {
+      "portOccupied": "Port {port} is occupied by another service.",
+      "startFailed": "DSH could not be started.",
+      "processExited": "The DSH process exited during startup.",
+      "startTimeout": "Timed out waiting for DSH to start on port {port}.",
+      "invalidExecutable": "The configured program is not a usable dsh command.",
+      "executableNotFound": "The dsh command was not found. Set its path in global settings."
+    }
+  },
+  "locale": {
+    "zh-CN": "简体中文",
+    "en-US": "English (United States)"
   }
 }

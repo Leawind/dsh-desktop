@@ -1,56 +1,113 @@
 <script setup lang="ts">
+import { onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 
-import { UiButton } from "@/ui";
+import { useDesktopApp } from "@/composables/useDesktopApp";
+import DshFrame from "@/features/dsh-frame/DshFrame.vue";
+import SettingsOverlay from "@/features/settings/SettingsOverlay.vue";
+import AppTitlebar from "@/features/titlebar/AppTitlebar.vue";
+import { UiButton, UiStatus } from "@/ui";
 
 const { t } = useI18n();
+const desktop = useDesktopApp();
+
+function errorMessage(): string {
+  const error = desktop.error.value;
+  if (!error) return t("app.error.unknown");
+  return t(error.code, error.args ?? {});
+}
+
+onMounted(desktop.initialize);
 </script>
 
 <template>
-  <main class="bootstrap-view">
-    <section class="bootstrap-card">
-      <span class="bootstrap-mark" aria-hidden="true">DSH</span>
-      <h1>{{ t("app.name") }}</h1>
-      <p>{{ t("app.initializing") }}</p>
-      <UiButton>{{ t("common.settings") }}</UiButton>
-    </section>
-  </main>
+  <div class="app-shell">
+    <AppTitlebar @settings="desktop.settingsOpen.value = true" />
+    <main class="app-content">
+      <DshFrame :url="desktop.frameUrl.value" :revision="desktop.frameRevision.value" />
+
+      <section
+        v-if="desktop.startupStatus.value === 'starting'"
+        class="connection-state"
+        aria-live="polite"
+      >
+        <UiStatus tone="info">{{ t("app.initializing") }}</UiStatus>
+      </section>
+
+      <section v-else-if="desktop.error.value" class="connection-state connection-state--error">
+        <h1>{{ t("app.error.title") }}</h1>
+        <p>{{ errorMessage() }}</p>
+        <details v-if="desktop.error.value.technicalDetails">
+          <summary>{{ t("common.details") }}</summary>
+          <pre>{{ desktop.error.value.technicalDetails }}</pre>
+        </details>
+        <UiButton variant="primary" @click="desktop.retryDefaultService">
+          {{ t("common.retry") }}
+        </UiButton>
+      </section>
+
+      <SettingsOverlay
+        v-if="desktop.settingsOpen.value && desktop.currentWindow.value"
+        :current-url="desktop.currentWindow.value.url"
+        :settings="desktop.settings.value"
+        :host="desktop.host.value"
+        @close="desktop.settingsOpen.value = false"
+        @set-target="desktop.setTarget"
+        @save-settings="desktop.saveGlobalSettings"
+        @reload="desktop.reloadFrame"
+      />
+    </main>
+  </div>
 </template>
 
 <style scoped>
-.bootstrap-view {
+.app-shell {
+  --titlebar-height: 2.5rem;
+
   display: grid;
-  min-height: 100vh;
-  place-items: center;
+  width: 100vw;
+  height: 100vh;
+  grid-template-rows: var(--titlebar-height) minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--color-background);
+}
+
+.app-content {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.connection-state {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-4);
   padding: var(--space-6);
   background: var(--color-background);
 }
 
-.bootstrap-card {
-  display: grid;
-  width: min(100%, 28rem);
-  justify-items: start;
-  gap: var(--space-4);
-  padding: var(--space-8);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-panel);
-}
-
-.bootstrap-card h1,
-.bootstrap-card p {
+.connection-state h1,
+.connection-state p {
   margin: 0;
 }
 
-.bootstrap-card p {
+.connection-state p {
   color: var(--color-text-secondary);
 }
 
-.bootstrap-mark {
-  color: var(--color-accent);
+.connection-state details {
+  width: min(100%, 42rem);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
-  font-weight: 700;
-  letter-spacing: 0.12em;
+}
+
+.connection-state pre {
+  max-height: 12rem;
+  overflow: auto;
+  white-space: pre-wrap;
 }
 </style>
