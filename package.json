@@ -8,15 +8,21 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "pnpm run typecheck && vite build",
-    "check": "pnpm run format:check && pnpm run lint && pnpm run test && pnpm run build",
-    "format": "prettier --write .github index.html package.json src src-tauri/capabilities src-tauri/*.json tsconfig.json vite.config.ts",
-    "format:check": "prettier --check .github index.html package.json src src-tauri/capabilities src-tauri/*.json tsconfig.json vite.config.ts",
-    "lint": "oxlint src vite.config.ts",
-    "typecheck": "vue-tsc --noEmit",
-    "test": "vitest run",
-    "tauri": "tauri"
+    "dev": "tauri dev",
+    "build": "tauri build --no-bundle",
+    "check": "pnpm run format-check && pnpm run frontend:lint && pnpm run frontend:test && pnpm run frontend:build && pnpm run rust:test",
+    "format": "pnpm run frontend:format && pnpm run rust:format",
+    "format-check": "pnpm run frontend:format-check && pnpm run rust:format-check",
+    "frontend:dev": "vite",
+    "frontend:build": "pnpm run frontend:typecheck && vite build",
+    "frontend:format": "prettier --write .github index.html package.json src src-tauri/capabilities src-tauri/*.json tsconfig.json vite.config.ts",
+    "frontend:format-check": "prettier --check .github index.html package.json src src-tauri/capabilities src-tauri/*.json tsconfig.json vite.config.ts",
+    "frontend:lint": "oxlint src vite.config.ts",
+    "frontend:test": "vitest run",
+    "frontend:typecheck": "vue-tsc --noEmit",
+    "rust:format": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "rust:format-check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
+    "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

@@ -41,22 +41,30 @@ sudo apt install libwebkit2gtk-4.1-dev \
 
 ```sh
 pnpm install
-pnpm tauri dev
+pnpm run dev
 ```
 
 应用默认连接 `http://127.0.0.1:3080`。也可以在全局设置中指定 `dsh` 可执行文件的绝对路径。
 
 ## 检查
 
-运行前端格式、静态检查、测试、类型检查和生产构建：
+运行与 CI 相同的全部格式检查、静态检查、测试、类型检查和前端生产构建：
 
 ```sh
-pnpm check
+pnpm run check
 ```
 
-运行 Rust 格式和测试：
+也可以分别执行具体检查：
 
 ```sh
-cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-cargo test --manifest-path src-tauri/Cargo.toml
+pnpm run format-check
+pnpm run frontend:lint
+pnpm run frontend:test
+pnpm run rust:test
+```
+
+构建不含平台安装包的桌面可执行文件：
+
+```sh
+pnpm run build
 ```

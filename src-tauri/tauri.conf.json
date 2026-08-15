@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "io.github.leawind.dsh-desktop",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm run frontend:dev",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm run frontend:build",
     "frontendDist": "../dist"
   },
   "app": {
