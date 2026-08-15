@@ -60,13 +60,17 @@ onMounted(desktop.initialize);
       <SettingsOverlay
         v-if="desktop.settingsOpen.value && desktop.currentWindow.value"
         :current-url="desktop.currentWindow.value.url"
+        :current-window-label="desktop.currentWindow.value.label"
         :settings="desktop.settings.value"
         :host="desktop.host.value"
+        :distribution="desktop.distribution.value"
         @close="desktop.settingsOpen.value = false"
         @set-target="desktop.setTarget"
         @run-startup="desktop.retryStartup"
         @save-settings="desktop.saveGlobalSettings"
         @reload="desktop.reloadFrame"
+        @stop-service="desktop.stopService"
+        @restart-service="desktop.restartService"
       />
     </main>
   </div>

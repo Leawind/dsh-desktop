@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Emitter, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 
 use crate::endpoint::{dsh_url, normalize_dsh_url};
 use crate::error::{AppError, AppResult};
@@ -25,6 +25,7 @@ pub fn initialize_window(
     let host = state.snapshot();
     Ok(BootstrapPayload {
         settings,
+        distribution: state.runtime_manager.distribution_snapshot(),
         window,
         host,
     })
@@ -33,6 +34,28 @@ pub fn initialize_window(
 #[tauri::command]
 pub fn create_app_window(app: AppHandle) -> AppResult<String> {
     crate::windows::create(&app)
+}
+
+#[tauri::command]
+pub fn focus_app_window(app: AppHandle, label: String) -> AppResult<()> {
+    let window = app
+        .get_webview_window(&label)
+        .ok_or_else(|| AppError::new("window.error.notFound"))?;
+    window
+        .unminimize()
+        .and_then(|_| window.show())
+        .and_then(|_| window.set_focus())
+        .map_err(|error| AppError::new("window.error.focusFailed").technical(error.to_string()))
+}
+
+#[tauri::command]
+pub fn close_app_window(app: AppHandle, label: String) -> AppResult<()> {
+    let window = app
+        .get_webview_window(&label)
+        .ok_or_else(|| AppError::new("window.error.notFound"))?;
+    window
+        .close()
+        .map_err(|error| AppError::new("window.error.closeFailed").technical(error.to_string()))
 }
 
 #[tauri::command]
@@ -155,6 +178,7 @@ fn startup_result(
         .ok_or_else(|| AppError::new("window.error.notFound"))?;
     Ok(WindowStartupResult {
         connected,
+        distribution: state.runtime_manager.distribution_snapshot(),
         window,
         host: snapshot_locked(&host),
         failures,
@@ -256,8 +280,8 @@ fn start_fixed(
         }
         ProbeResult::Unreachable => {}
     }
-    let runtime = resolve_runtime_once(resolved_runtime, settings)?;
-    let managed = service::start(&runtime, port)?;
+    let runtime = resolve_runtime_once(resolved_runtime, settings, &state.runtime_manager)?;
+    let managed = service::start(&runtime, port, state.service_home(&url))?;
     register_managed_service(state, window_label, url, managed)
 }
 
@@ -271,13 +295,13 @@ fn start_range(
     resolved_runtime: &mut Option<AppResult<service::ResolvedDshRuntime>>,
 ) -> AppResult<()> {
     validate_start_host(host)?;
-    let runtime = resolve_runtime_once(resolved_runtime, settings)?;
+    let runtime = resolve_runtime_once(resolved_runtime, settings, &state.runtime_manager)?;
     for port in start_port..=end_port {
         let url = dsh_url(host, port);
         if service::probe(&url) != ProbeResult::Unreachable {
             continue;
         }
-        let managed = service::start(&runtime, port)?;
+        let managed = service::start(&runtime, port, state.service_home(&url))?;
         return register_managed_service(state, window_label, url, managed);
     }
     Err(AppError::new("service.error.noFreePort")
@@ -288,9 +312,13 @@ fn start_range(
 fn resolve_runtime_once<'a>(
     resolved_runtime: &'a mut Option<AppResult<service::ResolvedDshRuntime>>,
     settings: &GlobalSettings,
+    runtime_manager: &crate::runtime::RuntimeManager,
 ) -> AppResult<&'a service::ResolvedDshRuntime> {
     if resolved_runtime.is_none() {
-        *resolved_runtime = Some(service::resolve_runtime(&settings.dsh_source));
+        *resolved_runtime = Some(service::resolve_runtime(
+            &settings.dsh_source,
+            runtime_manager,
+        ));
     }
     resolved_runtime
         .as_ref()
@@ -314,6 +342,7 @@ fn register_managed_service(
     managed: service::ManagedService,
 ) -> AppResult<()> {
     let runtime_version = managed.runtime_version.clone();
+    let launch = managed.launch.clone();
     let mut host = state
         .host
         .lock()
@@ -329,10 +358,152 @@ fn register_managed_service(
             runtime_version: Some(runtime_version),
             last_error: None,
             last_successful_connection: None,
+            managed: true,
+            launch: Some(launch),
+            logs: Vec::new(),
+            idle_since: None,
         },
     );
     host.record_connection(&url);
     Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_service(
+    app: AppHandle,
+    url: String,
+    state: State<'_, AppState>,
+) -> AppResult<HostSnapshot> {
+    let url = normalize_dsh_url(&url)?;
+    let state = state.inner().clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || stop_managed(&state, &url))
+        .await
+        .map_err(|error| AppError::new("app.error.taskFailed").technical(error.to_string()))??;
+    let _ = app.emit("host-snapshot-changed", &snapshot);
+    Ok(snapshot)
+}
+
+#[tauri::command]
+pub async fn restart_service(
+    app: AppHandle,
+    url: String,
+    state: State<'_, AppState>,
+) -> AppResult<HostSnapshot> {
+    let url = normalize_dsh_url(&url)?;
+    let state = state.inner().clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || restart_managed(&state, &url))
+        .await
+        .map_err(|error| AppError::new("app.error.taskFailed").technical(error.to_string()))??;
+    let _ = app.emit("host-snapshot-changed", &snapshot);
+    Ok(snapshot)
+}
+
+fn stop_managed(state: &AppState, url: &str) -> AppResult<HostSnapshot> {
+    let _startup_guard = state
+        .startup_lock
+        .lock()
+        .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    let mut process = {
+        let mut host = state
+            .host
+            .lock()
+            .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+        let endpoint = host
+            .endpoints
+            .get_mut(url)
+            .filter(|endpoint| endpoint.managed)
+            .ok_or_else(|| AppError::new("service.error.notManaged").arg("url", url))?;
+        let process = endpoint
+            .process
+            .take()
+            .ok_or_else(|| AppError::new("service.error.notRunning").arg("url", url))?;
+        endpoint.status = ServiceStatus::Stopping;
+        set_window_status(&mut host, url, ServiceStatus::Stopping);
+        process
+    };
+    process.stop();
+    let mut host = state
+        .host
+        .lock()
+        .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    if let Some(endpoint) = host.endpoints.get_mut(url) {
+        endpoint.logs = process.log_lines();
+        endpoint.status = ServiceStatus::Unreachable;
+        endpoint.last_error = None;
+    }
+    set_window_status(&mut host, url, ServiceStatus::Unreachable);
+    Ok(snapshot_locked(&host))
+}
+
+fn restart_managed(state: &AppState, url: &str) -> AppResult<HostSnapshot> {
+    let _startup_guard = state
+        .startup_lock
+        .lock()
+        .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    let (mut process, launch) = {
+        let mut host = state
+            .host
+            .lock()
+            .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+        let endpoint = host
+            .endpoints
+            .get_mut(url)
+            .filter(|endpoint| endpoint.managed)
+            .ok_or_else(|| AppError::new("service.error.notManaged").arg("url", url))?;
+        let launch = endpoint
+            .launch
+            .clone()
+            .ok_or_else(|| AppError::new("service.error.restartUnavailable").arg("url", url))?;
+        let process = endpoint.process.take();
+        endpoint.status = ServiceStatus::Restarting;
+        set_window_status(&mut host, url, ServiceStatus::Restarting);
+        (process, launch)
+    };
+    if let Some(process) = process.as_mut() {
+        if let Ok(mut host) = state.host.lock() {
+            if let Some(endpoint) = host.endpoints.get_mut(url) {
+                endpoint.logs = process.log_lines();
+            }
+        }
+        process.stop();
+    }
+
+    match service::start_launch(&launch) {
+        Ok(process) => {
+            let runtime_version = process.runtime_version.clone();
+            let mut host = state
+                .host
+                .lock()
+                .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+            if let Some(endpoint) = host.endpoints.get_mut(url) {
+                endpoint.process = Some(process);
+                endpoint.runtime_version = Some(runtime_version);
+                endpoint.status = ServiceStatus::Running;
+                endpoint.last_error = None;
+                endpoint.logs.clear();
+                endpoint.idle_since = None;
+            }
+            set_window_status(&mut host, url, ServiceStatus::Running);
+            host.record_connection(url);
+            Ok(snapshot_locked(&host))
+        }
+        Err(error) => {
+            if let Ok(mut host) = state.host.lock() {
+                if let Some(endpoint) = host.endpoints.get_mut(url) {
+                    endpoint.status = ServiceStatus::Failed;
+                    endpoint.last_error = Some(error.code.clone());
+                }
+                set_window_status(&mut host, url, ServiceStatus::Failed);
+            }
+            Err(error)
+        }
+    }
+}
+
+fn set_window_status(host: &mut crate::state::HostState, url: &str, status: ServiceStatus) {
+    for window in host.windows.values_mut().filter(|window| window.url == url) {
+        window.status = status;
+    }
 }
 
 #[tauri::command]
@@ -341,7 +512,7 @@ pub fn update_global_settings(
     patch: GlobalSettingsPatch,
     state: State<'_, AppState>,
 ) -> AppResult<GlobalSettings> {
-    let settings = settings::validate(patch)?;
+    let settings = settings::validate(patch, crate::model::DistributionVariant::current())?;
     settings::save(&state.config_dir, &settings)?;
     *state
         .settings

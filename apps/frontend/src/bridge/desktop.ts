@@ -38,11 +38,19 @@ export const desktopBridge = {
 
   createWindow: (): Promise<string> => command("create_app_window"),
 
+  focusWindow: (label: string): Promise<void> => command("focus_app_window", { label }),
+
+  closeWindow: (label: string): Promise<void> => command("close_app_window", { label }),
+
   getHostSnapshot: (): Promise<HostSnapshot> => command("get_host_snapshot"),
 
   startWindow: (): Promise<WindowStartupResult> => command("start_window"),
 
   setWindowTarget: (url: string): Promise<WindowSnapshot> => command("set_window_target", { url }),
+
+  stopService: (url: string): Promise<HostSnapshot> => command("stop_service", { url }),
+
+  restartService: (url: string): Promise<HostSnapshot> => command("restart_service", { url }),
 
   updateGlobalSettings: (patch: GlobalSettingsPatch): Promise<GlobalSettings> =>
     command("update_global_settings", { patch }),

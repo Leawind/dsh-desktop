@@ -1,8 +1,24 @@
 export type AppLocale = "zh-CN" | "en-US";
 
-export type ServiceStatus = "unreachable" | "starting" | "running" | "failed";
+export type ServiceStatus =
+  "unreachable" | "starting" | "stopping" | "restarting" | "running" | "failed";
 
 export type EndpointOwnership = "external" | "managed";
+
+export type DistributionVariant = "bundled" | "slim";
+
+export interface BundledRuntimeSnapshot {
+  runtimeId: string;
+  nodeVersion: string;
+  dshVersion: string;
+  pnpmVersion: string;
+  installed: boolean;
+}
+
+export interface DistributionSnapshot {
+  variant: DistributionVariant;
+  builtInRuntime: BundledRuntimeSnapshot | null;
+}
 
 export type DshSource =
   | { type: "none" }
@@ -25,12 +41,14 @@ export interface GlobalSettings {
   locale: AppLocale | null;
   dshSource: DshSource;
   windowStartupAttempts: readonly WindowStartupAttempt[];
+  managedServiceIdleTimeoutSeconds: number;
 }
 
 export interface GlobalSettingsPatch {
   locale: AppLocale | null;
   dshSource: DshSource;
   windowStartupAttempts: WindowStartupAttempt[];
+  managedServiceIdleTimeoutSeconds: number;
 }
 
 export interface WindowSnapshot {
@@ -48,6 +66,9 @@ export interface EndpointSnapshot {
   runtimeVersion: string | null;
   lastError: string | null;
   known: boolean;
+  canStop: boolean;
+  canRestart: boolean;
+  logs: readonly string[];
 }
 
 export interface HostSnapshot {
@@ -57,6 +78,7 @@ export interface HostSnapshot {
 
 export interface BootstrapPayload {
   settings: GlobalSettings;
+  distribution: DistributionSnapshot;
   window: WindowSnapshot;
   host: HostSnapshot;
 }
@@ -74,6 +96,7 @@ export interface StartupAttemptFailure {
 
 export interface WindowStartupResult {
   connected: boolean;
+  distribution: DistributionSnapshot;
   window: WindowSnapshot;
   host: HostSnapshot;
   failures: StartupAttemptFailure[];

@@ -9,10 +9,21 @@
   },
   "scripts": {
     "dev": "pnpm --filter @dsh-desktop/desktop run dev",
-    "build": "pnpm --filter @dsh-desktop/desktop run build",
-    "check": "pnpm run format-check && pnpm run frontend:lint && pnpm run frontend:test && pnpm run frontend:build && pnpm run rust:test",
-    "format": "prettier --write .github .oxlintrc.json .prettierrc.json package.json pnpm-workspace.yaml apps/desktop/package.json apps/desktop/capabilities apps/desktop/*.json apps/frontend packages/ui && pnpm run rust:format",
-    "format-check": "prettier --check .github .oxlintrc.json .prettierrc.json package.json pnpm-workspace.yaml apps/desktop/package.json apps/desktop/capabilities apps/desktop/*.json apps/frontend packages/ui && pnpm run rust:format-check",
+    "dev:bundled": "pnpm --filter @dsh-desktop/desktop run dev:bundled",
+    "dev:slim": "pnpm --filter @dsh-desktop/desktop run dev:slim",
+    "build": "pnpm run build:bundled",
+    "build:bundled": "pnpm --filter @dsh-desktop/desktop run build:bundled",
+    "build:slim": "pnpm --filter @dsh-desktop/desktop run build:slim",
+    "build:all": "pnpm run build:bundled && pnpm run build:slim",
+    "bundle:label": "tsx scripts/label-bundles.ts",
+    "check": "pnpm run format-check && pnpm run runtime:lint && pnpm run runtime:typecheck && pnpm run frontend:lint && pnpm run frontend:test && pnpm run frontend:build && pnpm run rust:test",
+    "format": "prettier --write .github .oxlintrc.json .prettierrc.json package.json pnpm-workspace.yaml runtime scripts apps/desktop/package.json apps/desktop/capabilities apps/desktop/*.json apps/frontend packages/ui && pnpm run rust:format",
+    "format-check": "prettier --check .github .oxlintrc.json .prettierrc.json package.json pnpm-workspace.yaml runtime scripts apps/desktop/package.json apps/desktop/capabilities apps/desktop/*.json apps/frontend packages/ui && pnpm run rust:format-check",
+    "runtime:prepare": "tsx scripts/prepare-runtime.ts",
+    "runtime:format": "prettier --write runtime scripts",
+    "runtime:format-check": "prettier --check runtime scripts",
+    "runtime:lint": "oxlint scripts",
+    "runtime:typecheck": "tsc --project scripts/tsconfig.json",
     "frontend:dev": "pnpm --filter @dsh-desktop/frontend run dev",
     "frontend:build": "pnpm --filter @dsh-desktop/frontend run build",
     "frontend:format": "pnpm --filter @dsh-desktop/frontend run format && pnpm --filter @dsh-desktop/ui run format",
@@ -25,6 +36,11 @@
     "rust:test": "cargo test --manifest-path apps/desktop/Cargo.toml"
   },
   "devDependencies": {
-    "prettier": "^3.9.6"
+    "@types/node": "^24.0.0",
+    "cross-env": "^10.1.0",
+    "oxlint": "^1.76.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
   }
 }

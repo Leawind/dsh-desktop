@@ -3,7 +3,9 @@ use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 use crate::error::{AppError, AppResult};
-use crate::model::{DshSource, GlobalSettings, GlobalSettingsPatch, WindowStartupAttempt};
+use crate::model::{
+    DistributionVariant, DshSource, GlobalSettings, GlobalSettingsPatch, WindowStartupAttempt,
+};
 
 const SETTINGS_FILE: &str = "settings.json";
 
@@ -11,15 +13,24 @@ pub fn settings_path(config_dir: &Path) -> PathBuf {
     config_dir.join(SETTINGS_FILE)
 }
 
-pub fn load(config_dir: &Path) -> GlobalSettings {
+pub fn load(config_dir: &Path, variant: DistributionVariant) -> GlobalSettings {
     let path = settings_path(config_dir);
     let Ok(contents) = fs::read_to_string(path) else {
-        return GlobalSettings::default();
+        return GlobalSettings::default_for(variant);
     };
-    serde_json::from_str(&contents).unwrap_or_default()
+    serde_json::from_str(&contents).unwrap_or_else(|_| GlobalSettings::default_for(variant))
 }
 
-pub fn validate(mut patch: GlobalSettingsPatch) -> AppResult<GlobalSettings> {
+pub fn validate(
+    mut patch: GlobalSettingsPatch,
+    variant: DistributionVariant,
+) -> AppResult<GlobalSettings> {
+    if patch.managed_service_idle_timeout_seconds > 7 * 24 * 60 * 60 {
+        return Err(AppError::new("settings.error.invalidIdleTimeout"));
+    }
+    if patch.dsh_source == DshSource::BuiltIn && variant != DistributionVariant::Bundled {
+        return Err(AppError::new("settings.error.unsupportedSource"));
+    }
     if let DshSource::Custom { executable } = &mut patch.dsh_source {
         *executable = executable.trim().to_owned();
         if executable.is_empty() {
@@ -95,6 +106,6 @@ mod tests {
             }],
             ..GlobalSettings::default()
         };
-        assert!(validate(settings).is_err());
+        assert!(validate(settings, DistributionVariant::Slim).is_err());
     }
 }

@@ -7,6 +7,7 @@ import { UiButton, UiInput, UiSelect, UiSettingRow, UiStatus } from "@dsh-deskto
 import { desktopBridge } from "@/bridge/desktop";
 import type {
   AppLocale,
+  DistributionSnapshot,
   DshSource,
   GlobalSettings,
   GlobalSettingsPatch,
@@ -16,8 +17,10 @@ import type {
 
 const props = defineProps<{
   currentUrl: string;
+  currentWindowLabel: string;
   settings: GlobalSettings;
   host: HostSnapshot;
+  distribution: DistributionSnapshot;
 }>();
 
 const emit = defineEmits<{
@@ -26,9 +29,11 @@ const emit = defineEmits<{
   runStartup: [];
   saveSettings: [settings: GlobalSettingsPatch];
   reload: [];
+  stopService: [url: string];
+  restartService: [url: string];
 }>();
 
-const tabs = ["window", "general", "services"] as const;
+const tabs = ["window", "general", "services", "runtime"] as const;
 type SettingsTab = (typeof tabs)[number];
 
 const { t } = useI18n();
@@ -40,6 +45,7 @@ const customExecutable = ref(
   props.settings.dshSource.type === "custom" ? props.settings.dshSource.executable : "",
 );
 const attempts = ref<WindowStartupAttempt[]>(cloneAttempts(props.settings.windowStartupAttempts));
+const idleTimeoutMinutes = ref(props.settings.managedServiceIdleTimeoutSeconds / 60);
 const settingsError = ref("");
 
 watch(
@@ -56,6 +62,7 @@ watch(
     sourceType.value = value.dshSource.type;
     customExecutable.value = value.dshSource.type === "custom" ? value.dshSource.executable : "";
     attempts.value = cloneAttempts(value.windowStartupAttempts);
+    idleTimeoutMinutes.value = value.managedServiceIdleTimeoutSeconds / 60;
   },
 );
 
@@ -66,7 +73,11 @@ const localeOptions = computed(() => [
 
 const sourceOptions = computed(() => [
   { value: "none", label: t("settings.source.type.none") },
-  { value: "built-in", label: t("settings.source.type.built-in") },
+  {
+    value: "built-in",
+    label: t("settings.source.type.built-in"),
+    disabled: props.distribution.variant !== "bundled",
+  },
   { value: "system", label: t("settings.source.type.system") },
   { value: "custom", label: t("settings.source.type.custom") },
 ]);
@@ -84,12 +95,24 @@ function cloneAttempts(value: readonly WindowStartupAttempt[]): WindowStartupAtt
 }
 
 function save(): void {
+  if (sourceType.value === "built-in" && props.distribution.variant !== "bundled") {
+    settingsError.value = t("settings.error.unsupportedSource");
+    return;
+  }
   if (sourceType.value === "custom" && !customExecutable.value.trim()) {
     settingsError.value = t("settings.error.emptyExecutable");
     return;
   }
   if (!attempts.value.every(validAttempt)) {
     settingsError.value = t("settings.error.invalidAttempt");
+    return;
+  }
+  if (
+    !Number.isFinite(idleTimeoutMinutes.value) ||
+    idleTimeoutMinutes.value < 0 ||
+    idleTimeoutMinutes.value > 7 * 24 * 60
+  ) {
+    settingsError.value = t("settings.error.invalidIdleTimeout");
     return;
   }
   settingsError.value = "";
@@ -101,6 +124,7 @@ function save(): void {
     locale: locale.value,
     dshSource,
     windowStartupAttempts: cloneAttempts(attempts.value),
+    managedServiceIdleTimeoutSeconds: Math.round(idleTimeoutMinutes.value * 60),
   });
 }
 
@@ -256,6 +280,23 @@ function onTabKeydown(event: KeyboardEvent): void {
             </svg>
             <span>{{ t("service.section") }}</span>
           </button>
+          <button
+            id="settings-tab-runtime"
+            class="settings__tab"
+            :class="{ 'settings__tab--active': activeTab === 'runtime' }"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'runtime'"
+            aria-controls="settings-panel-runtime"
+            :tabindex="activeTab === 'runtime' ? 0 : -1"
+            @click="activeTab = 'runtime'"
+            @keydown="onTabKeydown"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M3 3.5h10v9H3zM5.25 1.75h5.5M5.25 14.25h5.5" />
+            </svg>
+            <span>{{ t("runtime.section") }}</span>
+          </button>
         </div>
       </nav>
 
@@ -322,6 +363,35 @@ function onTabKeydown(event: KeyboardEvent): void {
                 {{ t("common.connect") }}
               </UiButton>
             </UiSettingRow>
+            <div class="settings__attempt-heading">
+              <div>
+                <h2>{{ t("window.openWindows") }}</h2>
+                <p>{{ t("window.openWindowsHint") }}</p>
+              </div>
+            </div>
+            <UiSettingRow
+              v-for="appWindow in host.windows"
+              :key="appWindow.label"
+              :label="appWindow.label"
+              :hint="appWindow.url || t('window.noTarget')"
+            >
+              <div class="settings__inline-control">
+                <UiStatus :tone="appWindow.status === 'running' ? 'success' : 'warning'">
+                  {{ t(`service.status.${appWindow.status}`) }}
+                </UiStatus>
+                <UiButton size="small" @click="desktopBridge.focusWindow(appWindow.label)">
+                  {{ t("window.focus") }}
+                </UiButton>
+                <UiButton
+                  v-if="appWindow.label !== currentWindowLabel"
+                  variant="ghost"
+                  size="small"
+                  @click="desktopBridge.closeWindow(appWindow.label)"
+                >
+                  {{ t("common.close") }}
+                </UiButton>
+              </div>
+            </UiSettingRow>
           </section>
 
           <section
@@ -336,6 +406,22 @@ function onTabKeydown(event: KeyboardEvent): void {
             </UiSettingRow>
             <UiSettingRow :label="t('settings.source.label')" :hint="t('settings.source.hint')">
               <UiSelect v-model="sourceType" :options="sourceOptions" />
+            </UiSettingRow>
+            <UiSettingRow
+              control-id="idle-timeout"
+              :label="t('settings.idleTimeout')"
+              :hint="t('settings.idleTimeoutHint')"
+            >
+              <div class="settings__wide-control">
+                <UiInput
+                  id="idle-timeout"
+                  :model-value="String(idleTimeoutMinutes)"
+                  type="number"
+                  min="0"
+                  :placeholder="t('settings.idleTimeoutUnit')"
+                  @update:model-value="idleTimeoutMinutes = Number($event)"
+                />
+              </div>
             </UiSettingRow>
             <UiSettingRow
               v-if="sourceType === 'custom'"
@@ -426,16 +512,75 @@ function onTabKeydown(event: KeyboardEvent): void {
             <p v-if="host.endpoints.length === 0" class="settings__empty">
               {{ t("service.status.unreachable") }}
             </p>
+            <template v-for="endpoint in host.endpoints" :key="endpoint.url">
+              <UiSettingRow :label="endpoint.url" :hint="endpointHint(endpoint)">
+                <div class="settings__inline-control">
+                  <UiStatus :tone="endpoint.status === 'running' ? 'success' : 'danger'">
+                    {{ t(`service.status.${endpoint.status}`) }}
+                  </UiStatus>
+                  <UiButton
+                    v-if="endpoint.ownership === 'managed'"
+                    size="small"
+                    :disabled="!endpoint.canRestart"
+                    @click="$emit('restartService', endpoint.url)"
+                  >
+                    {{ t("service.restart") }}
+                  </UiButton>
+                  <UiButton
+                    v-if="endpoint.ownership === 'managed'"
+                    variant="ghost"
+                    size="small"
+                    :disabled="!endpoint.canStop"
+                    @click="$emit('stopService', endpoint.url)"
+                  >
+                    {{ t("service.stop") }}
+                  </UiButton>
+                </div>
+              </UiSettingRow>
+              <details v-if="endpoint.logs.length" class="settings__logs">
+                <summary>{{ t("service.logs") }}</summary>
+                <pre>{{ endpoint.logs.join("\n") }}</pre>
+              </details>
+            </template>
+          </section>
+
+          <section
+            v-show="activeTab === 'runtime'"
+            id="settings-panel-runtime"
+            class="settings__tabpanel"
+            role="tabpanel"
+            aria-labelledby="settings-tab-runtime"
+          >
             <UiSettingRow
-              v-for="endpoint in host.endpoints"
-              :key="endpoint.url"
-              :label="endpoint.url"
-              :hint="endpointHint(endpoint)"
+              :label="t('runtime.variant')"
+              :hint="t(`runtime.variantHint.${distribution.variant}`)"
             >
-              <UiStatus :tone="endpoint.status === 'running' ? 'success' : 'danger'">
-                {{ t(`service.status.${endpoint.status}`) }}
-              </UiStatus>
+              <UiStatus tone="info">{{
+                t(`runtime.variantName.${distribution.variant}`)
+              }}</UiStatus>
             </UiSettingRow>
+            <template v-if="distribution.builtInRuntime">
+              <UiSettingRow
+                :label="`DSH ${distribution.builtInRuntime.dshVersion}`"
+                :hint="
+                  t('runtime.builtInVersions', {
+                    node: distribution.builtInRuntime.nodeVersion,
+                    pnpm: distribution.builtInRuntime.pnpmVersion,
+                  })
+                "
+              >
+                <UiStatus :tone="distribution.builtInRuntime.installed ? 'success' : 'info'">
+                  {{
+                    t(
+                      distribution.builtInRuntime.installed
+                        ? "runtime.installed"
+                        : "runtime.readyToInstall",
+                    )
+                  }}
+                </UiStatus>
+              </UiSettingRow>
+            </template>
+            <p v-else class="settings__empty">{{ t("runtime.notIncluded") }}</p>
           </section>
         </div>
       </div>
@@ -722,6 +867,21 @@ function onTabKeydown(event: KeyboardEvent): void {
 .settings__error--block {
   display: block;
   margin-top: var(--space-2);
+}
+
+.settings__logs {
+  margin: 0 var(--space-4) var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.settings__logs pre {
+  max-height: 12rem;
+  padding: var(--space-3);
+  overflow: auto;
+  border-radius: var(--radius-control);
+  background: var(--color-background);
+  white-space: pre-wrap;
 }
 
 @media (max-width: 40rem) {

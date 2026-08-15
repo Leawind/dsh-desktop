@@ -10,7 +10,7 @@
 - pnpm 11.21.0；
 - Rust stable 工具链，并安装 `rustfmt`；
 - [Tauri 2 对应平台的系统依赖](https://v2.tauri.app/start/prerequisites/)；
-- 可以运行的 `dsh` 命令。
+- 运行默认 `slim` 开发版本时需要可用的 `dsh` 命令。
 
 Debian 或 Ubuntu 可以使用以下命令安装 Tauri 的 Linux 开发依赖：
 
@@ -56,6 +56,14 @@ pnpm run dev
 
 应用默认连接 `http://127.0.0.1:3080`。启动前不需要手动运行 `dsh web`：应用会复用该地址上已有的 DSH 服务，或者通过系统中的 `dsh` 命令启动服务。
 
+要使用项目准备的独立 Node.js、DSH 和 pnpm 开发 `bundled` 变体，请运行：
+
+```sh
+pnpm run dev:bundled
+```
+
+第一次执行会下载并准备锁定版本的运行时；之后在运行时定义没有变化时会直接复用已有目录。
+
 ## 网络与代理
 
 DSH Desktop 自身的 WebView 和 DSH 可达性探测会直接连接目标地址，本地开发不依赖系统代理中的 localhost 忽略规则。
@@ -69,7 +77,13 @@ DSH Desktop 自身的 WebView 和 DSH 可达性探测会直接连接目标地址
 | 命令                             | 用途                                                         |
 | -------------------------------- | ------------------------------------------------------------ |
 | `pnpm run dev`                   | 启动完整的 Tauri 开发版本                                    |
-| `pnpm run build`                 | 构建当前平台支持的桌面安装包                                 |
+| `pnpm run dev:bundled`           | 使用项目内置运行时启动 `bundled` 开发版本                    |
+| `pnpm run dev:slim`              | 使用系统或自定义 DSH 启动 `slim` 开发版本                    |
+| `pnpm run build`                 | 构建当前平台的 `bundled` 安装包                              |
+| `pnpm run build:bundled`         | 构建包含 Node.js、DSH 和 pnpm 的安装包                       |
+| `pnpm run build:slim`            | 构建不包含 DSH 运行环境的小型安装包                          |
+| `pnpm run build:all`             | 依次构建当前平台的两种安装包                                 |
+| `pnpm run runtime:prepare`       | 准备并校验当前平台的内置运行时                               |
 | `pnpm run check`                 | 依次运行格式检查、前端 lint 和测试、前端生产构建及 Rust 测试 |
 | `pnpm run format`                | 格式化前端、工作区配置和 Rust 代码                           |
 | `pnpm run format-check`          | 检查前端、工作区配置和 Rust 代码格式                         |
@@ -98,13 +112,20 @@ pnpm run frontend:typecheck
 
 ## 构建安装包
 
-执行：
+构建推荐的 `bundled` 安装包：
 
 ```sh
 pnpm run build
 ```
 
-Tauri 会在 Cargo target 目录的 `release/bundle/` 下生成当前操作系统支持的安装文件。未自定义 Cargo target 目录时，默认位置为：
+也可以只构建 `slim`，或构建两种变体：
+
+```sh
+pnpm run build:slim
+pnpm run build:all
+```
+
+Tauri 会在 Cargo target 目录的 `release/bundle/` 下生成当前操作系统支持的安装文件。文件名包含 `bundled` 或 `slim`。未自定义 Cargo target 目录时，默认位置为：
 
 ```text
 apps/desktop/target/release/bundle/
@@ -117,6 +138,23 @@ apps/desktop/target/release/bundle/
 - macOS 构建 macOS 应用和安装镜像。
 
 不同操作系统的安装包需要在对应平台上构建。
+
+### 内置运行时准备
+
+内置运行时版本记录在 `runtime/versions.json`，生产依赖闭包由 `runtime/package-lock.json` 固定。准备脚本完成以下工作：
+
+- 从 Node.js 官方发布目录下载当前平台和架构的归档，并按官方 `SHASUMS256.txt` 校验；
+- 从 npm 官方注册表按 lockfile 安装 DSH 和 pnpm；
+- 只运行 `runtime/package.json` 中明确允许的依赖安装脚本；
+- 验证 Node.js、DSH 和 pnpm 版本，生成运行时文件摘要和第三方包清单。
+
+`curl` 和 npm 会正常使用环境中的代理设置。Node.js 归档下载较慢时，可以手动下载脚本输出的 URL，再指定本地文件：
+
+```sh
+pnpm run runtime:prepare -- --node-archive /path/to/node-archive
+```
+
+准备结果位于 `apps/desktop/runtime/bundled/`，属于本机构建产物，不提交到 Git。
 
 ## 前端约定
 

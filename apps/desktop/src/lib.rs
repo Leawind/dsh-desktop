@@ -3,6 +3,7 @@ mod direct_network;
 mod endpoint;
 mod error;
 mod model;
+mod runtime;
 mod service;
 mod settings;
 mod state;
@@ -26,8 +27,11 @@ pub fn run() {
         }))
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
-            let settings = settings::load(&config_dir);
-            let state = AppState::new(config_dir, settings);
+            let data_dir = app.path().app_local_data_dir()?;
+            let resource_dir = app.path().resource_dir()?;
+            let runtime_manager = runtime::RuntimeManager::new(resource_dir, data_dir.clone());
+            let settings = settings::load(&config_dir, model::DistributionVariant::current());
+            let state = AppState::new(config_dir, settings, runtime_manager, data_dir);
             state.register_window("main");
             app.manage(state.clone());
             let app_handle = app.handle().clone();
@@ -46,9 +50,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::initialize_window,
             commands::create_app_window,
+            commands::focus_app_window,
+            commands::close_app_window,
             commands::get_host_snapshot,
             commands::set_window_target,
             commands::start_window,
+            commands::stop_service,
+            commands::restart_service,
             commands::update_global_settings,
         ])
         .build(tauri::generate_context!())

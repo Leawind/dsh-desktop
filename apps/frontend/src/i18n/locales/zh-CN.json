@@ -31,6 +31,10 @@
     "urlHint": "仅支持 HTTP 和 HTTPS 地址。",
     "runStartup": "执行启动策略",
     "knownEndpointHint": "当前 Host 运行期间成功连接过的 DSH 服务。",
+    "openWindows": "已打开窗口",
+    "openWindowsHint": "查看、聚焦或关闭当前 Host 中的窗口。",
+    "noTarget": "尚未分配 DSH URL",
+    "focus": "聚焦",
     "new": "打开新窗口",
     "minimize": "最小化",
     "maximize": "最大化或还原",
@@ -41,7 +45,9 @@
       "unsupportedUrl": "仅支持 HTTP 和 HTTPS URL。",
       "urlCredentials": "URL 中不能包含用户名或密码。",
       "createFailed": "无法创建新窗口。",
-      "notFound": "找不到当前窗口。"
+      "notFound": "找不到当前窗口。",
+      "focusFailed": "无法聚焦窗口。",
+      "closeFailed": "无法关闭窗口。"
     }
   },
   "settings": {
@@ -50,6 +56,9 @@
     "language": "界面语言",
     "executable": "DSH 可执行文件",
     "executableHint": "指定自定义 dsh 可执行文件的完整路径。",
+    "idleTimeout": "受管服务空闲回收",
+    "idleTimeoutHint": "服务没有关联窗口后等待多少分钟再停止；设为 0 可禁用。",
+    "idleTimeoutUnit": "分钟",
     "source": {
       "label": "DSH 来源",
       "hint": "仅在启动新服务时使用，不影响连接已有服务。",
@@ -81,6 +90,8 @@
       "invalidIpAddress": "请输入有效的 IP 地址。",
       "invalidAttempt": "请检查启动尝试中的 IP 地址和端口。",
       "emptyExecutable": "自定义 DSH 可执行文件路径不能为空。",
+      "unsupportedSource": "当前发行变体不支持所选的 DSH 来源。",
+      "invalidIdleTimeout": "空闲回收时间必须位于 0 到 10080 分钟之间。",
       "saveFailed": "无法保存设置。"
     }
   },
@@ -88,10 +99,15 @@
     "section": "DSH 服务",
     "external": "外部",
     "managed": "由应用管理",
+    "stop": "停止",
+    "restart": "重启",
+    "logs": "最近日志",
     "windows": "{count} 个窗口",
     "status": {
       "unreachable": "无法访问",
       "starting": "正在启动",
+      "stopping": "正在停止",
+      "restarting": "正在重启",
       "running": "运行中",
       "failed": "启动失败"
     },
@@ -111,7 +127,36 @@
       "notDsh": "{url} 可访问，但它不是受支持的 DSH 服务。",
       "noFreePort": "端口范围 {startPort}–{endPort} 中没有可用端口。",
       "unsupportedBindAddress": "当前 DSH 版本不支持在 {host} 上启动服务。",
+      "homeUnavailable": "无法准备 DSH 服务的数据目录。",
+      "notManaged": "{url} 不是由应用管理的服务。",
+      "notRunning": "{url} 当前没有正在运行的受管进程。",
+      "restartUnavailable": "无法取得 {url} 的重启配置。",
       "allAttemptsFailed": "所有启动尝试均已失败。"
+    }
+  },
+  "runtime": {
+    "section": "DSH 运行时",
+    "variant": "发行变体",
+    "variantName": {
+      "bundled": "Bundled",
+      "slim": "Slim"
+    },
+    "variantHint": {
+      "bundled": "安装包包含独立的 Node.js、DSH 和 pnpm。",
+      "slim": "安装包较小，使用系统或用户指定的 DSH。"
+    },
+    "builtInVersions": "Node.js {node} · pnpm {pnpm}",
+    "installed": "已安装并验证",
+    "readyToInstall": "首次启动时安装",
+    "notIncluded": "当前安装包不包含内置 DSH 运行时。",
+    "error": {
+      "manifestMissing": "找不到内置运行时清单。",
+      "invalidManifest": "内置运行时清单无效。",
+      "unsupportedManifest": "不支持内置运行时清单版本 {schemaVersion}。",
+      "integrityFailed": "内置运行时文件 {path} 完整性校验失败。",
+      "installFailed": "无法将内置运行时安装到应用数据目录。",
+      "versionMismatch": "内置 DSH 版本不匹配：期望 {expected}，实际为 {actual}。",
+      "targetMismatch": "内置运行时目标平台不匹配：期望 {expected}，实际为 {actual}。"
     }
   },
   "locale": {

@@ -31,6 +31,10 @@
     "urlHint": "Only HTTP and HTTPS addresses are supported.",
     "runStartup": "Run startup strategy",
     "knownEndpointHint": "A DSH service connected successfully during this Host run.",
+    "openWindows": "Open windows",
+    "openWindowsHint": "View, focus, or close windows in the current Host.",
+    "noTarget": "No DSH URL assigned",
+    "focus": "Focus",
     "new": "Open new window",
     "minimize": "Minimize",
     "maximize": "Maximize or restore",
@@ -41,7 +45,9 @@
       "unsupportedUrl": "Only HTTP and HTTPS URLs are supported.",
       "urlCredentials": "The URL cannot contain a username or password.",
       "createFailed": "The new window could not be created.",
-      "notFound": "The current window could not be found."
+      "notFound": "The current window could not be found.",
+      "focusFailed": "The window could not be focused.",
+      "closeFailed": "The window could not be closed."
     }
   },
   "settings": {
@@ -50,6 +56,9 @@
     "language": "Interface language",
     "executable": "DSH executable",
     "executableHint": "Enter the full path to a custom dsh executable.",
+    "idleTimeout": "Managed service idle cleanup",
+    "idleTimeoutHint": "Minutes to wait after a service has no windows before stopping it; use 0 to disable.",
+    "idleTimeoutUnit": "Minutes",
     "source": {
       "label": "DSH source",
       "hint": "Used only to start new services; existing service connections are unaffected.",
@@ -81,6 +90,8 @@
       "invalidIpAddress": "Enter a valid IP address.",
       "invalidAttempt": "Check the IP addresses and ports in the startup attempts.",
       "emptyExecutable": "The custom DSH executable path cannot be empty.",
+      "unsupportedSource": "The selected DSH source is unavailable in this distribution variant.",
+      "invalidIdleTimeout": "The idle timeout must be between 0 and 10080 minutes.",
       "saveFailed": "The settings could not be saved."
     }
   },
@@ -88,10 +99,15 @@
     "section": "DSH services",
     "external": "External",
     "managed": "Managed by the app",
+    "stop": "Stop",
+    "restart": "Restart",
+    "logs": "Recent logs",
     "windows": "{count} window | {count} windows",
     "status": {
       "unreachable": "Unreachable",
       "starting": "Starting",
+      "stopping": "Stopping",
+      "restarting": "Restarting",
       "running": "Running",
       "failed": "Failed to start"
     },
@@ -111,7 +127,36 @@
       "notDsh": "{url} is reachable, but it is not a supported DSH service.",
       "noFreePort": "No available port was found between {startPort} and {endPort}.",
       "unsupportedBindAddress": "The current DSH version cannot start a service on {host}.",
+      "homeUnavailable": "The DSH service data directory could not be prepared.",
+      "notManaged": "{url} is not managed by this app.",
+      "notRunning": "{url} does not have a running managed process.",
+      "restartUnavailable": "The restart configuration for {url} is unavailable.",
       "allAttemptsFailed": "All startup attempts failed."
+    }
+  },
+  "runtime": {
+    "section": "DSH runtime",
+    "variant": "Distribution variant",
+    "variantName": {
+      "bundled": "Bundled",
+      "slim": "Slim"
+    },
+    "variantHint": {
+      "bundled": "The package includes private Node.js, DSH, and pnpm runtimes.",
+      "slim": "The smaller package uses a system or user-provided DSH installation."
+    },
+    "builtInVersions": "Node.js {node} · pnpm {pnpm}",
+    "installed": "Installed and verified",
+    "readyToInstall": "Installs on first launch",
+    "notIncluded": "This package does not contain a built-in DSH runtime.",
+    "error": {
+      "manifestMissing": "The built-in runtime manifest could not be found.",
+      "invalidManifest": "The built-in runtime manifest is invalid.",
+      "unsupportedManifest": "Built-in runtime manifest version {schemaVersion} is unsupported.",
+      "integrityFailed": "Built-in runtime file {path} failed its integrity check.",
+      "installFailed": "The built-in runtime could not be installed in the app data directory.",
+      "versionMismatch": "The built-in DSH version does not match: expected {expected}, got {actual}.",
+      "targetMismatch": "The built-in runtime target does not match: expected {expected}, got {actual}."
     }
   },
   "locale": {

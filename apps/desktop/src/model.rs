@@ -3,6 +3,31 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_DSH_PORT: u16 = 3080;
 pub const DEFAULT_DSH_PORT_RANGE_END: u16 = 3090;
 pub const LOCAL_DSH_HOST: &str = "127.0.0.1";
+pub const DEFAULT_SERVICE_IDLE_TIMEOUT_SECONDS: u64 = 300;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum DistributionVariant {
+    Bundled,
+    Slim,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundledRuntimeSnapshot {
+    pub runtime_id: String,
+    pub node_version: String,
+    pub dsh_version: String,
+    pub pnpm_version: String,
+    pub installed: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DistributionSnapshot {
+    pub variant: DistributionVariant,
+    pub built_in_runtime: Option<BundledRuntimeSnapshot>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -10,6 +35,7 @@ pub struct GlobalSettings {
     pub locale: Option<AppLocale>,
     pub dsh_source: DshSource,
     pub window_startup_attempts: Vec<WindowStartupAttempt>,
+    pub managed_service_idle_timeout_seconds: u64,
 }
 
 impl Default for GlobalSettings {
@@ -18,6 +44,19 @@ impl Default for GlobalSettings {
             locale: None,
             dsh_source: DshSource::System,
             window_startup_attempts: default_window_startup_attempts(),
+            managed_service_idle_timeout_seconds: DEFAULT_SERVICE_IDLE_TIMEOUT_SECONDS,
+        }
+    }
+}
+
+impl GlobalSettings {
+    pub fn default_for(variant: DistributionVariant) -> Self {
+        Self {
+            dsh_source: match variant {
+                DistributionVariant::Bundled => DshSource::BuiltIn,
+                DistributionVariant::Slim => DshSource::System,
+            },
+            ..Self::default()
         }
     }
 }
@@ -82,6 +121,8 @@ pub enum AppLocale {
 pub enum ServiceStatus {
     Unreachable,
     Starting,
+    Stopping,
+    Restarting,
     Running,
     Failed,
 }
@@ -105,6 +146,9 @@ pub struct EndpointSnapshot {
     pub runtime_version: Option<String>,
     pub last_error: Option<String>,
     pub known: bool,
+    pub can_stop: bool,
+    pub can_restart: bool,
+    pub logs: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -125,6 +169,7 @@ pub struct HostSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct BootstrapPayload {
     pub settings: GlobalSettings,
+    pub distribution: DistributionSnapshot,
     pub window: WindowSnapshot,
     pub host: HostSnapshot,
 }
@@ -140,6 +185,7 @@ pub struct StartupAttemptFailure {
 #[serde(rename_all = "camelCase")]
 pub struct WindowStartupResult {
     pub connected: bool,
+    pub distribution: DistributionSnapshot,
     pub window: WindowSnapshot,
     pub host: HostSnapshot,
     pub failures: Vec<StartupAttemptFailure>,

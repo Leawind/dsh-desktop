@@ -5,6 +5,7 @@ import { desktopBridge } from "@/bridge/desktop";
 import { fallbackLocale, i18n, resolveInitialLocale } from "@/i18n";
 import type {
   AppError,
+  DistributionSnapshot,
   GlobalSettings,
   GlobalSettingsPatch,
   HostSnapshot,
@@ -35,8 +36,10 @@ export function useDesktopApp() {
       { type: "start-fixed", host: "127.0.0.1", port: 3080 },
       { type: "start-range", host: "127.0.0.1", startPort: 3081, endPort: 3090 },
     ],
+    managedServiceIdleTimeoutSeconds: 300,
   });
   const currentWindow = ref<WindowSnapshot | null>(null);
+  const distribution = ref<DistributionSnapshot>({ variant: "slim", builtInRuntime: null });
   const host = ref<HostSnapshot>(emptyHost);
   const startupStatus = ref<ServiceStatus>("starting");
   const error = ref<AppError | null>(null);
@@ -51,6 +54,7 @@ export function useDesktopApp() {
     try {
       const payload = await desktopBridge.initializeWindow();
       settings.value = payload.settings;
+      distribution.value = payload.distribution;
       currentWindow.value = payload.window;
       host.value = payload.host;
       setLocale(resolveInitialLocale(payload.settings.locale));
@@ -114,6 +118,27 @@ export function useDesktopApp() {
     }
   }
 
+  async function stopService(url: string): Promise<void> {
+    error.value = null;
+    try {
+      host.value = await desktopBridge.stopService(url);
+      syncWindowFromHost();
+    } catch (cause) {
+      error.value = cause as AppError;
+    }
+  }
+
+  async function restartService(url: string): Promise<void> {
+    error.value = null;
+    try {
+      host.value = await desktopBridge.restartService(url);
+      syncWindowFromHost();
+      if (currentWindow.value?.url === url) frameRevision.value += 1;
+    } catch (cause) {
+      error.value = cause as AppError;
+    }
+  }
+
   function reloadFrame(): void {
     frameRevision.value += 1;
   }
@@ -141,6 +166,7 @@ export function useDesktopApp() {
   }
 
   function applyStartupResult(result: WindowStartupResult): void {
+    distribution.value = result.distribution;
     host.value = result.host;
     currentWindow.value = result.window;
     startupFailures.value = result.failures;
@@ -154,6 +180,7 @@ export function useDesktopApp() {
 
   return {
     settings: readonly(settings),
+    distribution: readonly(distribution),
     currentWindow: readonly(currentWindow),
     host: readonly(host),
     startupStatus: readonly(startupStatus),
@@ -166,6 +193,8 @@ export function useDesktopApp() {
     setTarget,
     retryStartup,
     saveGlobalSettings,
+    stopService,
+    restartService,
     reloadFrame,
   };
 }

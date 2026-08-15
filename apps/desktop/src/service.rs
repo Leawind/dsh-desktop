@@ -13,6 +13,7 @@ use reqwest::blocking::Client;
 
 use crate::error::{AppError, AppResult};
 use crate::model::DshSource;
+use crate::runtime::RuntimeManager;
 
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -33,12 +34,22 @@ pub struct ManagedService {
     pub executable: PathBuf,
     pub runtime_version: String,
     pub logs: Arc<Mutex<VecDeque<String>>>,
+    pub launch: ManagedLaunch,
 }
 
+#[derive(Clone)]
 pub struct ResolvedDshRuntime {
     executable: PathBuf,
+    prefix_args: Vec<OsString>,
     runtime_path: Option<OsString>,
     runtime_version: String,
+}
+
+#[derive(Clone)]
+pub struct ManagedLaunch {
+    runtime: ResolvedDshRuntime,
+    port: u16,
+    dsh_home: PathBuf,
 }
 
 impl ManagedService {
@@ -58,6 +69,13 @@ impl ManagedService {
         } else {
             format!("executable: {}\n{logs}", self.executable.display())
         }
+    }
+
+    pub fn log_lines(&self) -> Vec<String> {
+        self.logs
+            .lock()
+            .map(|lines| lines.iter().cloned().collect())
+            .unwrap_or_default()
     }
 }
 
@@ -104,32 +122,85 @@ fn tcp_port_is_reachable(url: &str) -> bool {
         .any(|address| TcpStream::connect_timeout(&address, PROBE_TIMEOUT).is_ok())
 }
 
-pub fn resolve_runtime(source: &DshSource) -> AppResult<ResolvedDshRuntime> {
+pub fn resolve_runtime(
+    source: &DshSource,
+    runtime_manager: &RuntimeManager,
+) -> AppResult<ResolvedDshRuntime> {
     let runtime_path = effective_path();
-    let executable = match source {
+    let (executable, prefix_args, runtime_path, known_version) = match source {
         DshSource::None => return Err(AppError::new("service.error.sourceDisabled")),
-        DshSource::BuiltIn => return Err(AppError::new("service.error.builtInUnavailable")),
-        DshSource::System => resolve_executable(None, runtime_path.as_deref())?,
-        DshSource::Custom { executable } => {
-            resolve_executable(Some(executable), runtime_path.as_deref())?
+        DshSource::BuiltIn => {
+            let runtime = runtime_manager.resolve_built_in()?;
+            let runtime_path = prepend_paths(&runtime.executable_path, runtime_path.as_deref());
+            (
+                runtime.node_executable,
+                vec![runtime.dsh_entrypoint.into_os_string()],
+                runtime_path,
+                Some(runtime.dsh_version),
+            )
         }
+        DshSource::System => (
+            resolve_executable(None, runtime_path.as_deref())?,
+            Vec::new(),
+            runtime_path,
+            None,
+        ),
+        DshSource::Custom { executable } => (
+            resolve_executable(Some(executable), runtime_path.as_deref())?,
+            Vec::new(),
+            runtime_path,
+            None,
+        ),
     };
-    let runtime_version = read_version(&executable, runtime_path.as_deref())?;
+    let runtime_version = read_version(&executable, &prefix_args, runtime_path.as_deref())?;
+    if known_version
+        .as_ref()
+        .is_some_and(|expected| expected != &runtime_version)
+    {
+        return Err(AppError::new("runtime.error.versionMismatch")
+            .arg("expected", known_version)
+            .arg("actual", runtime_version));
+    }
     Ok(ResolvedDshRuntime {
         executable,
+        prefix_args,
         runtime_path,
         runtime_version,
     })
 }
 
-pub fn start(runtime: &ResolvedDshRuntime, port: u16) -> AppResult<ManagedService> {
+pub fn start(
+    runtime: &ResolvedDshRuntime,
+    port: u16,
+    dsh_home: PathBuf,
+) -> AppResult<ManagedService> {
+    start_launch(&ManagedLaunch {
+        runtime: runtime.clone(),
+        port,
+        dsh_home,
+    })
+}
+
+pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
+    let runtime = &launch.runtime;
+    let port = launch.port;
     let executable = &runtime.executable;
+    std::fs::create_dir_all(&launch.dsh_home).map_err(|error| {
+        AppError::new("service.error.homeUnavailable").technical(error.to_string())
+    })?;
     let mut command = Command::new(&executable);
     command
+        .args(&runtime.prefix_args)
         .args(["web", "--host", "127.0.0.1", "--port", &port.to_string()])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    command.env("DSH_HOME", &launch.dsh_home);
+    command.env("PNPM_HOME", launch.dsh_home.join("pnpm"));
+    command.env(
+        "npm_config_store_dir",
+        launch.dsh_home.join("pnpm").join("store"),
+    );
     #[cfg(target_os = "linux")]
     crate::direct_network::restore_child_proxy_environment(&mut command);
     if let Some(runtime_path) = runtime.runtime_path.as_ref() {
@@ -189,6 +260,7 @@ pub fn start(runtime: &ResolvedDshRuntime, port: u16) -> AppResult<ManagedServic
         executable: executable.clone(),
         runtime_version: runtime.runtime_version.clone(),
         logs,
+        launch: launch.clone(),
     })
 }
 
@@ -215,9 +287,16 @@ fn recent_logs(logs: &Arc<Mutex<VecDeque<String>>>) -> String {
         .unwrap_or_default()
 }
 
-fn read_version(executable: &Path, runtime_path: Option<&OsStr>) -> AppResult<String> {
+fn read_version(
+    executable: &Path,
+    prefix_args: &[OsString],
+    runtime_path: Option<&OsStr>,
+) -> AppResult<String> {
     let mut command = Command::new(executable);
-    command.arg("--version").stdin(Stdio::null());
+    command
+        .args(prefix_args)
+        .arg("--version")
+        .stdin(Stdio::null());
     if let Some(runtime_path) = runtime_path {
         command.env("PATH", runtime_path);
     }
@@ -229,6 +308,14 @@ fn read_version(executable: &Path, runtime_path: Option<&OsStr>) -> AppResult<St
             .technical(String::from_utf8_lossy(&output.stderr)));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+}
+
+fn prepend_paths(paths: &[PathBuf], inherited: Option<&OsStr>) -> Option<OsString> {
+    let mut paths = paths.to_vec();
+    if let Some(inherited) = inherited {
+        paths.extend(env::split_paths(inherited));
+    }
+    env::join_paths(paths).ok()
 }
 
 fn resolve_executable(setting: Option<&str>, runtime_path: Option<&OsStr>) -> AppResult<PathBuf> {

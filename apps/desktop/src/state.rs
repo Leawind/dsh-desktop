@@ -2,11 +2,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant};
+
+use sha2::{Digest, Sha256};
 
 use crate::model::{
     EndpointOwnership, EndpointSnapshot, GlobalSettings, HostSnapshot, ServiceStatus,
     WindowSnapshot,
 };
+use crate::runtime::RuntimeManager;
 use crate::service::ManagedService;
 
 #[derive(Clone)]
@@ -15,6 +19,8 @@ pub struct AppState {
     pub settings: Arc<RwLock<GlobalSettings>>,
     pub host: Arc<Mutex<HostState>>,
     pub startup_lock: Arc<Mutex<()>>,
+    pub runtime_manager: RuntimeManager,
+    pub data_dir: PathBuf,
     monitor_stopped: Arc<AtomicBool>,
     next_window_id: Arc<AtomicU64>,
 }
@@ -36,6 +42,10 @@ pub struct EndpointRecord {
     pub runtime_version: Option<String>,
     pub last_error: Option<String>,
     pub last_successful_connection: Option<u64>,
+    pub managed: bool,
+    pub launch: Option<crate::service::ManagedLaunch>,
+    pub logs: Vec<String>,
+    pub idle_since: Option<Instant>,
 }
 
 impl EndpointRecord {
@@ -46,12 +56,21 @@ impl EndpointRecord {
             runtime_version: None,
             last_error: None,
             last_successful_connection: None,
+            managed: false,
+            launch: None,
+            logs: Vec::new(),
+            idle_since: None,
         }
     }
 }
 
 impl AppState {
-    pub fn new(config_dir: PathBuf, settings: GlobalSettings) -> Self {
+    pub fn new(
+        config_dir: PathBuf,
+        settings: GlobalSettings,
+        runtime_manager: RuntimeManager,
+        data_dir: PathBuf,
+    ) -> Self {
         Self {
             config_dir,
             settings: Arc::new(RwLock::new(settings)),
@@ -61,6 +80,8 @@ impl AppState {
                 next_connection_order: 1,
             })),
             startup_lock: Arc::new(Mutex::new(())),
+            runtime_manager,
+            data_dir,
             monitor_stopped: Arc::new(AtomicBool::new(false)),
             next_window_id: Arc::new(AtomicU64::new(1)),
         }
@@ -69,6 +90,15 @@ impl AppState {
     pub fn next_window_label(&self) -> String {
         let id = self.next_window_id.fetch_add(1, Ordering::Relaxed);
         format!("dsh-{id}")
+    }
+
+    pub fn service_home(&self, url: &str) -> PathBuf {
+        let service_id = format!("{:x}", Sha256::digest(url.as_bytes()));
+        self.data_dir
+            .join("services")
+            .join(service_id)
+            .join("homes")
+            .join("generation-1")
     }
 
     pub fn register_window(&self, label: &str) -> WindowSnapshot {
@@ -95,7 +125,10 @@ impl AppState {
 
     pub fn remove_window(&self, label: &str) {
         if let Ok(mut host) = self.host.lock() {
-            host.windows.remove(label);
+            let removed_url = host.windows.remove(label).map(|window| window.url);
+            if let Some(url) = removed_url {
+                host.mark_idle_if_unused(&url);
+            }
         }
     }
 
@@ -146,9 +179,15 @@ impl AppState {
                 .endpoints
                 .get(&url)
                 .filter(|endpoint| {
-                    endpoint.process.is_some() && endpoint.status == ServiceStatus::Failed
+                    matches!(
+                        endpoint.status,
+                        ServiceStatus::Starting
+                            | ServiceStatus::Stopping
+                            | ServiceStatus::Restarting
+                            | ServiceStatus::Failed
+                    )
                 })
-                .map(|_| ServiceStatus::Failed)
+                .map(|endpoint| endpoint.status)
                 .unwrap_or(status);
             if let Some(endpoint) = host.endpoints.get_mut(&url) {
                 endpoint.status = status;
@@ -157,6 +196,12 @@ impl AppState {
                 window.status = status;
             }
         }
+        let idle_timeout = self
+            .settings
+            .read()
+            .map(|settings| settings.managed_service_idle_timeout_seconds)
+            .unwrap_or_default();
+        reap_idle_services(&mut host, idle_timeout);
         snapshot_locked(&host)
     }
 }
@@ -183,16 +228,35 @@ impl HostState {
             endpoint.status = ServiceStatus::Running;
             endpoint.last_error = None;
             endpoint.last_successful_connection = Some(order);
+            endpoint.idle_since = None;
         }
     }
 
     pub fn assign_window(&mut self, label: &str, url: &str, status: ServiceStatus) -> bool {
-        let Some(window) = self.windows.get_mut(label) else {
+        let Some(previous_url) = self.windows.get(label).map(|window| window.url.clone()) else {
             return false;
         };
+        let window = self.windows.get_mut(label).expect("window disappeared");
         window.url = url.to_owned();
         window.status = status;
+        if previous_url != url {
+            self.mark_idle_if_unused(&previous_url);
+        }
+        if let Some(endpoint) = self.endpoints.get_mut(url) {
+            endpoint.idle_since = None;
+        }
         true
+    }
+
+    fn mark_idle_if_unused(&mut self, url: &str) {
+        let used = self.windows.values().any(|window| window.url == url);
+        if !used {
+            if let Some(endpoint) = self.endpoints.get_mut(url) {
+                if endpoint.managed {
+                    endpoint.idle_since.get_or_insert_with(Instant::now);
+                }
+            }
+        }
     }
 
     pub fn window_snapshot(&self, label: &str) -> Option<WindowSnapshot> {
@@ -230,7 +294,7 @@ pub fn snapshot_locked(host: &HostState) -> HostSnapshot {
                 EndpointSnapshot {
                     url: url.clone(),
                     status: endpoint.status,
-                    ownership: if endpoint.process.is_some() {
+                    ownership: if endpoint.managed {
                         EndpointOwnership::Managed
                     } else {
                         EndpointOwnership::External
@@ -240,6 +304,21 @@ pub fn snapshot_locked(host: &HostState) -> HostSnapshot {
                     runtime_version: endpoint.runtime_version.clone(),
                     last_error: endpoint.last_error.clone(),
                     known: endpoint.last_successful_connection.is_some(),
+                    can_stop: endpoint.process.is_some()
+                        && matches!(endpoint.status, ServiceStatus::Running),
+                    can_restart: endpoint.managed
+                        && endpoint.launch.is_some()
+                        && !matches!(
+                            endpoint.status,
+                            ServiceStatus::Starting
+                                | ServiceStatus::Stopping
+                                | ServiceStatus::Restarting
+                        ),
+                    logs: endpoint
+                        .process
+                        .as_ref()
+                        .map(ManagedService::log_lines)
+                        .unwrap_or_else(|| endpoint.logs.clone()),
                 },
             )
         })
@@ -267,6 +346,7 @@ fn refresh_processes(host: &mut HostState) {
         };
         match process.child.try_wait() {
             Ok(Some(status)) => {
+                endpoint.logs = process.log_lines();
                 endpoint.status = ServiceStatus::Failed;
                 endpoint.last_error = Some(format!(
                     "process exited with {status}\n{}",
@@ -286,6 +366,26 @@ fn refresh_processes(host: &mut HostState) {
                 endpoint.last_error = Some(error.to_string());
             }
         }
+    }
+}
+
+fn reap_idle_services(host: &mut HostState, timeout_seconds: u64) {
+    if timeout_seconds == 0 {
+        return;
+    }
+    let timeout = Duration::from_secs(timeout_seconds);
+    for endpoint in host.endpoints.values_mut().filter(|endpoint| {
+        endpoint
+            .idle_since
+            .is_some_and(|idle_since| idle_since.elapsed() >= timeout)
+    }) {
+        if let Some(mut process) = endpoint.process.take() {
+            endpoint.logs = process.log_lines();
+            process.stop();
+        }
+        endpoint.status = ServiceStatus::Unreachable;
+        endpoint.last_error = None;
+        endpoint.idle_since = None;
     }
 }
 

@@ -18,6 +18,8 @@ DSH 版本相对于一个 DSH Desktop 版本具有以下状态之一：
 
 预发布版本必须明确进入 `supported` 集合。版本号位于同一 major、minor 或预发布序列中，不自动代表兼容。
 
+当前内置运行时基线为 DSH `0.1.0-rc.6`、Node.js `24.18.1` 和 pnpm `11.7.0`。Linux x86_64 已完成运行时准备、版本检查、隔离 DSH Home 启动、HTTP 身份探测和随 Host 退出测试。Windows、macOS、其他架构以及插件安装仍需在对应平台完成验证后，才能形成完整的跨平台 `supported` 结论。
+
 ## 发行与运行时契约
 
 | ID         | DSH 行为                                               | Desktop 用途                        | 破坏后的影响               | 验证                               |
