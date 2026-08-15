@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::io::{BufRead, BufReader, Read};
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -16,6 +17,7 @@ const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 const SHELL_PATH_TIMEOUT: Duration = Duration::from_secs(3);
 const MAX_LOG_LINES: usize = 400;
+const MAX_PROBE_BODY_BYTES: u64 = 1024 * 1024;
 const PATH_MARKER: &str = "__DSH_DESKTOP_PATH__";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,20 +61,40 @@ pub fn probe(url: &str) -> ProbeResult {
     };
     let response = match client.get(url).send() {
         Ok(response) => response,
+        Err(_) if tcp_port_is_reachable(url) => return ProbeResult::OtherHttp,
         Err(_) => return ProbeResult::Unreachable,
     };
     if !response.status().is_success() {
         return ProbeResult::OtherHttp;
     }
-    let body = match response.text() {
-        Ok(body) => body,
-        Err(_) => return ProbeResult::OtherHttp,
-    };
+    let mut body = String::new();
+    if response
+        .take(MAX_PROBE_BODY_BYTES)
+        .read_to_string(&mut body)
+        .is_err()
+    {
+        return ProbeResult::OtherHttp;
+    }
     if body.contains("<title>DeepSeek Harness</title>") {
         ProbeResult::Dsh
     } else {
         ProbeResult::OtherHttp
     }
+}
+
+fn tcp_port_is_reachable(url: &str) -> bool {
+    let Ok(url) = url::Url::parse(url) else {
+        return false;
+    };
+    let (Some(host), Some(port)) = (url.host_str(), url.port_or_known_default()) else {
+        return false;
+    };
+    let Ok(addresses) = (host, port).to_socket_addrs() else {
+        return false;
+    };
+    addresses
+        .into_iter()
+        .any(|address| TcpStream::connect_timeout(&address, PROBE_TIMEOUT).is_ok())
 }
 
 pub fn start(executable_setting: Option<&str>, port: u16) -> AppResult<ManagedService> {
