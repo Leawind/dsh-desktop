@@ -21,6 +21,7 @@ const { t } = useI18n();
 <template>
   <header class="titlebar" @dblclick="desktopBridge.window.toggleMaximize()">
     <div class="titlebar__leading">
+      <img class="titlebar__app-icon" src="/app-icon.png" alt="" aria-hidden="true" />
       <UiButton
         variant="ghost"
         size="small"
@@ -106,6 +107,14 @@ const { t } = useI18n();
 
 .titlebar__controls {
   justify-content: flex-end;
+}
+
+.titlebar__app-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0 0.625rem;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 .titlebar__drag {
