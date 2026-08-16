@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Delete, Plus, Rank } from "@element-plus/icons-vue";
+import { ElIcon } from "element-plus";
 import { ref } from "vue";
 import { ElButton, ElInputNumber } from "element-plus";
 
@@ -226,14 +228,7 @@ function stopDraggingAttempt(): void {
           @dragstart="startDraggingAttempt(index, $event)"
           @dragend="stopDraggingAttempt"
         >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <circle cx="5" cy="3.5" r="1" />
-            <circle cx="11" cy="3.5" r="1" />
-            <circle cx="5" cy="8" r="1" />
-            <circle cx="11" cy="8" r="1" />
-            <circle cx="5" cy="12.5" r="1" />
-            <circle cx="11" cy="12.5" r="1" />
-          </svg>
+          <ElIcon aria-hidden="true"><Rank /></ElIcon>
         </span>
         <div class="settings-page__attempt-fields">
           <UiSelect
@@ -275,15 +270,13 @@ function stopDraggingAttempt(): void {
             :title="$t('common.remove')"
             @click="attempts.splice(index, 1)"
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M3.5 4.5h9M6 2.5h4M5 4.5l.5 8h5l.5-8M6.5 7v3M9.5 7v3" />
-            </svg>
+            <ElIcon aria-hidden="true"><Delete /></ElIcon>
           </UiButton>
         </div>
       </li>
     </ol>
     <UiButton class="settings-page__attempt-add" @click="addAttempt">
-      <span aria-hidden="true">+</span>
+      <ElIcon aria-hidden="true"><Plus /></ElIcon>
       {{ $t("common.add") }}
     </UiButton>
     <p v-if="error" class="settings-page__error settings-page__error--block">{{ error }}</p>

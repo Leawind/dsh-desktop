@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Close, Cpu, InfoFilled, Monitor, Setting } from "@element-plus/icons-vue";
+import { ElIcon } from "element-plus";
 import { onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -118,10 +120,7 @@ onBeforeUnmount(() => {
             @click="activeTab = 'window'"
             @keydown="onTabKeydown"
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <rect x="2.25" y="3" width="11.5" height="9.5" rx="1.5" />
-              <path d="M5.5 14h5" />
-            </svg>
+            <ElIcon aria-hidden="true"><Monitor /></ElIcon>
             <span>{{ t("window.current") }}</span>
           </button>
           <button
@@ -136,12 +135,7 @@ onBeforeUnmount(() => {
             @click="activeTab = 'general'"
             @keydown="onTabKeydown"
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <circle cx="8" cy="8" r="2.25" />
-              <path
-                d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.58 3.58l1.06 1.06M11.36 11.36l1.06 1.06M12.42 3.58l-1.06 1.06M4.64 11.36l-1.06 1.06"
-              />
-            </svg>
+            <ElIcon aria-hidden="true"><Setting /></ElIcon>
             <span>{{ t("settings.global") }}</span>
           </button>
           <button
@@ -156,9 +150,7 @@ onBeforeUnmount(() => {
             @click="activeTab = 'runtime'"
             @keydown="onTabKeydown"
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M3 3.5h10v9H3zM5.25 1.75h5.5M5.25 14.25h5.5" />
-            </svg>
+            <ElIcon aria-hidden="true"><Cpu /></ElIcon>
             <span>{{ t("runtime.section") }}</span>
           </button>
           <button
@@ -173,10 +165,7 @@ onBeforeUnmount(() => {
             @click="activeTab = 'about'"
             @keydown="onTabKeydown"
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <circle cx="8" cy="8" r="6" />
-              <path d="M8 7v4M8 4.5v.5" />
-            </svg>
+            <ElIcon aria-hidden="true"><InfoFilled /></ElIcon>
             <span>{{ t("about.section") }}</span>
           </button>
         </div>
@@ -191,9 +180,7 @@ onBeforeUnmount(() => {
             autofocus
             @click="emit('close')"
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-              <path d="m3 3 8 8M11 3l-8 8" />
-            </svg>
+            <ElIcon aria-hidden="true"><Close /></ElIcon>
           </button>
         </header>
 

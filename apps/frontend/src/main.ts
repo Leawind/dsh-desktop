@@ -2,6 +2,7 @@ import { createApp } from "vue";
 
 import "@dsh-desktop/ui/styles";
 import "element-plus/es/components/button/style/css";
+import "element-plus/es/components/icon/style/css";
 import "element-plus/es/components/input-number/style/css";
 
 import App from "./App.vue";
