@@ -12,6 +12,7 @@ defineEmits<{
 
 defineProps<{
   refreshAction: "refresh" | "retry" | null;
+  title: string;
 }>();
 
 const { t } = useI18n();
@@ -46,10 +47,10 @@ const { t } = useI18n();
     <button
       class="titlebar__drag"
       type="button"
-      :aria-label="t('app.name')"
+      :aria-label="title"
       @mousedown.left="desktopBridge.window.startDragging()"
     >
-      {{ t("app.name") }}
+      {{ title }}
     </button>
     <div class="titlebar__controls">
       <UiButton

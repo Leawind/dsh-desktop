@@ -10,7 +10,7 @@ pub fn create(app: &AppHandle) -> AppResult<String> {
     let state = app.state::<AppState>();
     let label = state.next_window_label();
     let builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
-        .title("DSH Desktop")
+        .title("Deepseek Harness Desktop")
         .inner_size(1180.0, 780.0)
         .min_inner_size(720.0, 520.0)
         .resizable(true);

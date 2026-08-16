@@ -64,5 +64,6 @@ export const desktopBridge = {
     toggleMaximize: (): Promise<void> => getCurrentWindow().toggleMaximize(),
     close: (): Promise<void> => getCurrentWindow().close(),
     startDragging: (): Promise<void> => getCurrentWindow().startDragging(),
+    setTitle: (title: string): Promise<void> => getCurrentWindow().setTitle(title),
   },
 };

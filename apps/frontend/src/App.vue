@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { UiButton, UiStatus } from "@dsh-desktop/ui";
 
+import { desktopBridge } from "@/bridge/desktop";
 import { useDesktopApp } from "@/composables/useDesktopApp";
 import DshFrame from "@/features/dsh-frame/DshFrame.vue";
 import SettingsOverlay from "@/features/settings/SettingsOverlay.vue";
@@ -22,13 +23,23 @@ function attemptName(type: string): string {
   return t(`settings.attempt.type.${type}`);
 }
 
-onMounted(desktop.initialize);
+onMounted(() => {
+  watch(
+    desktop.windowTitle,
+    (title) => {
+      void desktopBridge.window.setTitle(title);
+    },
+    { immediate: true },
+  );
+  void desktop.initialize();
+});
 </script>
 
 <template>
   <div class="app-shell">
     <AppTitlebar
       :refresh-action="desktop.refreshAction.value"
+      :title="desktop.windowTitle.value"
       @settings="desktop.settingsOpen.value = true"
       @refresh="desktop.refreshCurrentWindow"
     />
