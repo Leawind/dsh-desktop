@@ -42,6 +42,8 @@
   --color-menu: #ffffff;
   --color-border: rgb(0 0 0 / 10%);
   --color-border-inverted: transparent;
+  --color-scrollbar-thumb: #545557;
+  --color-scrollbar-thumb-hover: #6f7073;
   --color-text-primary: #0f1115;
   --color-text-secondary: #61666b;
   --color-text-placeholder: #81858c;

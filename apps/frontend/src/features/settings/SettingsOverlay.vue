@@ -398,6 +398,24 @@ onBeforeUnmount(() => {
   padding: 0 24px 24px;
 }
 
+.settings__content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.settings__content::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.settings__content::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--color-scrollbar-thumb);
+}
+.settings__content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-thumb-hover);
+}
+.settings__content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 @media (max-width: 40rem) {
   .settings__panel {
     max-width: calc(100% - 24px);
