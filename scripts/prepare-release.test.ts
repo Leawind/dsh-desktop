@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { assertMatchingVersions, extractReleaseNotes, versionFromTag } from "./prepare-release.js";
+import { extractReleaseNotes, versionFromTag } from "./prepare-release.js";
 
 describe("release preparation", () => {
   it("derives the release version from a v-prefixed tag", () => {
@@ -28,10 +28,10 @@ describe("release preparation", () => {
     assert.throws(() => extractReleaseNotes(changelog, "2.0.0"), /does not contain/u);
   });
 
-  it("rejects mismatched application versions", () => {
-    assert.doesNotThrow(() =>
-      assertMatchingVersions("1.2.3", { package: "1.2.3", tauri: "1.2.3" }),
+  it("rejects a changelog section that only contains comments", () => {
+    assert.throws(
+      () => extractReleaseNotes("## [1.2.0]\n\n<!-- Fill this in. -->\n", "1.2.0"),
+      /is empty/u,
     );
-    assert.throws(() => assertMatchingVersions("1.2.3", { package: "1.2.2" }), /package=1\.2\.2/u);
   });
 });

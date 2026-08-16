@@ -1,6 +1,5 @@
 {
   "name": "@dsh-desktop/desktop",
-  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev:bundled": "pnpm --workspace-root run runtime:prepare && cross-env DSH_DESKTOP_VARIANT=bundled tauri dev --config tauri.bundled.conf.json",

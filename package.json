@@ -1,6 +1,5 @@
 {
   "name": "dsh-desktop",
-  "version": "0.1.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.21.0",
@@ -22,9 +21,10 @@
     "runtime:format": "prettier --write runtime scripts",
     "runtime:format-check": "prettier --check runtime scripts",
     "runtime:lint": "oxlint scripts",
-    "runtime:test": "tsx --test scripts/prepare-release.test.ts",
+    "runtime:test": "tsx --test scripts/prepare-release.test.ts scripts/set-release-version.test.ts",
     "runtime:typecheck": "tsc --project scripts/tsconfig.json",
     "release:prepare": "tsx scripts/prepare-release.ts",
+    "release:version": "tsx scripts/set-release-version.ts",
     "frontend:dev": "pnpm --filter @dsh-desktop/frontend run dev",
     "frontend:build": "pnpm --filter @dsh-desktop/frontend run build",
     "frontend:format": "pnpm --filter @dsh-desktop/frontend run format && pnpm --filter @dsh-desktop/ui run format",

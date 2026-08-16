@@ -85,6 +85,7 @@ DSH Desktop 自身的 WebView 和 DSH 可达性探测会直接连接目标地址
 | `pnpm run runtime:prepare`       | 准备并校验当前平台的内置运行时                               |
 | `pnpm run runtime:test`          | 运行构建和发布脚本的测试                                     |
 | `pnpm run release:prepare`       | 校验发布版本并从更新日志生成本次发布说明                     |
+| `pnpm run release:version`       | 设置应用版本并创建对应的更新日志章节                         |
 | `pnpm run check`                 | 依次运行格式检查、前端 lint 和测试、前端生产构建及 Rust 测试 |
 | `pnpm run format`                | 格式化前端、工作区配置和 Rust 代码                           |
 | `pnpm run format-check`          | 检查前端、工作区配置和 Rust 代码格式                         |
@@ -181,12 +182,20 @@ pnpm run build:slim -- --appimage-runtime /path/to/runtime-x86_64
 
 推送以 `v` 开头的 tag 会触发 GitHub Actions 构建 Linux、Windows 和 macOS 安装包，并将各平台的 `bundled` 与 `slim` 产物发布到同一个 GitHub Release。
 
-tag 必须采用 `v<版本号>` 格式，例如 `v0.1.0`。版本号必须同时匹配根目录与桌面端的 `package.json`、`apps/desktop/tauri.conf.json` 和 `apps/desktop/Cargo.toml`。`CHANGELOG.md` 中还必须存在对应的 `## [版本号]` 小节；该小节内容会成为本次 Release 的更新日志。
+应用版本以 `apps/desktop/Cargo.toml` 为唯一来源，Tauri 构建和应用内元数据会直接使用该版本。准备新版本时运行：
+
+```sh
+pnpm run release:version -- 0.2.0
+```
+
+该命令会更新 Cargo 包版本、刷新 `Cargo.lock`，并在 `CHANGELOG.md` 顶部创建对应的 `## [0.2.0]` 小节。填写该小节后，提交全部版本与更新日志改动。
+
+tag 必须采用 `v<版本号>` 格式，例如 `v0.2.0`，并与 Cargo 包版本及更新日志章节一致。对应更新日志小节的内容会成为本次 GitHub Release 的发布说明；仅保留命令生成的占位注释无法通过发布检查。
 
 推送 tag 前可以在本地检查发布元数据并预览生成的发布说明：
 
 ```sh
-pnpm run release:prepare -- v0.1.0 release-notes.md
+pnpm run release:prepare -- v0.2.0 release-notes.md
 ```
 
 生成的 `release-notes.md` 仅用于预览，不需要提交。

@@ -26,27 +26,11 @@ export function extractReleaseNotes(changelog: string, version: string): string 
     .slice(start + 1, end)
     .join("\n")
     .trim();
-  if (!notes) {
+  const visibleNotes = notes.replace(/<!--[\s\S]*?-->/gu, "").trim();
+  if (!visibleNotes) {
     throw new Error(`CHANGELOG.md section for ${version} is empty`);
   }
   return `${notes}\n`;
-}
-
-export function assertMatchingVersions(
-  releaseVersion: string,
-  versions: Readonly<Record<string, string>>,
-): void {
-  const mismatches = Object.entries(versions).filter(([, version]) => version !== releaseVersion);
-  if (mismatches.length > 0) {
-    const details = mismatches.map(([source, version]) => `${source}=${version}`).join(", ");
-    throw new Error(`Release tag version ${releaseVersion} does not match ${details}`);
-  }
-}
-
-async function jsonVersion(path: string): Promise<string> {
-  const value = JSON.parse(await readFile(path, "utf8")) as { version?: unknown };
-  if (typeof value.version !== "string") throw new Error(`${path} has no string version`);
-  return value.version;
 }
 
 async function cargoVersion(path: string): Promise<string> {
@@ -71,19 +55,10 @@ async function main(): Promise<void> {
   }
 
   const version = versionFromTag(tag);
-  const versions = {
-    "package.json": await jsonVersion(join(repositoryRoot, "package.json")),
-    "apps/desktop/package.json": await jsonVersion(
-      join(repositoryRoot, "apps", "desktop", "package.json"),
-    ),
-    "apps/desktop/tauri.conf.json": await jsonVersion(
-      join(repositoryRoot, "apps", "desktop", "tauri.conf.json"),
-    ),
-    "apps/desktop/Cargo.toml": await cargoVersion(
-      join(repositoryRoot, "apps", "desktop", "Cargo.toml"),
-    ),
-  };
-  assertMatchingVersions(version, versions);
+  const appVersion = await cargoVersion(join(repositoryRoot, "apps", "desktop", "Cargo.toml"));
+  if (appVersion !== version) {
+    throw new Error(`Release tag version ${version} does not match Cargo version ${appVersion}`);
+  }
 
   const changelog = await readFile(join(repositoryRoot, "CHANGELOG.md"), "utf8");
   const notes = extractReleaseNotes(changelog, version);
