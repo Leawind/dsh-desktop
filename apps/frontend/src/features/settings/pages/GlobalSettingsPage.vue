@@ -22,6 +22,10 @@ const props = defineProps<{
   attemptOptions: { value: string; label: string }[];
 }>();
 
+const emit = defineEmits<{
+  select: [];
+}>();
+
 const locale = defineModel<AppLocale>("locale", { required: true });
 const pageScalePercent = defineModel<number>("pageScalePercent", { required: true });
 const sourceType = defineModel<DshSource["type"]>("sourceType", { required: true });
@@ -128,7 +132,7 @@ function stopDraggingAttempt(): void {
     aria-labelledby="settings-tab-general"
   >
     <UiSettingRow :label="$t('settings.language')">
-      <UiSelect v-model="locale" variant="pill" :options="localeOptions" />
+      <UiSelect v-model="locale" variant="pill" :options="localeOptions" @change="emit('select')" />
     </UiSettingRow>
     <UiSettingRow
       control-id="page-scale"
@@ -165,7 +169,12 @@ function stopDraggingAttempt(): void {
       </div>
     </UiSettingRow>
     <UiSettingRow :label="$t('settings.source.label')" :hint="$t('settings.source.hint')">
-      <UiSelect v-model="sourceType" variant="pill" :options="sourceOptions" />
+      <UiSelect
+        v-model="sourceType"
+        variant="pill"
+        :options="sourceOptions"
+        @change="emit('select')"
+      />
     </UiSettingRow>
     <UiSettingRow
       v-if="sourceType === 'custom'"
@@ -188,7 +197,7 @@ function stopDraggingAttempt(): void {
       </div>
     </UiSettingRow>
     <UiSettingRow :label="$t('settings.home.label')" :hint="$t('settings.home.hint')">
-      <UiSelect v-model="homeType" variant="pill" :options="homeOptions" />
+      <UiSelect v-model="homeType" variant="pill" :options="homeOptions" @change="emit('select')" />
     </UiSettingRow>
     <UiSettingRow
       v-if="homeType === 'custom'"
@@ -246,6 +255,7 @@ function stopDraggingAttempt(): void {
             :model-value="attempt.type"
             :options="attemptOptions"
             @update:model-value="changeAttemptType(index, $event)"
+            @change="emit('select')"
           />
           <template v-if="attempt.type !== 'known-services'">
             <UiInput v-model="attempt.host" :placeholder="$t('settings.attempt.host')" />

@@ -8,8 +8,7 @@ export function useWindowTarget(
   const { t } = useI18n();
   const url = ref(toValue(currentUrl));
   const error = ref("");
-  const targetApplyDelayMs = 500;
-  let targetApplyTimer: ReturnType<typeof setTimeout> | undefined;
+  let dirty = false;
   let syncingTarget = false;
 
   watch(
@@ -18,13 +17,14 @@ export function useWindowTarget(
       syncingTarget = true;
       url.value = value;
       syncingTarget = false;
+      dirty = false;
     },
   );
 
   watch(
     url,
     () => {
-      if (!syncingTarget) scheduleTargetApply();
+      if (!syncingTarget) dirty = true;
     },
     { flush: "sync" },
   );
@@ -50,23 +50,12 @@ export function useWindowTarget(
     return value;
   }
 
-  function scheduleTargetApply(): void {
-    if (targetApplyTimer !== undefined) clearTimeout(targetApplyTimer);
-    targetApplyTimer = undefined;
+  function flush(): void {
+    if (!dirty) return;
     const target = validatedTargetUrl();
     if (!target) return;
-    targetApplyTimer = setTimeout(() => {
-      targetApplyTimer = undefined;
-      onSetTarget(target);
-    }, targetApplyDelayMs);
-  }
-
-  function flush(): void {
-    if (targetApplyTimer === undefined) return;
-    clearTimeout(targetApplyTimer);
-    targetApplyTimer = undefined;
-    const target = validatedTargetUrl();
-    if (target) onSetTarget(target);
+    onSetTarget(target);
+    dirty = false;
   }
 
   return { url, error, flush };

@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { ref } from "vue";
+
 const model = defineModel<string>({ required: true });
+const input = ref<HTMLInputElement | null>(null);
 
 withDefaults(
   defineProps<{
@@ -8,20 +11,28 @@ withDefaults(
     placeholder?: string;
     disabled?: boolean;
     autocomplete?: string;
+    contentSized?: boolean;
   }>(),
   {
     type: "text",
     disabled: false,
     autocomplete: "off",
+    contentSized: false,
   },
 );
+
+defineExpose({
+  focus: () => input.value?.focus(),
+});
 </script>
 
 <template>
   <input
+    ref="input"
     :id="id"
     v-model="model"
     class="ui-input"
+    :class="{ 'ui-input--content-sized': contentSized }"
     :type="type"
     :placeholder="placeholder"
     :disabled="disabled"
@@ -55,5 +66,10 @@ withDefaults(
 .ui-input:disabled {
   cursor: not-allowed;
   opacity: 0.4;
+}
+
+.ui-input--content-sized {
+  width: auto;
+  field-sizing: content;
 }
 </style>

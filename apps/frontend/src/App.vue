@@ -47,9 +47,10 @@ onMounted(() => {
   <div class="app-shell" :style="pageScaleStyle">
     <AppTitlebar
       :refresh-action="desktop.refreshAction.value"
-      :title="desktop.windowTitle.value"
+      :target-url="desktop.currentWindow.value?.url ?? ''"
       @settings="desktop.settingsOpen.value = true"
       @refresh="desktop.refreshCurrentWindow"
+      @set-target="desktop.setTarget"
     />
     <main class="app-content">
       <DshFrame :url="desktop.frameUrl.value" :revision="desktop.frameRevision.value" />

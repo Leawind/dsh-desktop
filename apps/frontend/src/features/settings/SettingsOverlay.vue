@@ -12,8 +12,9 @@ import type {
   HostSnapshot,
 } from "@/types/desktop";
 
+import { useWindowTarget } from "@/composables/useWindowTarget";
+
 import { useSettingsDraft } from "./composables/useSettingsDraft";
-import { useWindowTarget } from "./composables/useWindowTarget";
 import AboutPage from "./pages/AboutPage.vue";
 import CurrentWindowPage from "./pages/CurrentWindowPage.vue";
 import GlobalSettingsPage from "./pages/GlobalSettingsPage.vue";
@@ -92,15 +93,24 @@ function onTabKeydown(event: KeyboardEvent): void {
   buttons[targetIndex]?.focus();
 }
 
-onBeforeUnmount(() => {
+function flushChanges(): void {
   flushSettings();
   flushTarget();
+}
+
+function close(): void {
+  flushChanges();
+  emit("close");
+}
+
+onBeforeUnmount(() => {
+  flushChanges();
 });
 </script>
 
 <template>
-  <section class="settings" role="presentation" @keydown.esc="emit('close')">
-    <div class="settings__mask" aria-hidden="true" @click="emit('close')" />
+  <section class="settings" role="presentation" @focusout="flushChanges" @keydown.esc="close">
+    <div class="settings__mask" aria-hidden="true" @click="close" />
 
     <div class="settings__panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div class="settings__background">
@@ -114,7 +124,7 @@ onBeforeUnmount(() => {
           type="button"
           :aria-label="t('common.close')"
           autofocus
-          @click="emit('close')"
+          @click="close"
         >
           <ElIcon aria-hidden="true"><Close /></ElIcon>
         </button>
@@ -210,6 +220,7 @@ onBeforeUnmount(() => {
               :source-options="sourceOptions"
               :home-options="homeOptions"
               :attempt-options="attemptOptions"
+              @select="flushSettings"
             />
             <RuntimePage
               v-show="activeTab === 'runtime'"

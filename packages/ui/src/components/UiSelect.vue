@@ -8,6 +8,9 @@ export type SelectOption = {
 };
 
 const model = defineModel<string>({ required: true });
+const emit = defineEmits<{
+  change: [value: string];
+}>();
 const props = withDefaults(
   defineProps<{
     id?: string;
@@ -90,6 +93,7 @@ function moveActive(direction: 1 | -1): void {
 function selectOption(option: SelectOption): void {
   if (option.disabled) return;
   model.value = option.value;
+  emit("change", option.value);
   closeMenu(true);
 }
 

@@ -58,8 +58,7 @@ export function useSettingsDraft(
   );
   const idleTimeoutMinutes = ref(initialSettings.managedServiceIdleTimeoutSeconds / 60);
   const error = ref("");
-  const autoSaveDelayMs = 250;
-  let autoSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  let dirty = false;
   let syncingSettings = false;
 
   const localeOptions = computed(() => [
@@ -102,6 +101,7 @@ export function useSettingsDraft(
       attempts.value = cloneAttempts(value.windowStartupAttempts);
       idleTimeoutMinutes.value = value.managedServiceIdleTimeoutSeconds / 60;
       syncingSettings = false;
+      dirty = false;
     },
   );
 
@@ -119,8 +119,7 @@ export function useSettingsDraft(
     ],
     () => {
       if (syncingSettings) return;
-      applyLocale(locale.value);
-      scheduleSave();
+      dirty = true;
     },
     { deep: true, flush: "sync" },
   );
@@ -183,23 +182,13 @@ export function useSettingsDraft(
     };
   }
 
-  function scheduleSave(): void {
-    if (autoSaveTimer !== undefined) clearTimeout(autoSaveTimer);
-    autoSaveTimer = undefined;
+  function flush(): void {
+    if (!dirty) return;
     const patch = buildPatch();
     if (!patch) return;
-    autoSaveTimer = setTimeout(() => {
-      autoSaveTimer = undefined;
-      onSave(patch);
-    }, autoSaveDelayMs);
-  }
-
-  function flush(): void {
-    if (autoSaveTimer === undefined) return;
-    clearTimeout(autoSaveTimer);
-    autoSaveTimer = undefined;
-    const patch = buildPatch();
-    if (patch) onSave(patch);
+    applyLocale(locale.value);
+    onSave(patch);
+    dirty = false;
   }
 
   return {
