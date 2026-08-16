@@ -1,15 +1,22 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { UiButton, UiSettingRow, UiStatus } from "@dsh-desktop/ui";
 
 import { desktopBridge } from "@/bridge/desktop";
-import type { HostSnapshot } from "@/types/desktop";
+import type {
+  DistributionSnapshot,
+  DshSource,
+  HostSnapshot,
+  RuntimeUpdateSnapshot,
+} from "@/types/desktop";
 
 const props = defineProps<{
   currentWindowLabel: string;
   host: HostSnapshot;
+  distribution: DistributionSnapshot;
+  dshSource: DshSource;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +26,13 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const knownEndpoints = computed(() => props.host.endpoints.filter((endpoint) => endpoint.known));
+const runtimeUpdate = ref<RuntimeUpdateSnapshot | null>(null);
+const updateError = ref<string | null>(null);
+const checkingForUpdate = ref(false);
+const updating = ref(false);
+const canUpdateBuiltIn = computed(
+  () => props.distribution.variant === "bundled" && props.dshSource.type === "built-in",
+);
 
 function endpointHint(endpoint: HostSnapshot["endpoints"][number]): string {
   const details = [
@@ -29,6 +43,39 @@ function endpointHint(endpoint: HostSnapshot["endpoints"][number]): string {
   if (endpoint.pid) details.push(`PID ${endpoint.pid}`);
   return details.join(" · ");
 }
+
+async function checkForUpdate(): Promise<void> {
+  checkingForUpdate.value = true;
+  updateError.value = null;
+  try {
+    runtimeUpdate.value = await desktopBridge.checkBuiltInRuntimeUpdate();
+  } catch (error) {
+    updateError.value = t(
+      typeof error === "object" && error !== null && "code" in error
+        ? String(error.code)
+        : "app.error.unknown",
+    );
+  } finally {
+    checkingForUpdate.value = false;
+  }
+}
+
+async function updateRuntime(): Promise<void> {
+  updating.value = true;
+  updateError.value = null;
+  try {
+    await desktopBridge.updateBuiltInRuntime();
+    runtimeUpdate.value = null;
+  } catch (error) {
+    updateError.value = t(
+      typeof error === "object" && error !== null && "code" in error
+        ? String(error.code)
+        : "app.error.unknown",
+    );
+  } finally {
+    updating.value = false;
+  }
+}
 </script>
 
 <template>
@@ -38,6 +85,50 @@ function endpointHint(endpoint: HostSnapshot["endpoints"][number]): string {
     role="tabpanel"
     aria-labelledby="settings-tab-runtime"
   >
+    <h2 class="settings-page__group-title">{{ $t("runtime.builtInUpdate") }}</h2>
+    <UiSettingRow
+      v-if="distribution.builtInRuntime"
+      :label="$t('runtime.currentVersion')"
+      :hint="canUpdateBuiltIn ? $t('runtime.updateHint') : $t('runtime.updateSourceHint')"
+    >
+      <div class="settings-page__inline-control">
+        <UiStatus tone="info">DSH {{ distribution.builtInRuntime.dshVersion }}</UiStatus>
+        <UiButton
+          v-if="canUpdateBuiltIn"
+          size="small"
+          :disabled="checkingForUpdate || updating"
+          @click="checkForUpdate"
+        >
+          {{ $t("runtime.checkForUpdates") }}
+        </UiButton>
+      </div>
+    </UiSettingRow>
+    <UiSettingRow
+      v-if="runtimeUpdate?.candidateVersion"
+      :label="$t('runtime.availableVersion')"
+      :hint="
+        runtimeUpdate.automaticRollbackSupported
+          ? $t('runtime.rollbackReady')
+          : $t('runtime.rollbackUnavailable')
+      "
+    >
+      <div class="settings-page__inline-control">
+        <UiStatus tone="info">DSH {{ runtimeUpdate.candidateVersion }}</UiStatus>
+        <UiButton
+          variant="primary"
+          size="small"
+          :disabled="updating || !runtimeUpdate.automaticRollbackSupported"
+          @click="updateRuntime"
+        >
+          {{ $t("runtime.update") }}
+        </UiButton>
+      </div>
+    </UiSettingRow>
+    <p v-else-if="runtimeUpdate" class="settings-page__empty">
+      {{ $t("runtime.upToDate") }}
+    </p>
+    <p v-if="updateError" class="settings-page__error">{{ updateError }}</p>
+
     <h2 class="settings-page__group-title">{{ $t("runtime.openWindows") }}</h2>
     <UiSettingRow
       v-for="appWindow in host.windows"
@@ -137,6 +228,13 @@ function endpointHint(endpoint: HostSnapshot["endpoints"][number]): string {
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-sm);
+}
+
+.settings-page__error {
+  margin: 0;
+  padding: var(--space-3) 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
 }
 
 .settings-page__logs {

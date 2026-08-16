@@ -4,8 +4,8 @@ use crate::endpoint::{dsh_url, normalize_dsh_url};
 use crate::error::{AppError, AppResult};
 use crate::model::{
     AppMetadataSnapshot, BootstrapPayload, GlobalSettings, GlobalSettingsPatch, HostSnapshot,
-    LOCAL_DSH_HOST, ServiceStatus, StartupAttemptFailure, WindowSnapshot, WindowStartupAttempt,
-    WindowStartupResult,
+    LOCAL_DSH_HOST, RuntimeUpdateResult, RuntimeUpdateSnapshot, ServiceStatus,
+    StartupAttemptFailure, WindowSnapshot, WindowStartupAttempt, WindowStartupResult,
 };
 use crate::service::{self, ProbeResult};
 use crate::settings;
@@ -405,6 +405,290 @@ pub async fn restart_service(
         .map_err(|error| AppError::new("app.error.taskFailed").technical(error.to_string()))??;
     let _ = app.emit("host-snapshot-changed", &snapshot);
     Ok(snapshot)
+}
+
+#[tauri::command]
+pub async fn check_built_in_runtime_update(
+    state: State<'_, AppState>,
+) -> AppResult<RuntimeUpdateSnapshot> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || available_built_in_update(&state))
+        .await
+        .map_err(|error| AppError::new("app.error.taskFailed").technical(error.to_string()))?
+}
+
+#[tauri::command]
+pub async fn update_built_in_runtime(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<RuntimeUpdateResult> {
+    let state = state.inner().clone();
+    let result =
+        tauri::async_runtime::spawn_blocking(move || apply_built_in_runtime_update(&state))
+            .await
+            .map_err(|error| {
+                AppError::new("app.error.taskFailed").technical(error.to_string())
+            })??;
+    let _ = app.emit("host-snapshot-changed", &result.host);
+    let _ = app.emit("runtime-distribution-changed", &result.distribution);
+    let _ = app.emit("built-in-runtime-updated", &result.updated_urls);
+    Ok(result)
+}
+
+fn available_built_in_update(state: &AppState) -> AppResult<RuntimeUpdateSnapshot> {
+    let settings = state
+        .settings
+        .read()
+        .map_err(|_| AppError::new("app.error.stateUnavailable"))?
+        .clone();
+    if !matches!(settings.dsh_source, crate::model::DshSource::BuiltIn) {
+        return Err(AppError::new("runtime.error.builtInSourceRequired"));
+    }
+    let current = state.runtime_manager.resolve_built_in()?;
+    let compatibility = crate::compatibility::load_for_app(
+        &state.runtime_manager.compatibility_cache_directory(),
+        env!("CARGO_PKG_VERSION"),
+    )?;
+    let update = crate::compatibility::select_update(
+        &compatibility,
+        &current.dsh_version,
+        &current.node_version,
+    )?;
+    Ok(RuntimeUpdateSnapshot {
+        current_version: current.dsh_version,
+        candidate_version: update.as_ref().map(|update| update.version.clone()),
+        automatic_rollback_supported: update
+            .as_ref()
+            .is_some_and(|update| update.automatic_rollback_supported),
+    })
+}
+
+struct UpdateTarget {
+    url: String,
+    launch: service::ManagedLaunch,
+    had_running_process: bool,
+    process: Option<service::ManagedService>,
+}
+
+fn apply_built_in_runtime_update(state: &AppState) -> AppResult<RuntimeUpdateResult> {
+    let _startup_guard = state
+        .startup_lock
+        .lock()
+        .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    let update = available_built_in_update(state)?;
+    let candidate = update
+        .candidate_version
+        .ok_or_else(|| AppError::new("runtime.error.alreadyUpToDate"))?;
+    if !update.automatic_rollback_supported {
+        return Err(AppError::new("runtime.error.rollbackNotSupported").arg("version", candidate));
+    }
+    let package = crate::compatibility::fetch_dsh_package(&candidate)?;
+    crate::compatibility::verify_package_integrity(&package)?;
+    let current = state.runtime_manager.resolve_built_in()?;
+    let prepared = state
+        .runtime_manager
+        .prepare_update(&candidate, &package.dist.integrity)?;
+    let replacement_runtime = match service::resolve_built_in_runtime(prepared.runtime.clone()) {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            state.runtime_manager.discard_prepared(prepared);
+            return Err(error);
+        }
+    };
+    if let Err(error) = verify_staged_runtime(&replacement_runtime, prepared.verification_home()) {
+        state.runtime_manager.discard_prepared(prepared);
+        return Err(error);
+    }
+
+    let mut targets = take_built_in_targets(state)?;
+    for target in targets
+        .iter_mut()
+        .filter(|target| target.had_running_process)
+    {
+        if let Some(process) = target.process.as_mut() {
+            process.stop();
+        }
+    }
+
+    let new_runtime_id = match state.runtime_manager.commit_prepared(prepared) {
+        Ok(runtime_id) => runtime_id,
+        Err(error) => return rollback_built_in_update(state, current, targets, error),
+    };
+    let mut started = Vec::new();
+    for target in &targets {
+        if !target.had_running_process {
+            continue;
+        }
+        let launch = target
+            .launch
+            .clone()
+            .with_runtime(replacement_runtime.clone());
+        match service::start_launch(&launch) {
+            Ok(process) => started.push((target.url.clone(), process, launch)),
+            Err(error) => {
+                for (_, mut process, _) in started {
+                    process.stop();
+                }
+                return rollback_built_in_update(state, current, targets, error);
+            }
+        }
+    }
+
+    let mut host = state
+        .host
+        .lock()
+        .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    for target in &targets {
+        if let Some(endpoint) = host.endpoints.get_mut(&target.url) {
+            endpoint.launch = Some(
+                target
+                    .launch
+                    .clone()
+                    .with_runtime(replacement_runtime.clone()),
+            );
+            endpoint.runtime_version = Some(candidate.clone());
+            endpoint.last_error = None;
+        }
+    }
+    for (url, process, launch) in started {
+        if let Some(endpoint) = host.endpoints.get_mut(&url) {
+            endpoint.process = Some(process);
+            endpoint.launch = Some(launch);
+            endpoint.status = ServiceStatus::Running;
+            endpoint.idle_since = None;
+        }
+        set_window_status(&mut host, &url, ServiceStatus::Running);
+        host.record_connection(&url);
+    }
+    let updated_urls = targets
+        .iter()
+        .filter(|target| target.had_running_process)
+        .map(|target| target.url.clone())
+        .collect::<Vec<_>>();
+    let host_snapshot = snapshot_locked(&host);
+    drop(host);
+    state
+        .runtime_manager
+        .cleanup(&[new_runtime_id, current.runtime_id])?;
+    Ok(RuntimeUpdateResult {
+        distribution: state.runtime_manager.distribution_snapshot(),
+        host: host_snapshot,
+        updated_urls,
+    })
+}
+
+fn take_built_in_targets(state: &AppState) -> AppResult<Vec<UpdateTarget>> {
+    let mut host = state
+        .host
+        .lock()
+        .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    let mut targets = Vec::new();
+    let mut updating_urls = Vec::new();
+    for (url, endpoint) in &mut host.endpoints {
+        let Some(launch) = endpoint
+            .launch
+            .clone()
+            .filter(|launch| launch.uses_built_in_runtime())
+        else {
+            continue;
+        };
+        let process = endpoint.process.take();
+        let had_running_process = process.is_some();
+        if had_running_process {
+            endpoint.status = ServiceStatus::Updating;
+            updating_urls.push(url.clone());
+        }
+        targets.push(UpdateTarget {
+            url: url.clone(),
+            launch,
+            had_running_process,
+            process,
+        });
+    }
+    for url in updating_urls {
+        set_window_status(&mut host, &url, ServiceStatus::Updating);
+    }
+    Ok(targets)
+}
+
+fn rollback_built_in_update(
+    state: &AppState,
+    previous: crate::runtime::InstalledRuntime,
+    targets: Vec<UpdateTarget>,
+    update_error: AppError,
+) -> AppResult<RuntimeUpdateResult> {
+    state
+        .runtime_manager
+        .set_active_runtime(&previous.runtime_id)?;
+    let previous_runtime = service::resolve_built_in_runtime(previous)?;
+    let mut recovered = Vec::new();
+    for target in &targets {
+        if target.had_running_process {
+            match service::start_launch(
+                &target.launch.clone().with_runtime(previous_runtime.clone()),
+            ) {
+                Ok(process) => recovered.push((target.url.clone(), process)),
+                Err(error) => {
+                    for (_, mut process) in recovered {
+                        process.stop();
+                    }
+                    return Err(AppError::new("runtime.error.rollbackFailed")
+                        .technical(format!("update: {update_error}\nrollback: {error}")));
+                }
+            }
+        }
+    }
+    let mut host = state
+        .host
+        .lock()
+        .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    for target in targets {
+        if let Some(endpoint) = host.endpoints.get_mut(&target.url) {
+            endpoint.launch = Some(target.launch);
+            endpoint.runtime_version = Some(previous_runtime.version().to_owned());
+            endpoint.last_error = Some(update_error.code.clone());
+            endpoint.status = if target.had_running_process {
+                ServiceStatus::Running
+            } else {
+                ServiceStatus::Unreachable
+            };
+        }
+    }
+    for (url, process) in recovered {
+        if let Some(endpoint) = host.endpoints.get_mut(&url) {
+            endpoint.process = Some(process);
+        }
+        set_window_status(&mut host, &url, ServiceStatus::Running);
+        host.record_connection(&url);
+    }
+    Err(AppError::new("runtime.error.updateRolledBack").technical(update_error.to_string()))
+}
+
+fn verify_staged_runtime(
+    runtime: &service::ResolvedDshRuntime,
+    verification_home: std::path::PathBuf,
+) -> AppResult<()> {
+    service::verify_web_help(runtime)?;
+    let listener = std::net::TcpListener::bind((LOCAL_DSH_HOST, 0)).map_err(|error| {
+        AppError::new("runtime.error.verificationFailed").technical(error.to_string())
+    })?;
+    let port = listener
+        .local_addr()
+        .map_err(|error| {
+            AppError::new("runtime.error.verificationFailed").technical(error.to_string())
+        })?
+        .port();
+    drop(listener);
+    let mut process = service::start(
+        runtime,
+        port,
+        crate::model::DshHome::Custom {
+            path: verification_home.display().to_string(),
+        },
+    )?;
+    process.stop();
+    let _ = std::fs::remove_dir_all(verification_home);
+    Ok(())
 }
 
 fn stop_managed(state: &AppState, url: &str) -> AppResult<HostSnapshot> {

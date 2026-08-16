@@ -151,3 +151,36 @@ jobs:
           files: release-assets/*
           fail_on_unmatched_files: true
           prerelease: ${{ contains(github.ref_name, '-') }}
+
+  publish-compatibility:
+    needs: prepare
+    runs-on: ubuntu-22.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run runtime:compatibility -- compatibility-dist
+        env:
+          COMPATIBILITY_SIGNING_KEY: ${{ secrets.COMPATIBILITY_SIGNING_KEY }}
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: compatibility-dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

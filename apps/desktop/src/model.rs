@@ -34,6 +34,14 @@ pub struct DistributionSnapshot {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RuntimeUpdateSnapshot {
+    pub current_version: String,
+    pub candidate_version: Option<String>,
+    pub automatic_rollback_supported: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppMetadataSnapshot {
     pub name: String,
     pub version: String,
@@ -146,6 +154,7 @@ pub enum ServiceStatus {
     Starting,
     Stopping,
     Restarting,
+    Updating,
     Running,
     Failed,
 }
@@ -186,6 +195,14 @@ pub enum EndpointOwnership {
 pub struct HostSnapshot {
     pub windows: Vec<WindowSnapshot>,
     pub endpoints: Vec<EndpointSnapshot>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeUpdateResult {
+    pub distribution: DistributionSnapshot,
+    pub host: HostSnapshot,
+    pub updated_urls: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

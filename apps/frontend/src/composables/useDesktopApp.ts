@@ -92,6 +92,14 @@ export function useDesktopApp() {
           host.value = value;
           syncWindowFromHost();
         }),
+        await desktopBridge.onRuntimeDistributionChanged((value) => {
+          distribution.value = value;
+        }),
+        await desktopBridge.onBuiltInRuntimeUpdated((urls) => {
+          if (currentWindow.value && urls.includes(currentWindow.value.url)) {
+            frameRevision.value += 1;
+          }
+        }),
       );
 
       startupStatus.value = "starting";

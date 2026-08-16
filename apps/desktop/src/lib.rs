@@ -1,4 +1,5 @@
 mod commands;
+mod compatibility;
 mod direct_network;
 mod endpoint;
 mod error;
@@ -56,6 +57,8 @@ pub fn run() {
             commands::start_window,
             commands::stop_service,
             commands::restart_service,
+            commands::check_built_in_runtime_update,
+            commands::update_built_in_runtime,
             commands::update_global_settings,
         ])
         .build(tauri::generate_context!())

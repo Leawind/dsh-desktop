@@ -209,6 +209,8 @@ onBeforeUnmount(() => {
             v-show="activeTab === 'runtime'"
             :current-window-label="currentWindowLabel"
             :host="host"
+            :distribution="distribution"
+            :dsh-source="settings.dshSource"
             @stop-service="emit('stopService', $event)"
             @restart-service="emit('restartService', $event)"
           />

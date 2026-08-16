@@ -1,7 +1,7 @@
 export type AppLocale = "zh-CN" | "en-US";
 
 export type ServiceStatus =
-  "unreachable" | "starting" | "stopping" | "restarting" | "running" | "failed";
+  "unreachable" | "starting" | "stopping" | "restarting" | "updating" | "running" | "failed";
 
 export type EndpointOwnership = "external" | "managed";
 
@@ -95,6 +95,18 @@ export interface BootstrapPayload {
   distribution: DistributionSnapshot;
   window: WindowSnapshot;
   host: HostSnapshot;
+}
+
+export interface RuntimeUpdateSnapshot {
+  currentVersion: string;
+  candidateVersion: string | null;
+  automaticRollbackSupported: boolean;
+}
+
+export interface RuntimeUpdateResult {
+  distribution: DistributionSnapshot;
+  host: HostSnapshot;
+  updatedUrls: readonly string[];
 }
 
 export interface AppError {

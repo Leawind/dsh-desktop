@@ -534,8 +534,9 @@ DSH 处于快速迭代阶段，命令行、Web 页面、运行时依赖、嵌入
   "apps": {
     "0.1.0": {
       "dsh": {
-        "allowedRanges": [">=0.1.0-rc.6 <=0.1.0-rc.9"],
+        "allowedRanges": [">=0.1.0-rc.6, <=0.1.0-rc.9"],
         "recommended": "0.1.0-rc.8",
+        "rollbackCompatibleRanges": [">=0.1.0-rc.6, <=0.1.0-rc.8"],
         "blocked": [
           {
             "version": "0.1.0-rc.7",
@@ -557,6 +558,7 @@ DSH 处于快速迭代阶段，命令行、Web 页面、运行时依赖、嵌入
 | --------------- | ---------------------------------------------- |
 | `allowedRanges` | 当前应用版本已经验证的 DSH 或 Node.js 版本范围 |
 | `recommended`   | 默认提供给用户的 DSH 版本                      |
+| `rollbackCompatibleRanges` | 更新后的 DSH Home 仍可由旧 Runtime 读取的版本范围 |
 | `blocked`       | 已知不能使用的确切版本及原因                   |
 
 应用内置发布时的兼容性清单，并缓存最近一次验证成功的远程清单。读取优先级如下：
@@ -566,6 +568,8 @@ DSH 处于快速迭代阶段，命令行、Web 页面、运行时依赖、嵌入
 3. 使用应用内置清单。
 
 远程清单使用 HTTPS 分发并附带离线签名，应用内置公钥完成验证。清单中缺少当前应用版本时，应用继续使用内置兼容范围，不执行超出范围的自动更新。
+
+项目使用 Ed25519 生成 detached signature。发布工作流读取维护者配置的 `COMPATIBILITY_SIGNING_KEY`，从 `runtime/compatibility.json` 生成清单和签名后发布到 GitHub Pages。私钥仅保存在发布密钥存储中；应用只包含对应的公钥和初始已签名清单。
 
 ## 兼容性验证
 

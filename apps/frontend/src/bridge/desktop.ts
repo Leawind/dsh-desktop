@@ -8,6 +8,9 @@ import type {
   GlobalSettings,
   GlobalSettingsPatch,
   HostSnapshot,
+  DistributionSnapshot,
+  RuntimeUpdateResult,
+  RuntimeUpdateSnapshot,
   WindowStartupResult,
   WindowSnapshot,
 } from "@/types/desktop";
@@ -50,6 +53,11 @@ export const desktopBridge = {
 
   restartService: (url: string): Promise<HostSnapshot> => command("restart_service", { url }),
 
+  checkBuiltInRuntimeUpdate: (): Promise<RuntimeUpdateSnapshot> =>
+    command("check_built_in_runtime_update"),
+
+  updateBuiltInRuntime: (): Promise<RuntimeUpdateResult> => command("update_built_in_runtime"),
+
   updateGlobalSettings: (patch: GlobalSettingsPatch): Promise<GlobalSettings> =>
     command("update_global_settings", { patch }),
 
@@ -58,6 +66,16 @@ export const desktopBridge = {
 
   onGlobalSettingsChanged: (listener: (settings: GlobalSettings) => void): Promise<UnlistenFn> =>
     listen<GlobalSettings>("global-settings-changed", (event) => listener(event.payload)),
+
+  onRuntimeDistributionChanged: (
+    listener: (distribution: DistributionSnapshot) => void,
+  ): Promise<UnlistenFn> =>
+    listen<DistributionSnapshot>("runtime-distribution-changed", (event) =>
+      listener(event.payload),
+    ),
+
+  onBuiltInRuntimeUpdated: (listener: (urls: readonly string[]) => void): Promise<UnlistenFn> =>
+    listen<string[]>("built-in-runtime-updated", (event) => listener(event.payload)),
 
   window: {
     minimize: (): Promise<void> => getCurrentWindow().minimize(),

@@ -187,6 +187,7 @@ impl AppState {
                         ServiceStatus::Starting
                             | ServiceStatus::Stopping
                             | ServiceStatus::Restarting
+                            | ServiceStatus::Updating
                             | ServiceStatus::Failed
                     )
                 })
@@ -315,6 +316,7 @@ pub fn snapshot_locked(host: &HostState) -> HostSnapshot {
                             ServiceStatus::Starting
                                 | ServiceStatus::Stopping
                                 | ServiceStatus::Restarting
+                                | ServiceStatus::Updating
                         ),
                     logs: endpoint
                         .process

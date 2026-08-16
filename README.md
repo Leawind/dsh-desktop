@@ -12,6 +12,7 @@ DSH Desktop 使用 Tauri/Rust + Vue 3 开发。Host 负责窗口、全局设置�
 
 - 支持 Windows、Linux 和 macOS
 - `bundled` 安装包内置 Node.js、DSH 和 pnpm，安装后即可启动 DSH
+- `bundled` 可在不更新桌面应用的情况下检查并安全更新已验证的内置 DSH 运行时
 - `slim` 安装包体积更小，可使用系统中的 `dsh`、`npx`、自定义命令路径或已有服务
 - 启动时按可配置的尝试顺序连接已有服务或启动新的 DSH
 - 在同一个应用进程中打开多个窗口，并尽可能复用同一个本地 DSH 服务

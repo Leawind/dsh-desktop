@@ -16,7 +16,7 @@ use std::os::unix::process::CommandExt;
 
 use crate::error::{AppError, AppResult};
 use crate::model::{DshHome, DshSource};
-use crate::runtime::RuntimeManager;
+use crate::runtime::{InstalledRuntime, RuntimeManager};
 
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -46,6 +46,7 @@ pub struct ResolvedDshRuntime {
     prefix_args: Vec<OsString>,
     runtime_path: Option<OsString>,
     runtime_version: String,
+    built_in_runtime_id: Option<String>,
 }
 
 #[derive(Clone)]
@@ -59,6 +60,21 @@ impl ManagedLaunch {
     pub fn with_dsh_home(mut self, dsh_home: DshHome) -> Self {
         self.dsh_home = dsh_home;
         self
+    }
+
+    pub fn with_runtime(mut self, runtime: ResolvedDshRuntime) -> Self {
+        self.runtime = runtime;
+        self
+    }
+
+    pub fn uses_built_in_runtime(&self) -> bool {
+        self.runtime.built_in_runtime_id.is_some()
+    }
+}
+
+impl ResolvedDshRuntime {
+    pub fn version(&self) -> &str {
+        &self.runtime_version
     }
 }
 
@@ -136,19 +152,15 @@ pub fn resolve_runtime(
     runtime_manager: &RuntimeManager,
 ) -> AppResult<ResolvedDshRuntime> {
     let runtime_path = effective_path();
-    let (executable, prefix_args, runtime_path, known_version, invalid_error) = match source {
+    let (executable, prefix_args, runtime_path, known_version, invalid_error): (
+        PathBuf,
+        Vec<OsString>,
+        Option<OsString>,
+        Option<String>,
+        &str,
+    ) = match source {
         DshSource::None => return Err(AppError::new("service.error.sourceDisabled")),
-        DshSource::BuiltIn => {
-            let runtime = runtime_manager.resolve_built_in()?;
-            let runtime_path = prepend_paths(&runtime.executable_path, runtime_path.as_deref());
-            (
-                runtime.node_executable,
-                vec![runtime.dsh_entrypoint.into_os_string()],
-                runtime_path,
-                Some(runtime.dsh_version),
-                "service.error.invalidExecutable",
-            )
-        }
+        DshSource::BuiltIn => return resolve_built_in_runtime(runtime_manager.resolve_built_in()?),
         DshSource::System => (
             resolve_executable(None, runtime_path.as_deref())?,
             Vec::new(),
@@ -193,7 +205,49 @@ pub fn resolve_runtime(
         prefix_args,
         runtime_path,
         runtime_version,
+        built_in_runtime_id: None,
     })
+}
+
+pub fn resolve_built_in_runtime(runtime: InstalledRuntime) -> AppResult<ResolvedDshRuntime> {
+    let runtime_path = prepend_paths(&runtime.executable_path, effective_path().as_deref());
+    let runtime_version = read_version(
+        &runtime.node_executable,
+        &[runtime.dsh_entrypoint.clone().into_os_string()],
+        runtime_path.as_deref(),
+        "service.error.invalidExecutable",
+    )?;
+    if runtime_version != runtime.dsh_version {
+        return Err(AppError::new("runtime.error.versionMismatch")
+            .arg("expected", runtime.dsh_version)
+            .arg("actual", runtime_version));
+    }
+    Ok(ResolvedDshRuntime {
+        executable: runtime.node_executable,
+        prefix_args: vec![runtime.dsh_entrypoint.into_os_string()],
+        runtime_path,
+        runtime_version,
+        built_in_runtime_id: Some(runtime.runtime_id),
+    })
+}
+
+pub fn verify_web_help(runtime: &ResolvedDshRuntime) -> AppResult<()> {
+    let mut command = Command::new(&runtime.executable);
+    command
+        .args(&runtime.prefix_args)
+        .args(["web", "--help"])
+        .stdin(Stdio::null());
+    if let Some(runtime_path) = runtime.runtime_path.as_ref() {
+        command.env("PATH", runtime_path);
+    }
+    let output = command.output().map_err(|error| {
+        AppError::new("runtime.error.verificationFailed").technical(error.to_string())
+    })?;
+    if output.status.success() {
+        return Ok(());
+    }
+    Err(AppError::new("runtime.error.verificationFailed")
+        .technical(String::from_utf8_lossy(&output.stderr).to_string()))
 }
 
 pub fn start(
