@@ -49,7 +49,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::initialize_window,
-            commands::create_app_window,
             commands::focus_app_window,
             commands::close_app_window,
             commands::get_host_snapshot,

@@ -36,8 +36,6 @@ async function command<T>(name: string, args?: Record<string, unknown>): Promise
 export const desktopBridge = {
   initializeWindow: (): Promise<BootstrapPayload> => command("initialize_window"),
 
-  createWindow: (): Promise<string> => command("create_app_window"),
-
   focusWindow: (label: string): Promise<void> => command("focus_app_window", { label }),
 
   closeWindow: (label: string): Promise<void> => command("close_app_window", { label }),

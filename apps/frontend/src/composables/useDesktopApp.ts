@@ -29,10 +29,9 @@ export function useDesktopApp() {
     windowStartupAttempts: [
       { type: "known-services" },
       { type: "connect-fixed", host: "127.0.0.1", port: 3080 },
-      { type: "start-fixed", host: "127.0.0.1", port: 3080 },
-      { type: "start-range", host: "127.0.0.1", startPort: 3081, endPort: 3090 },
+      { type: "start-range", host: "127.0.0.1", startPort: 3080, endPort: 3090 },
     ],
-    managedServiceIdleTimeoutSeconds: 300,
+    managedServiceIdleTimeoutSeconds: 0,
   });
   const currentWindow = ref<WindowSnapshot | null>(null);
   const distribution = ref<DistributionSnapshot>({ variant: "slim", builtInRuntime: null });
@@ -134,10 +133,6 @@ export function useDesktopApp() {
     }
   }
 
-  function reloadFrame(): void {
-    frameRevision.value += 1;
-  }
-
   function syncWindowFromHost(): void {
     const label = currentWindow.value?.label;
     if (!label) return;
@@ -190,6 +185,5 @@ export function useDesktopApp() {
     saveGlobalSettings,
     stopService,
     restartService,
-    reloadFrame,
   };
 }

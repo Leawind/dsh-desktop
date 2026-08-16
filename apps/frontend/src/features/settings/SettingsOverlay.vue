@@ -28,14 +28,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   setTarget: [url: string];
-  runStartup: [];
   saveSettings: [settings: GlobalSettingsPatch];
-  reload: [];
   stopService: [url: string];
   restartService: [url: string];
 }>();
 
-const tabs = ["window", "general", "services", "runtime"] as const;
+const tabs = ["window", "windows", "general", "services", "runtime"] as const;
 type SettingsTab = (typeof tabs)[number];
 
 const { t } = useI18n();
@@ -137,6 +135,7 @@ function cloneAttempts(value: readonly WindowStartupAttempt[]): WindowStartupAtt
 }
 
 function buildSettingsPatch(): GlobalSettingsPatch | null {
+  settingsError.value = "";
   if (sourceType.value === "built-in" && props.distribution.variant !== "bundled") {
     settingsError.value = t("settings.error.unsupportedSource");
     return null;
@@ -150,7 +149,6 @@ function buildSettingsPatch(): GlobalSettingsPatch | null {
     return null;
   }
   if (!attempts.value.every(validAttempt)) {
-    settingsError.value = t("settings.error.invalidAttempt");
     return null;
   }
   if (
@@ -161,7 +159,6 @@ function buildSettingsPatch(): GlobalSettingsPatch | null {
     settingsError.value = t("settings.error.invalidIdleTimeout");
     return null;
   }
-  settingsError.value = "";
   const dshSource: DshSource =
     sourceType.value === "custom"
       ? { type: "custom", executable: customExecutable.value.trim() }
@@ -261,7 +258,7 @@ function changeAttemptType(index: number, type: string): void {
     "known-services": { type: "known-services" },
     "connect-fixed": { type: "connect-fixed", host, port: 3080 },
     "start-fixed": { type: "start-fixed", host, port: 3080 },
-    "start-range": { type: "start-range", host, startPort: 3081, endPort: 3090 },
+    "start-range": { type: "start-range", host, startPort: 3080, endPort: 3090 },
   };
   const replacement = replacements[type];
   if (replacement) attempts.value[index] = replacement;
@@ -356,6 +353,24 @@ onBeforeUnmount(() => {
             <span>{{ t("window.current") }}</span>
           </button>
           <button
+            id="settings-tab-windows"
+            class="settings__tab"
+            :class="{ 'settings__tab--active': activeTab === 'windows' }"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'windows'"
+            aria-controls="settings-panel-windows"
+            :tabindex="activeTab === 'windows' ? 0 : -1"
+            @click="activeTab = 'windows'"
+            @keydown="onTabKeydown"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="1.75" y="2.5" width="9.5" height="7.5" rx="1.25" />
+              <rect x="4.75" y="6" width="9.5" height="7.5" rx="1.25" />
+            </svg>
+            <span>{{ t("window.openWindows") }}</span>
+          </button>
+          <button
             id="settings-tab-general"
             class="settings__tab"
             :class="{ 'settings__tab--active': activeTab === 'general' }"
@@ -448,19 +463,6 @@ onBeforeUnmount(() => {
                 <span v-if="urlError" class="settings__error">{{ urlError }}</span>
               </div>
             </UiSettingRow>
-            <UiSettingRow :label="t('window.actions')" :hint="t('window.actionsHint')">
-              <div class="settings__inline-control">
-                <UiButton size="small" @click="$emit('runStartup')">
-                  {{ t("window.runStartup") }}
-                </UiButton>
-                <UiButton size="small" @click="$emit('reload')">
-                  {{ t("common.reload") }}
-                </UiButton>
-                <UiButton size="small" @click="desktopBridge.createWindow()">
-                  {{ t("window.new") }}
-                </UiButton>
-              </div>
-            </UiSettingRow>
             <UiSettingRow
               v-for="endpoint in knownEndpoints"
               :key="endpoint.url"
@@ -471,12 +473,15 @@ onBeforeUnmount(() => {
                 {{ t("common.connect") }}
               </UiButton>
             </UiSettingRow>
-            <div class="settings__attempt-heading">
-              <div>
-                <h2>{{ t("window.openWindows") }}</h2>
-                <p>{{ t("window.openWindowsHint") }}</p>
-              </div>
-            </div>
+          </section>
+
+          <section
+            v-show="activeTab === 'windows'"
+            id="settings-panel-windows"
+            class="settings__tabpanel"
+            role="tabpanel"
+            aria-labelledby="settings-tab-windows"
+          >
             <UiSettingRow
               v-for="appWindow in host.windows"
               :key="appWindow.label"

@@ -66,9 +66,7 @@ onMounted(desktop.initialize);
         :distribution="desktop.distribution.value"
         @close="desktop.settingsOpen.value = false"
         @set-target="desktop.setTarget"
-        @run-startup="desktop.retryStartup"
         @save-settings="desktop.saveGlobalSettings"
-        @reload="desktop.reloadFrame"
         @stop-service="desktop.stopService"
         @restart-service="desktop.restartService"
       />

@@ -32,11 +32,6 @@ pub fn initialize_window(
 }
 
 #[tauri::command]
-pub fn create_app_window(app: AppHandle) -> AppResult<String> {
-    crate::windows::create(&app)
-}
-
-#[tauri::command]
 pub fn focus_app_window(app: AppHandle, label: String) -> AppResult<()> {
     let window = app
         .get_webview_window(&label)
@@ -76,6 +71,7 @@ pub fn set_window_target(
         ProbeResult::Dsh => ServiceStatus::Running,
         ProbeResult::Unreachable | ProbeResult::OtherHttp => ServiceStatus::Unreachable,
     };
+    let idle_timeout = state.managed_service_idle_timeout_seconds();
     let mut host = state
         .host
         .lock()
@@ -91,6 +87,7 @@ pub fn set_window_target(
     if probe == ProbeResult::Dsh {
         host.record_connection(&url);
     }
+    host.reap_idle_services(idle_timeout);
     let snapshot = host
         .window_snapshot(window.label())
         .ok_or_else(|| AppError::new("window.error.notFound"))?;
@@ -238,6 +235,7 @@ fn connect_known_service(state: &AppState, window_label: &str) -> AppResult<()> 
 
 fn connect_endpoint(state: &AppState, window_label: &str, url: &str) -> AppResult<()> {
     let probe = service::probe(url);
+    let idle_timeout = state.managed_service_idle_timeout_seconds();
     let mut host = state
         .host
         .lock()
@@ -254,14 +252,16 @@ fn connect_endpoint(state: &AppState, window_label: &str, url: &str) -> AppResul
         .entry(url.to_owned())
         .or_insert_with(|| EndpointRecord::external(status))
         .status = status;
-    match probe {
+    let result = match probe {
         ProbeResult::Dsh => {
             host.record_connection(url);
             Ok(())
         }
         ProbeResult::Unreachable => Err(AppError::new("service.error.unreachable").arg("url", url)),
         ProbeResult::OtherHttp => Err(AppError::new("service.error.notDsh").arg("url", url)),
-    }
+    };
+    host.reap_idle_services(idle_timeout);
+    result
 }
 
 fn start_fixed(
@@ -343,6 +343,7 @@ fn register_managed_service(
 ) -> AppResult<()> {
     let runtime_version = managed.runtime_version.clone();
     let launch = managed.launch.clone();
+    let idle_timeout = state.managed_service_idle_timeout_seconds();
     let mut host = state
         .host
         .lock()
@@ -365,6 +366,7 @@ fn register_managed_service(
         },
     );
     host.record_connection(&url);
+    host.reap_idle_services(idle_timeout);
     Ok(())
 }
 
@@ -528,5 +530,8 @@ pub fn update_global_settings(
         .write()
         .map_err(|_| AppError::new("app.error.stateUnavailable"))? = settings.clone();
     let _ = app.emit("global-settings-changed", &settings);
+    if let Some(snapshot) = state.reap_idle_services() {
+        let _ = app.emit("host-snapshot-changed", snapshot);
+    }
     Ok(settings)
 }

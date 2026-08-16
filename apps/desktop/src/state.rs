@@ -110,12 +110,28 @@ impl AppState {
     }
 
     pub fn remove_window(&self, label: &str) {
+        let idle_timeout = self.managed_service_idle_timeout_seconds();
         if let Ok(mut host) = self.host.lock() {
             let removed_url = host.windows.remove(label).map(|window| window.url);
             if let Some(url) = removed_url {
                 host.mark_idle_if_unused(&url);
+                host.reap_idle_services(idle_timeout);
             }
         }
+    }
+
+    pub fn managed_service_idle_timeout_seconds(&self) -> u64 {
+        self.settings
+            .read()
+            .map(|settings| settings.managed_service_idle_timeout_seconds)
+            .unwrap_or_default()
+    }
+
+    pub fn reap_idle_services(&self) -> Option<HostSnapshot> {
+        let idle_timeout = self.managed_service_idle_timeout_seconds();
+        let mut host = self.host.lock().ok()?;
+        host.reap_idle_services(idle_timeout);
+        Some(snapshot_locked(&host))
     }
 
     pub fn shutdown(&self) {
@@ -159,6 +175,7 @@ impl AppState {
             })
             .collect::<Vec<_>>();
 
+        let idle_timeout = self.managed_service_idle_timeout_seconds();
         let mut host = self.host.lock().expect("host state poisoned");
         for (url, status) in probes {
             let status = host
@@ -182,12 +199,7 @@ impl AppState {
                 window.status = status;
             }
         }
-        let idle_timeout = self
-            .settings
-            .read()
-            .map(|settings| settings.managed_service_idle_timeout_seconds)
-            .unwrap_or_default();
-        reap_idle_services(&mut host, idle_timeout);
+        host.reap_idle_services(idle_timeout);
         snapshot_locked(&host)
     }
 }
@@ -243,6 +255,10 @@ impl HostState {
                 }
             }
         }
+    }
+
+    pub fn reap_idle_services(&mut self, timeout_seconds: u64) {
+        reap_idle_services(self, timeout_seconds);
     }
 
     pub fn window_snapshot(&self, label: &str) -> Option<WindowSnapshot> {
@@ -356,9 +372,6 @@ fn refresh_processes(host: &mut HostState) {
 }
 
 fn reap_idle_services(host: &mut HostState, timeout_seconds: u64) {
-    if timeout_seconds == 0 {
-        return;
-    }
     let timeout = Duration::from_secs(timeout_seconds);
     for endpoint in host.endpoints.values_mut().filter(|endpoint| {
         endpoint
@@ -401,5 +414,26 @@ mod tests {
             host.known_endpoint_urls(),
             ["http://127.0.0.1:3081", "http://127.0.0.1:3080"]
         );
+    }
+
+    #[test]
+    fn zero_idle_timeout_reaps_an_idle_endpoint_immediately() {
+        let mut endpoint = EndpointRecord::external(ServiceStatus::Running);
+        endpoint.managed = true;
+        endpoint.idle_since = Some(Instant::now());
+        let mut host = HostState {
+            windows: HashMap::new(),
+            endpoints: HashMap::from([("http://127.0.0.1:3080".to_owned(), endpoint)]),
+            next_connection_order: 1,
+        };
+
+        host.reap_idle_services(0);
+
+        let endpoint = host
+            .endpoints
+            .get("http://127.0.0.1:3080")
+            .expect("endpoint remains registered");
+        assert_eq!(endpoint.status, ServiceStatus::Unreachable);
+        assert!(endpoint.idle_since.is_none());
     }
 }

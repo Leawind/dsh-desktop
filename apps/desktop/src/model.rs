@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_DSH_PORT: u16 = 3080;
 pub const DEFAULT_DSH_PORT_RANGE_END: u16 = 3090;
 pub const LOCAL_DSH_HOST: &str = "127.0.0.1";
-pub const DEFAULT_SERVICE_IDLE_TIMEOUT_SECONDS: u64 = 300;
+pub const DEFAULT_SERVICE_IDLE_TIMEOUT_SECONDS: u64 = 0;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
@@ -70,13 +70,9 @@ pub fn default_window_startup_attempts() -> Vec<WindowStartupAttempt> {
             host: LOCAL_DSH_HOST.to_owned(),
             port: DEFAULT_DSH_PORT,
         },
-        WindowStartupAttempt::StartFixed {
-            host: LOCAL_DSH_HOST.to_owned(),
-            port: DEFAULT_DSH_PORT,
-        },
         WindowStartupAttempt::StartRange {
             host: LOCAL_DSH_HOST.to_owned(),
-            start_port: DEFAULT_DSH_PORT + 1,
+            start_port: DEFAULT_DSH_PORT,
             end_port: DEFAULT_DSH_PORT_RANGE_END,
         },
     ]
@@ -209,6 +205,29 @@ pub type GlobalSettingsPatch = GlobalSettings;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_settings_use_the_standard_startup_sequence_and_immediate_cleanup() {
+        assert_eq!(
+            default_window_startup_attempts(),
+            vec![
+                WindowStartupAttempt::KnownServices,
+                WindowStartupAttempt::ConnectFixed {
+                    host: "127.0.0.1".to_owned(),
+                    port: 3080,
+                },
+                WindowStartupAttempt::StartRange {
+                    host: "127.0.0.1".to_owned(),
+                    start_port: 3080,
+                    end_port: 3090,
+                },
+            ]
+        );
+        assert_eq!(
+            GlobalSettings::default().managed_service_idle_timeout_seconds,
+            0
+        );
+    }
 
     #[test]
     fn serializes_startup_attempt_fields_as_camel_case() {
