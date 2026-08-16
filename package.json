@@ -37,8 +37,10 @@
     "rust:test": "cargo test --manifest-path apps/desktop/Cargo.toml"
   },
   "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
     "@types/node": "^24.0.0",
     "cross-env": "^10.1.0",
+    "cross-spawn": "^7.0.6",
     "oxlint": "^1.76.0",
     "prettier": "^3.9.6",
     "tsx": "^4.22.4",

@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
+import { spawn as nodeSpawn } from "node:child_process";
 import { mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import crossSpawn from "cross-spawn";
 
 type DistributionVariant = "bundled" | "slim";
 type AppImageArchitecture = "x86_64" | "aarch64";
@@ -26,7 +27,7 @@ async function run(
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<void> {
   await new Promise<void>((resolvePromise, reject) => {
-    const child = spawn(command, args, {
+    const child = crossSpawn(command, args, {
       cwd: repositoryRoot,
       env: environment,
       stdio: "inherit",
@@ -46,7 +47,7 @@ async function run(
 
 async function capture(command: string, args: readonly string[]): Promise<string> {
   return await new Promise<string>((resolvePromise, reject) => {
-    const child = spawn(command, args, {
+    const child = nodeSpawn(command, args, {
       cwd: repositoryRoot,
       stdio: ["ignore", "pipe", "inherit"],
     });
