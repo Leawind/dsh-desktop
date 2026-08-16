@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
@@ -64,6 +64,7 @@ export const desktopBridge = {
     toggleMaximize: (): Promise<void> => getCurrentWindow().toggleMaximize(),
     close: (): Promise<void> => getCurrentWindow().close(),
     startDragging: (): Promise<void> => getCurrentWindow().startDragging(),
-    setTitle: (title: string): Promise<void> => getCurrentWindow().setTitle(title),
+    setTitle: (title: string): Promise<void> =>
+      isTauri() ? getCurrentWindow().setTitle(title) : Promise.resolve(),
   },
 };
