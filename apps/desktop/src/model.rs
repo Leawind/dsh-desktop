@@ -99,7 +99,11 @@ pub enum DshHome {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "kebab-case")]
+#[serde(
+    tag = "type",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
 pub enum WindowStartupAttempt {
     KnownServices,
     ConnectFixed {
@@ -201,3 +205,28 @@ pub struct WindowStartupResult {
 }
 
 pub type GlobalSettingsPatch = GlobalSettings;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serializes_startup_attempt_fields_as_camel_case() {
+        let attempt = WindowStartupAttempt::StartRange {
+            host: "127.0.0.1".to_owned(),
+            start_port: 3081,
+            end_port: 3090,
+        };
+
+        let value = serde_json::to_value(&attempt).expect("serialize startup attempt");
+        assert_eq!(value["startPort"], 3081);
+        assert_eq!(value["endPort"], 3090);
+        assert!(value.get("start_port").is_none());
+        assert!(value.get("end_port").is_none());
+        assert_eq!(
+            serde_json::from_value::<WindowStartupAttempt>(value)
+                .expect("deserialize startup attempt"),
+            attempt
+        );
+    }
+}

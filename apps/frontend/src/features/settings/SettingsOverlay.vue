@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { UiButton, UiInput, UiSelect, UiSettingRow, UiStatus } from "@dsh-desktop/ui";
 
 import { desktopBridge } from "@/bridge/desktop";
+import { applyLocale, resolveInitialLocale } from "@/i18n";
 import type {
   AppLocale,
   DistributionSnapshot,
@@ -40,7 +41,7 @@ type SettingsTab = (typeof tabs)[number];
 const { t } = useI18n();
 const activeTab = ref<SettingsTab>("window");
 const url = ref(props.currentUrl);
-const locale = ref<AppLocale>(props.settings.locale ?? "zh-CN");
+const locale = ref<AppLocale>(resolveInitialLocale(props.settings.locale));
 const sourceType = ref<DshSource["type"]>(props.settings.dshSource.type);
 const customExecutable = ref(
   props.settings.dshSource.type === "custom" ? props.settings.dshSource.executable : "",
@@ -52,25 +53,54 @@ const customDshHome = ref(
 const attempts = ref<WindowStartupAttempt[]>(cloneAttempts(props.settings.windowStartupAttempts));
 const idleTimeoutMinutes = ref(props.settings.managedServiceIdleTimeoutSeconds / 60);
 const settingsError = ref("");
+const urlError = ref("");
+const autoSaveDelayMs = 250;
+const targetApplyDelayMs = 500;
+let autoSaveTimer: ReturnType<typeof setTimeout> | undefined;
+let targetApplyTimer: ReturnType<typeof setTimeout> | undefined;
+let syncingSettings = false;
+let syncingTarget = false;
 
 watch(
   () => props.currentUrl,
   (value) => {
+    syncingTarget = true;
     url.value = value;
+    syncingTarget = false;
   },
+);
+
+watch(
+  url,
+  () => {
+    if (!syncingTarget) scheduleTargetApply();
+  },
+  { flush: "sync" },
 );
 
 watch(
   () => props.settings,
   (value) => {
-    locale.value = value.locale ?? "zh-CN";
+    syncingSettings = true;
+    locale.value = resolveInitialLocale(value.locale);
     sourceType.value = value.dshSource.type;
     customExecutable.value = value.dshSource.type === "custom" ? value.dshSource.executable : "";
     homeType.value = value.dshHome.type;
     customDshHome.value = value.dshHome.type === "custom" ? value.dshHome.path : "";
     attempts.value = cloneAttempts(value.windowStartupAttempts);
     idleTimeoutMinutes.value = value.managedServiceIdleTimeoutSeconds / 60;
+    syncingSettings = false;
   },
+);
+
+watch(
+  [locale, sourceType, customExecutable, homeType, customDshHome, attempts, idleTimeoutMinutes],
+  () => {
+    if (syncingSettings) return;
+    applyLocale(locale.value);
+    scheduleSettingsSave();
+  },
+  { deep: true, flush: "sync" },
 );
 
 const localeOptions = computed(() => [
@@ -106,22 +136,22 @@ function cloneAttempts(value: readonly WindowStartupAttempt[]): WindowStartupAtt
   return value.map((attempt) => ({ ...attempt }));
 }
 
-function save(): void {
+function buildSettingsPatch(): GlobalSettingsPatch | null {
   if (sourceType.value === "built-in" && props.distribution.variant !== "bundled") {
     settingsError.value = t("settings.error.unsupportedSource");
-    return;
+    return null;
   }
   if (sourceType.value === "custom" && !customExecutable.value.trim()) {
     settingsError.value = t("settings.error.emptyExecutable");
-    return;
+    return null;
   }
   if (homeType.value === "custom" && !customDshHome.value.trim()) {
     settingsError.value = t("settings.error.emptyDshHome");
-    return;
+    return null;
   }
   if (!attempts.value.every(validAttempt)) {
     settingsError.value = t("settings.error.invalidAttempt");
-    return;
+    return null;
   }
   if (
     !Number.isFinite(idleTimeoutMinutes.value) ||
@@ -129,7 +159,7 @@ function save(): void {
     idleTimeoutMinutes.value > 7 * 24 * 60
   ) {
     settingsError.value = t("settings.error.invalidIdleTimeout");
-    return;
+    return null;
   }
   settingsError.value = "";
   const dshSource: DshSource =
@@ -140,13 +170,72 @@ function save(): void {
     homeType.value === "custom"
       ? { type: "custom", path: customDshHome.value.trim() }
       : { type: "environment" };
-  emit("saveSettings", {
+  return {
     locale: locale.value,
     dshSource,
     dshHome,
     windowStartupAttempts: cloneAttempts(attempts.value),
     managedServiceIdleTimeoutSeconds: Math.round(idleTimeoutMinutes.value * 60),
-  });
+  };
+}
+
+function scheduleSettingsSave(): void {
+  if (autoSaveTimer !== undefined) clearTimeout(autoSaveTimer);
+  autoSaveTimer = undefined;
+  const patch = buildSettingsPatch();
+  if (!patch) return;
+  autoSaveTimer = setTimeout(() => {
+    autoSaveTimer = undefined;
+    emit("saveSettings", patch);
+  }, autoSaveDelayMs);
+}
+
+function flushSettingsSave(): void {
+  if (autoSaveTimer === undefined) return;
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = undefined;
+  const patch = buildSettingsPatch();
+  if (patch) emit("saveSettings", patch);
+}
+
+function validatedTargetUrl(): string | null {
+  const value = url.value.trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    urlError.value = t("window.error.invalidUrl");
+    return null;
+  }
+  if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || !parsed.hostname) {
+    urlError.value = t("window.error.unsupportedUrl");
+    return null;
+  }
+  if (parsed.username || parsed.password) {
+    urlError.value = t("window.error.urlCredentials");
+    return null;
+  }
+  urlError.value = "";
+  return value;
+}
+
+function scheduleTargetApply(): void {
+  if (targetApplyTimer !== undefined) clearTimeout(targetApplyTimer);
+  targetApplyTimer = undefined;
+  const target = validatedTargetUrl();
+  if (!target) return;
+  targetApplyTimer = setTimeout(() => {
+    targetApplyTimer = undefined;
+    emit("setTarget", target);
+  }, targetApplyDelayMs);
+}
+
+function flushTargetApply(): void {
+  if (targetApplyTimer === undefined) return;
+  clearTimeout(targetApplyTimer);
+  targetApplyTimer = undefined;
+  const target = validatedTargetUrl();
+  if (target) emit("setTarget", target);
 }
 
 function validPort(port: number): boolean {
@@ -234,6 +323,11 @@ function onTabKeydown(event: KeyboardEvent): void {
   );
   buttons[targetIndex]?.focus();
 }
+
+onBeforeUnmount(() => {
+  flushSettingsSave();
+  flushTargetApply();
+});
 </script>
 
 <template>
@@ -323,11 +417,6 @@ function onTabKeydown(event: KeyboardEvent): void {
 
       <div class="settings__content">
         <header class="settings__header">
-          <div class="settings__header-actions">
-            <UiButton v-if="activeTab === 'general'" variant="primary" size="small" @click="save">
-              {{ t("common.save") }}
-            </UiButton>
-          </div>
           <button
             class="settings__close"
             type="button"
@@ -354,11 +443,9 @@ function onTabKeydown(event: KeyboardEvent): void {
               :label="t('window.url')"
               :hint="t('window.urlHint')"
             >
-              <div class="settings__inline-control settings__inline-control--wide">
+              <div class="settings__control-stack">
                 <UiInput id="current-url" v-model="url" type="url" />
-                <UiButton variant="primary" size="small" @click="$emit('setTarget', url)">
-                  {{ t("common.save") }}
-                </UiButton>
+                <span v-if="urlError" class="settings__error">{{ urlError }}</span>
               </div>
             </UiSettingRow>
             <UiSettingRow :label="t('window.actions')" :hint="t('window.actionsHint')">
@@ -731,18 +818,9 @@ function onTabKeydown(event: KeyboardEvent): void {
   height: 54px;
   flex: none;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: 20px 14px 8px 10px;
-}
-
-.settings__header-actions {
-  display: flex;
-  min-width: 0;
-  align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
-  margin-left: auto;
+  padding: 20px 14px 8px 10px;
 }
 
 .settings__close {

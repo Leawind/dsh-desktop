@@ -2,7 +2,7 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import { computed, onBeforeUnmount, readonly, ref } from "vue";
 
 import { desktopBridge } from "@/bridge/desktop";
-import { fallbackLocale, i18n, resolveInitialLocale } from "@/i18n";
+import { applyLocale, resolveInitialLocale } from "@/i18n";
 import type {
   AppError,
   DistributionSnapshot,
@@ -16,11 +16,6 @@ import type {
 } from "@/types/desktop";
 
 const emptyHost: HostSnapshot = { windows: [], endpoints: [] };
-
-function setLocale(locale: ReturnType<typeof resolveInitialLocale>): void {
-  i18n.global.locale.value = locale ?? fallbackLocale;
-  document.documentElement.lang = i18n.global.locale.value;
-}
 
 export function resolveFrameUrl(window: WindowSnapshot | null, status: ServiceStatus): string {
   return status === "running" && window ? window.url : "about:blank";
@@ -58,12 +53,12 @@ export function useDesktopApp() {
       distribution.value = payload.distribution;
       currentWindow.value = payload.window;
       host.value = payload.host;
-      setLocale(resolveInitialLocale(payload.settings.locale));
+      applyLocale(resolveInitialLocale(payload.settings.locale));
 
       unlisteners.push(
         await desktopBridge.onGlobalSettingsChanged((value) => {
           settings.value = value;
-          setLocale(resolveInitialLocale(value.locale));
+          applyLocale(resolveInitialLocale(value.locale));
         }),
         await desktopBridge.onHostSnapshotChanged((value) => {
           host.value = value;
@@ -112,10 +107,9 @@ export function useDesktopApp() {
     error.value = null;
     try {
       settings.value = await desktopBridge.updateGlobalSettings(patch);
-      setLocale(resolveInitialLocale(settings.value.locale));
+      applyLocale(resolveInitialLocale(settings.value.locale));
     } catch (cause) {
       error.value = cause as AppError;
-      throw cause;
     }
   }
 

@@ -1,4 +1,8 @@
 <script setup lang="ts">
+const emit = defineEmits<{
+  click: [event: MouseEvent];
+}>();
+
 withDefaults(
   defineProps<{
     variant?: "primary" | "secondary" | "ghost" | "danger";
@@ -21,6 +25,7 @@ withDefaults(
     :class="[`ui-button--${variant}`, `ui-button--${size}`]"
     :disabled="disabled"
     :type="type"
+    @click="emit('click', $event)"
   >
     <slot />
   </button>

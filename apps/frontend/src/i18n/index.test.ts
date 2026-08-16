@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { fallbackLocale, supportedLocales } from "./index";
+import { fallbackLocale, resolveInitialLocale, supportedLocales } from "./index";
 
 type MessageTree = { readonly [key: string]: string | MessageTree };
 
@@ -48,5 +48,21 @@ describe("locale resources", () => {
         expect(parameters(messages.get(key) ?? ""), key).toEqual(parameters(fallbackMessage));
       }
     }
+  });
+});
+
+describe("resolveInitialLocale", () => {
+  it("prefers the explicitly saved locale", () => {
+    expect(resolveInitialLocale("zh-CN", "en-US")).toBe("zh-CN");
+    expect(resolveInitialLocale("en-US", "zh-CN")).toBe("en-US");
+  });
+
+  it("matches supported system languages when no locale is saved", () => {
+    expect(resolveInitialLocale(null, "zh-TW")).toBe("zh-CN");
+    expect(resolveInitialLocale(null, "en-GB")).toBe("en-US");
+  });
+
+  it("falls back to zh-CN for unsupported system languages", () => {
+    expect(resolveInitialLocale(null, "fr-FR")).toBe("zh-CN");
   });
 });

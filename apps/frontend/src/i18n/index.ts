@@ -12,12 +12,14 @@ export const localeMessages = {
   "en-US": enUS,
 } as const;
 
-export function resolveInitialLocale(saved: AppLocale | null): AppLocale {
+export function resolveInitialLocale(
+  saved: AppLocale | null,
+  systemLocale = navigator.language,
+): AppLocale {
   if (saved) return saved;
-  const browserLocale = navigator.language;
-  if (supportedLocales.includes(browserLocale as AppLocale)) return browserLocale as AppLocale;
-  if (browserLocale.toLowerCase().startsWith("zh")) return "zh-CN";
-  if (browserLocale.toLowerCase().startsWith("en")) return "en-US";
+  if (supportedLocales.includes(systemLocale as AppLocale)) return systemLocale as AppLocale;
+  if (systemLocale.toLowerCase().startsWith("zh")) return "zh-CN";
+  if (systemLocale.toLowerCase().startsWith("en")) return "en-US";
   return fallbackLocale;
 }
 
@@ -27,3 +29,8 @@ export const i18n = createI18n({
   fallbackLocale,
   messages: localeMessages,
 });
+
+export function applyLocale(locale: AppLocale): void {
+  i18n.global.locale.value = locale;
+  document.documentElement.lang = locale;
+}
