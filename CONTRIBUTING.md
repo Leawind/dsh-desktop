@@ -83,6 +83,8 @@ DSH Desktop 自身的 WebView 和 DSH 可达性探测会直接连接目标地址
 | `pnpm run build:slim`            | 构建不包含 DSH 运行环境的小型安装包                          |
 | `pnpm run build`                 | 依次构建当前平台的两种安装包                                 |
 | `pnpm run runtime:prepare`       | 准备并校验当前平台的内置运行时                               |
+| `pnpm run runtime:test`          | 运行构建和发布脚本的测试                                     |
+| `pnpm run release:prepare`       | 校验发布版本并从更新日志生成本次发布说明                     |
 | `pnpm run check`                 | 依次运行格式检查、前端 lint 和测试、前端生产构建及 Rust 测试 |
 | `pnpm run format`                | 格式化前端、工作区配置和 Rust 代码                           |
 | `pnpm run format-check`          | 检查前端、工作区配置和 Rust 代码格式                         |
@@ -174,6 +176,20 @@ pnpm run build:slim -- --appimage-runtime /path/to/runtime-x86_64
 
 本地文件同样必须通过项目固定的校验值。上游 runtime 发生变化时，应明确审查并更新 URL
 和校验值，而不是跳过校验。
+
+## 发布版本
+
+推送以 `v` 开头的 tag 会触发 GitHub Actions 构建 Linux、Windows 和 macOS 安装包，并将各平台的 `bundled` 与 `slim` 产物发布到同一个 GitHub Release。
+
+tag 必须采用 `v<版本号>` 格式，例如 `v0.1.0`。版本号必须同时匹配根目录与桌面端的 `package.json`、`apps/desktop/tauri.conf.json` 和 `apps/desktop/Cargo.toml`。`CHANGELOG.md` 中还必须存在对应的 `## [版本号]` 小节；该小节内容会成为本次 Release 的更新日志。
+
+推送 tag 前可以在本地检查发布元数据并预览生成的发布说明：
+
+```sh
+pnpm run release:prepare -- v0.1.0 release-notes.md
+```
+
+生成的 `release-notes.md` 仅用于预览，不需要提交。
 
 ## 前端约定
 
