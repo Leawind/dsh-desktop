@@ -68,7 +68,11 @@ function endpointHint(endpoint: HostSnapshot["endpoints"][number]): string {
       {{ $t("runtime.noKnownServices") }}
     </p>
     <template v-for="endpoint in knownEndpoints" :key="endpoint.url">
-      <UiSettingRow :label="endpoint.url" :hint="endpointHint(endpoint)">
+      <UiSettingRow
+        class="settings-page__dsh-service__row"
+        :label="endpoint.url"
+        :hint="endpointHint(endpoint)"
+      >
         <div class="settings-page__inline-control">
           <UiStatus :tone="endpoint.status === 'running' ? 'success' : 'danger'">
             {{ $t(`service.status.${endpoint.status}`) }}
@@ -117,6 +121,9 @@ function endpointHint(endpoint: HostSnapshot["endpoints"][number]): string {
   font-weight: 500;
 }
 
+.settings-page__dsh-service__row {
+  border-bottom: 0;
+}
 .settings-page__inline-control {
   display: flex;
   align-items: center;
@@ -137,7 +144,9 @@ function endpointHint(endpoint: HostSnapshot["endpoints"][number]): string {
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
 }
-
+.settings-page__logs summary {
+  cursor: pointer;
+}
 .settings-page__logs pre {
   max-height: 12rem;
   padding: var(--space-3);
