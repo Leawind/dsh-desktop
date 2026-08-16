@@ -1,0 +1,185 @@
+import { computed, ref, toValue, watch, type MaybeRefOrGetter } from "vue";
+import { useI18n } from "vue-i18n";
+
+import { applyLocale, resolveInitialLocale } from "@/i18n";
+import type {
+  AppLocale,
+  DistributionSnapshot,
+  DshHome,
+  DshSource,
+  GlobalSettings,
+  GlobalSettingsPatch,
+  WindowStartupAttempt,
+} from "@/types/desktop";
+
+function cloneAttempts(value: readonly WindowStartupAttempt[]): WindowStartupAttempt[] {
+  return value.map((attempt) => ({ ...attempt }));
+}
+
+function validPort(port: number): boolean {
+  return Number.isInteger(port) && port >= 1 && port <= 65535;
+}
+
+function validAttempt(attempt: WindowStartupAttempt): boolean {
+  if (attempt.type === "known-services") return true;
+  if (!attempt.host.trim()) return false;
+  if (attempt.type === "start-range") {
+    return (
+      validPort(attempt.startPort) &&
+      validPort(attempt.endPort) &&
+      attempt.startPort <= attempt.endPort
+    );
+  }
+  return validPort(attempt.port);
+}
+
+export function useSettingsDraft(
+  settings: MaybeRefOrGetter<GlobalSettings>,
+  distribution: MaybeRefOrGetter<DistributionSnapshot>,
+  onSave: (patch: GlobalSettingsPatch) => void,
+) {
+  const { t } = useI18n();
+  const initialSettings = toValue(settings);
+  const locale = ref<AppLocale>(resolveInitialLocale(initialSettings.locale));
+  const sourceType = ref<DshSource["type"]>(initialSettings.dshSource.type);
+  const customExecutable = ref(
+    initialSettings.dshSource.type === "custom" ? initialSettings.dshSource.executable : "",
+  );
+  const homeType = ref<DshHome["type"]>(initialSettings.dshHome.type);
+  const customDshHome = ref(
+    initialSettings.dshHome.type === "custom" ? initialSettings.dshHome.path : "",
+  );
+  const attempts = ref<WindowStartupAttempt[]>(
+    cloneAttempts(initialSettings.windowStartupAttempts),
+  );
+  const idleTimeoutMinutes = ref(initialSettings.managedServiceIdleTimeoutSeconds / 60);
+  const error = ref("");
+  const autoSaveDelayMs = 250;
+  let autoSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  let syncingSettings = false;
+
+  const localeOptions = computed(() => [
+    { value: "zh-CN", label: t("locale.zh-CN") },
+    { value: "en-US", label: t("locale.en-US") },
+  ]);
+  const sourceOptions = computed(() => [
+    { value: "none", label: t("settings.source.type.none") },
+    {
+      value: "built-in",
+      label: t("settings.source.type.built-in"),
+      disabled: toValue(distribution).variant !== "bundled",
+    },
+    { value: "system", label: t("settings.source.type.system") },
+    { value: "custom", label: t("settings.source.type.custom") },
+  ]);
+  const homeOptions = computed(() => [
+    { value: "environment", label: t("settings.home.type.environment") },
+    { value: "custom", label: t("settings.home.type.custom") },
+  ]);
+  const attemptOptions = computed(() => [
+    { value: "known-services", label: t("settings.attempt.type.known-services") },
+    { value: "connect-fixed", label: t("settings.attempt.type.connect-fixed") },
+    { value: "start-fixed", label: t("settings.attempt.type.start-fixed") },
+    { value: "start-range", label: t("settings.attempt.type.start-range") },
+  ]);
+
+  watch(
+    () => toValue(settings),
+    (value) => {
+      syncingSettings = true;
+      locale.value = resolveInitialLocale(value.locale);
+      sourceType.value = value.dshSource.type;
+      customExecutable.value = value.dshSource.type === "custom" ? value.dshSource.executable : "";
+      homeType.value = value.dshHome.type;
+      customDshHome.value = value.dshHome.type === "custom" ? value.dshHome.path : "";
+      attempts.value = cloneAttempts(value.windowStartupAttempts);
+      idleTimeoutMinutes.value = value.managedServiceIdleTimeoutSeconds / 60;
+      syncingSettings = false;
+    },
+  );
+
+  watch(
+    [locale, sourceType, customExecutable, homeType, customDshHome, attempts, idleTimeoutMinutes],
+    () => {
+      if (syncingSettings) return;
+      applyLocale(locale.value);
+      scheduleSave();
+    },
+    { deep: true, flush: "sync" },
+  );
+
+  function buildPatch(): GlobalSettingsPatch | null {
+    error.value = "";
+    if (sourceType.value === "built-in" && toValue(distribution).variant !== "bundled") {
+      error.value = t("settings.error.unsupportedSource");
+      return null;
+    }
+    if (sourceType.value === "custom" && !customExecutable.value.trim()) {
+      error.value = t("settings.error.emptyExecutable");
+      return null;
+    }
+    if (homeType.value === "custom" && !customDshHome.value.trim()) {
+      error.value = t("settings.error.emptyDshHome");
+      return null;
+    }
+    if (!attempts.value.every(validAttempt)) return null;
+    if (
+      !Number.isFinite(idleTimeoutMinutes.value) ||
+      idleTimeoutMinutes.value < 0 ||
+      idleTimeoutMinutes.value > 7 * 24 * 60
+    ) {
+      error.value = t("settings.error.invalidIdleTimeout");
+      return null;
+    }
+    const dshSource: DshSource =
+      sourceType.value === "custom"
+        ? { type: "custom", executable: customExecutable.value.trim() }
+        : { type: sourceType.value };
+    const dshHome: DshHome =
+      homeType.value === "custom"
+        ? { type: "custom", path: customDshHome.value.trim() }
+        : { type: "environment" };
+    return {
+      locale: locale.value,
+      dshSource,
+      dshHome,
+      windowStartupAttempts: cloneAttempts(attempts.value),
+      managedServiceIdleTimeoutSeconds: Math.round(idleTimeoutMinutes.value * 60),
+    };
+  }
+
+  function scheduleSave(): void {
+    if (autoSaveTimer !== undefined) clearTimeout(autoSaveTimer);
+    autoSaveTimer = undefined;
+    const patch = buildPatch();
+    if (!patch) return;
+    autoSaveTimer = setTimeout(() => {
+      autoSaveTimer = undefined;
+      onSave(patch);
+    }, autoSaveDelayMs);
+  }
+
+  function flush(): void {
+    if (autoSaveTimer === undefined) return;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = undefined;
+    const patch = buildPatch();
+    if (patch) onSave(patch);
+  }
+
+  return {
+    locale,
+    sourceType,
+    customExecutable,
+    homeType,
+    customDshHome,
+    attempts,
+    idleTimeoutMinutes,
+    error,
+    localeOptions,
+    sourceOptions,
+    homeOptions,
+    attemptOptions,
+    flush,
+  };
+}
