@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { WindowSnapshot } from "@/types/desktop";
 
-import { resolveFrameUrl } from "./useDesktopApp";
+import { resolveFrameUrl, resolveRefreshAction } from "./useDesktopApp";
 
 const window: WindowSnapshot = {
   label: "main",
@@ -19,5 +19,22 @@ describe("resolveFrameUrl", () => {
 
   it("loads the window URL after the DSH service is running", () => {
     expect(resolveFrameUrl(window, "running")).toBe(window.url);
+  });
+});
+
+describe("resolveRefreshAction", () => {
+  it("refreshes a connected DSH page", () => {
+    expect(resolveRefreshAction("running")).toBe("refresh");
+  });
+
+  it("retries startup after a connection failure", () => {
+    expect(resolveRefreshAction("failed")).toBe("retry");
+    expect(resolveRefreshAction("unreachable")).toBe("retry");
+  });
+
+  it("does nothing while the service state is transitional", () => {
+    expect(resolveRefreshAction("starting")).toBeNull();
+    expect(resolveRefreshAction("stopping")).toBeNull();
+    expect(resolveRefreshAction("restarting")).toBeNull();
   });
 });

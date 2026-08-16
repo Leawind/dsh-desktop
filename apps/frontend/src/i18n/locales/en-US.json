@@ -27,6 +27,7 @@
     "urlHint": "Only HTTP and HTTPS addresses are supported.",
     "noTarget": "No DSH URL assigned",
     "focus": "Focus",
+    "refresh": "Refresh current window",
     "minimize": "Minimize",
     "maximize": "Maximize or restore",
     "close": "Close window",

@@ -27,7 +27,11 @@ onMounted(desktop.initialize);
 
 <template>
   <div class="app-shell">
-    <AppTitlebar @settings="desktop.settingsOpen.value = true" />
+    <AppTitlebar
+      :refresh-action="desktop.refreshAction.value"
+      @settings="desktop.settingsOpen.value = true"
+      @refresh="desktop.refreshCurrentWindow"
+    />
     <main class="app-content">
       <DshFrame :url="desktop.frameUrl.value" :revision="desktop.frameRevision.value" />
 

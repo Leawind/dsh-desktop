@@ -7,6 +7,11 @@ import { desktopBridge } from "@/bridge/desktop";
 
 defineEmits<{
   settings: [];
+  refresh: [];
+}>();
+
+defineProps<{
+  refreshAction: "refresh" | "retry" | null;
 }>();
 
 const { t } = useI18n();
@@ -23,6 +28,19 @@ const { t } = useI18n();
         @click.stop="$emit('settings')"
       >
         <span aria-hidden="true">⚙</span>
+      </UiButton>
+      <UiButton
+        variant="ghost"
+        size="small"
+        class="titlebar__button"
+        :disabled="refreshAction === null"
+        :aria-label="t(refreshAction === 'retry' ? 'common.retry' : 'window.refresh')"
+        :title="t(refreshAction === 'retry' ? 'common.retry' : 'window.refresh')"
+        @click.stop="$emit('refresh')"
+      >
+        <svg class="titlebar__icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M13.25 5.75V2.5M13.25 2.5H10M13.25 2.5A6 6 0 1 0 14 9" />
+        </svg>
       </UiButton>
     </div>
     <button
@@ -106,6 +124,16 @@ const { t } = useI18n();
   padding: 0;
   border-radius: 0;
   font-size: 1rem;
+}
+
+.titlebar__icon {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
 }
 
 .titlebar__button--close:hover {

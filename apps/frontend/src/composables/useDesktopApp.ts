@@ -22,6 +22,12 @@ export function resolveFrameUrl(window: WindowSnapshot | null, status: ServiceSt
   return status === "running" && window ? window.url : "about:blank";
 }
 
+export function resolveRefreshAction(status: ServiceStatus): "refresh" | "retry" | null {
+  if (status === "running") return "refresh";
+  if (status === "failed" || status === "unreachable") return "retry";
+  return null;
+}
+
 export function useDesktopApp() {
   const appMetadata = ref<AppMetadataSnapshot>({
     name: "DSH Desktop",
@@ -50,6 +56,7 @@ export function useDesktopApp() {
   const unlisteners: UnlistenFn[] = [];
 
   const frameUrl = computed(() => resolveFrameUrl(currentWindow.value, startupStatus.value));
+  const refreshAction = computed(() => resolveRefreshAction(startupStatus.value));
 
   async function initialize(): Promise<void> {
     try {
@@ -106,6 +113,15 @@ export function useDesktopApp() {
     } catch (cause) {
       error.value = cause as AppError;
       startupStatus.value = "failed";
+    }
+  }
+
+  async function refreshCurrentWindow(): Promise<void> {
+    const action = refreshAction.value;
+    if (action === "refresh") {
+      frameRevision.value += 1;
+    } else if (action === "retry") {
+      await retryStartup();
     }
   }
 
@@ -187,9 +203,11 @@ export function useDesktopApp() {
     settingsOpen,
     frameRevision: readonly(frameRevision),
     frameUrl,
+    refreshAction,
     initialize,
     setTarget,
     retryStartup,
+    refreshCurrentWindow,
     saveGlobalSettings,
     stopService,
     restartService,
