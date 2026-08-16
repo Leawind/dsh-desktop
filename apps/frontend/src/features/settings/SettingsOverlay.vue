@@ -300,10 +300,6 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.settings__tab:hover {
-  background: var(--color-nav-hover);
-}
-
 .settings__tab--active {
   background: var(--color-nav-active);
 }

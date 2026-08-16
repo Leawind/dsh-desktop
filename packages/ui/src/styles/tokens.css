@@ -37,7 +37,6 @@
   --color-control-hover: #f1f3f5;
   --color-interactive-hover: rgb(38 49 72 / 6%);
   --color-interactive-active: rgb(38 49 72 / 10%);
-  --color-nav-hover: #f1f3f5;
   --color-nav-active: #ebeef2;
   --color-input: #ffffff;
   --color-menu: #ffffff;
@@ -72,7 +71,6 @@
     --color-control-hover: #43454a;
     --color-interactive-hover: rgb(255 255 255 / 8%);
     --color-interactive-active: rgb(255 255 255 / 14%);
-    --color-nav-hover: #2c2c2e;
     --color-nav-active: #43454a;
     --color-input: #232324;
     --color-menu: #353638;
