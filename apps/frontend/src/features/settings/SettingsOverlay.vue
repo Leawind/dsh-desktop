@@ -98,6 +98,10 @@ onBeforeUnmount(() => {
   <section class="settings" role="presentation" @keydown.esc="emit('close')">
     <div class="settings__mask" aria-hidden="true" @click="emit('close')" />
     <div class="settings__panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="settings__background">
+        <img src="/app-icon.png" />
+      </div>
+
       <nav class="settings__nav" :aria-label="t('settings.title')">
         <h1 id="settings-title" class="settings__title">{{ t("settings.title") }}</h1>
         <div class="settings__tabs" role="tablist" :aria-label="t('settings.title')">
@@ -256,6 +260,41 @@ onBeforeUnmount(() => {
   border-radius: 24px;
   background: var(--color-surface-raised);
   box-shadow: var(--shadow-menu);
+}
+
+.settings__panel > * {
+  z-index: 1;
+  transition:
+    opacity 300ms,
+    filter 300ms;
+  opacity: 0.3;
+  filter: blur(0.5em);
+}
+body:hover .settings__panel > * {
+  opacity: 1;
+  filter: none;
+}
+.settings__panel > .settings__background {
+  z-index: 0;
+  display: flex;
+  flex-flow: column nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.7;
+  filter: none;
+}
+body:hover .settings__panel > .settings__background {
+  opacity: 0.2;
+  filter: blur(0.3em);
+}
+.settings__panel > .settings__background > img {
+  width: auto;
+  height: 100%;
 }
 
 .settings__nav {
