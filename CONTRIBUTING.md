@@ -79,10 +79,9 @@ DSH Desktop 自身的 WebView 和 DSH 可达性探测会直接连接目标地址
 | `pnpm run dev`                   | 启动完整的 Tauri 开发版本                                    |
 | `pnpm run dev:bundled`           | 使用项目内置运行时启动 `bundled` 开发版本                    |
 | `pnpm run dev:slim`              | 使用系统或自定义 DSH 启动 `slim` 开发版本                    |
-| `pnpm run build`                 | 构建当前平台的 `bundled` 安装包                              |
 | `pnpm run build:bundled`         | 构建包含 Node.js、DSH 和 pnpm 的安装包                       |
 | `pnpm run build:slim`            | 构建不包含 DSH 运行环境的小型安装包                          |
-| `pnpm run build:all`             | 依次构建当前平台的两种安装包                                 |
+| `pnpm run build`                 | 依次构建当前平台的两种安装包                                 |
 | `pnpm run runtime:prepare`       | 准备并校验当前平台的内置运行时                               |
 | `pnpm run check`                 | 依次运行格式检查、前端 lint 和测试、前端生产构建及 Rust 测试 |
 | `pnpm run format`                | 格式化前端、工作区配置和 Rust 代码                           |
@@ -112,17 +111,9 @@ pnpm run frontend:typecheck
 
 ## 构建安装包
 
-构建推荐的 `bundled` 安装包：
-
-```sh
-pnpm run build
-```
-
-也可以只构建 `slim`，或构建两种变体：
-
 ```sh
 pnpm run build:slim
-pnpm run build:all
+pnpm run build
 ```
 
 Tauri 会在 Cargo target 目录的 `release/bundle/installers/` 下汇总当前操作系统支持的安装文件。文件名包含 `bundled` 或 `slim`。未自定义 Cargo target 目录时，默认位置为：

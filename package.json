@@ -8,13 +8,12 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @dsh-desktop/desktop run dev",
+    "dev": "pnpm --filter @dsh-desktop/desktop run dev:slim",
     "dev:bundled": "pnpm --filter @dsh-desktop/desktop run dev:bundled",
     "dev:slim": "pnpm --filter @dsh-desktop/desktop run dev:slim",
-    "build": "pnpm run build:bundled",
+    "build": "pnpm run build:bundled && pnpm run build:slim",
     "build:bundled": "tsx scripts/build.ts bundled",
     "build:slim": "tsx scripts/build.ts slim",
-    "build:all": "pnpm run build:bundled && pnpm run build:slim",
     "bundle:label": "tsx scripts/label-bundles.ts",
     "check": "pnpm run format-check && pnpm run runtime:lint && pnpm run runtime:typecheck && pnpm run frontend:lint && pnpm run frontend:test && pnpm run frontend:build && pnpm run rust:test",
     "format": "prettier --write .github .oxlintrc.json .prettierrc.json package.json pnpm-workspace.yaml runtime scripts apps/desktop/package.json apps/desktop/capabilities apps/desktop/*.json apps/frontend packages/ui && pnpm run rust:format",

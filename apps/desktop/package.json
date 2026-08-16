@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm run dev:slim",
     "dev:bundled": "pnpm --workspace-root run runtime:prepare && cross-env DSH_DESKTOP_VARIANT=bundled tauri dev --config tauri.bundled.conf.json",
     "dev:slim": "cross-env DSH_DESKTOP_VARIANT=slim tauri dev --config tauri.slim.conf.json"
   },
