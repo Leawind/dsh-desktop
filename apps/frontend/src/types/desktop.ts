@@ -47,6 +47,7 @@ export type WindowStartupAttempt =
 
 export interface GlobalSettings {
   locale: AppLocale | null;
+  pageScalePercent: number;
   dshSource: DshSource;
   dshHome: DshHome;
   windowStartupAttempts: readonly WindowStartupAttempt[];
@@ -55,6 +56,7 @@ export interface GlobalSettings {
 
 export interface GlobalSettingsPatch {
   locale: AppLocale | null;
+  pageScalePercent: number;
   dshSource: DshSource;
   dshHome: DshHome;
   windowStartupAttempts: WindowStartupAttempt[];

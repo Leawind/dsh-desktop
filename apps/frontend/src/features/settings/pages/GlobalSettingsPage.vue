@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
-import { UiButton, UiInput, UiSelect, UiSettingRow } from "@dsh-desktop/ui";
+import { UiButton, UiInput, UiSelect, UiSettingRow, UiStepper } from "@dsh-desktop/ui";
 
 import type {
   AppLocale,
@@ -21,6 +21,7 @@ const props = defineProps<{
 }>();
 
 const locale = defineModel<AppLocale>("locale", { required: true });
+const pageScalePercent = defineModel<number>("pageScalePercent", { required: true });
 const sourceType = defineModel<DshSource["type"]>("sourceType", { required: true });
 const customExecutable = defineModel<string>("customExecutable", { required: true });
 const homeType = defineModel<DshHome["type"]>("homeType", { required: true });
@@ -96,6 +97,22 @@ function stopDraggingAttempt(): void {
   >
     <UiSettingRow :label="$t('settings.language')">
       <UiSelect v-model="locale" variant="pill" :options="localeOptions" />
+    </UiSettingRow>
+    <UiSettingRow
+      control-id="page-scale"
+      :label="$t('settings.pageScale')"
+      :hint="$t('settings.pageScaleHint')"
+    >
+      <UiStepper
+        id="page-scale"
+        v-model="pageScalePercent"
+        :min="50"
+        :max="200"
+        :adjustment="{ type: 'factor', factor: 1.25 }"
+        :value-label="$t('settings.pageScale')"
+        :decrease-label="$t('settings.decreasePageScale')"
+        :increase-label="$t('settings.increasePageScale')"
+      />
     </UiSettingRow>
     <UiSettingRow :label="$t('settings.source.label')" :hint="$t('settings.source.hint')">
       <UiSelect v-model="sourceType" variant="pill" :options="sourceOptions" />

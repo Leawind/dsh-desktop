@@ -4,6 +4,9 @@ pub const DEFAULT_DSH_PORT: u16 = 3080;
 pub const DEFAULT_DSH_PORT_RANGE_END: u16 = 3090;
 pub const LOCAL_DSH_HOST: &str = "127.0.0.1";
 pub const DEFAULT_SERVICE_IDLE_TIMEOUT_SECONDS: u64 = 0;
+pub const DEFAULT_PAGE_SCALE_PERCENT: f64 = 100.0;
+pub const MIN_PAGE_SCALE_PERCENT: f64 = 50.0;
+pub const MAX_PAGE_SCALE_PERCENT: f64 = 200.0;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
@@ -37,10 +40,11 @@ pub struct AppMetadataSnapshot {
     pub identifier: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GlobalSettings {
     pub locale: Option<AppLocale>,
+    pub page_scale_percent: f64,
     pub dsh_source: DshSource,
     pub dsh_home: DshHome,
     pub window_startup_attempts: Vec<WindowStartupAttempt>,
@@ -51,6 +55,7 @@ impl Default for GlobalSettings {
     fn default() -> Self {
         Self {
             locale: None,
+            page_scale_percent: DEFAULT_PAGE_SCALE_PERCENT,
             dsh_source: DshSource::System,
             dsh_home: DshHome::Environment,
             window_startup_attempts: default_window_startup_attempts(),
@@ -236,6 +241,7 @@ mod tests {
             GlobalSettings::default().managed_service_idle_timeout_seconds,
             0
         );
+        assert_eq!(GlobalSettings::default().page_scale_percent, 100.0);
     }
 
     #[test]

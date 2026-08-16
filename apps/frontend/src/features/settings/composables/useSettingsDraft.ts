@@ -41,6 +41,7 @@ export function useSettingsDraft(
   const { t } = useI18n();
   const initialSettings = toValue(settings);
   const locale = ref<AppLocale>(resolveInitialLocale(initialSettings.locale));
+  const pageScalePercent = ref(initialSettings.pageScalePercent);
   const sourceType = ref<DshSource["type"]>(initialSettings.dshSource.type);
   const customExecutable = ref(
     initialSettings.dshSource.type === "custom" ? initialSettings.dshSource.executable : "",
@@ -88,6 +89,7 @@ export function useSettingsDraft(
     (value) => {
       syncingSettings = true;
       locale.value = resolveInitialLocale(value.locale);
+      pageScalePercent.value = value.pageScalePercent;
       sourceType.value = value.dshSource.type;
       customExecutable.value = value.dshSource.type === "custom" ? value.dshSource.executable : "";
       homeType.value = value.dshHome.type;
@@ -99,7 +101,16 @@ export function useSettingsDraft(
   );
 
   watch(
-    [locale, sourceType, customExecutable, homeType, customDshHome, attempts, idleTimeoutMinutes],
+    [
+      locale,
+      pageScalePercent,
+      sourceType,
+      customExecutable,
+      homeType,
+      customDshHome,
+      attempts,
+      idleTimeoutMinutes,
+    ],
     () => {
       if (syncingSettings) return;
       applyLocale(locale.value);
@@ -110,6 +121,14 @@ export function useSettingsDraft(
 
   function buildPatch(): GlobalSettingsPatch | null {
     error.value = "";
+    if (
+      !Number.isFinite(pageScalePercent.value) ||
+      pageScalePercent.value < 50 ||
+      pageScalePercent.value > 200
+    ) {
+      error.value = t("settings.error.invalidPageScale");
+      return null;
+    }
     if (sourceType.value === "built-in" && toValue(distribution).variant !== "bundled") {
       error.value = t("settings.error.unsupportedSource");
       return null;
@@ -141,6 +160,7 @@ export function useSettingsDraft(
         : { type: "environment" };
     return {
       locale: locale.value,
+      pageScalePercent: pageScalePercent.value,
       dshSource,
       dshHome,
       windowStartupAttempts: cloneAttempts(attempts.value),
@@ -169,6 +189,7 @@ export function useSettingsDraft(
 
   return {
     locale,
+    pageScalePercent,
     sourceType,
     customExecutable,
     homeType,

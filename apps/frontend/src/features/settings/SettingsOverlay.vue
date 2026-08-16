@@ -47,6 +47,7 @@ const {
 );
 const {
   locale,
+  pageScalePercent,
   sourceType,
   customExecutable,
   homeType,
@@ -201,6 +202,7 @@ onBeforeUnmount(() => {
           <GlobalSettingsPage
             v-show="activeTab === 'general'"
             v-model:locale="locale"
+            v-model:page-scale-percent="pageScalePercent"
             v-model:source-type="sourceType"
             v-model:custom-executable="customExecutable"
             v-model:home-type="homeType"

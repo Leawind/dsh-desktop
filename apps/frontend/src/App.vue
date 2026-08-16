@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from "vue";
+import { computed, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { UiButton, UiStatus } from "@dsh-desktop/ui";
@@ -12,6 +12,14 @@ import AppTitlebar from "@/features/titlebar/AppTitlebar.vue";
 
 const { t } = useI18n();
 const desktop = useDesktopApp();
+const pageScaleStyle = computed(() => {
+  const scale = desktop.settings.value.pageScalePercent / 100;
+  return {
+    width: `${100 / scale}vw`,
+    height: `${100 / scale}vh`,
+    transform: `scale(${scale})`,
+  };
+});
 
 function errorMessage(): string {
   const error = desktop.error.value;
@@ -36,7 +44,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :style="pageScaleStyle">
     <AppTitlebar
       :refresh-action="desktop.refreshAction.value"
       :title="desktop.windowTitle.value"
@@ -100,6 +108,7 @@ onMounted(() => {
   grid-template-rows: var(--titlebar-height) minmax(0, 1fr);
   overflow: hidden;
   background: var(--color-background);
+  transform-origin: top left;
 }
 
 .app-content {
