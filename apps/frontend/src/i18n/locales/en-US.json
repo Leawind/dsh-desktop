@@ -43,7 +43,7 @@
     }
   },
   "settings": {
-    "title": "Settings",
+    "title": "DSH Harness Settings",
     "global": "Global settings",
     "language": "Interface language",
     "pageScale": "Page scale",
