@@ -20,6 +20,12 @@ export interface DistributionSnapshot {
   builtInRuntime: BundledRuntimeSnapshot | null;
 }
 
+export interface AppMetadataSnapshot {
+  name: string;
+  version: string;
+  identifier: string;
+}
+
 export type DshSource =
   | { type: "none" }
   | { type: "built-in" }
@@ -81,6 +87,7 @@ export interface HostSnapshot {
 }
 
 export interface BootstrapPayload {
+  app: AppMetadataSnapshot;
   settings: GlobalSettings;
   distribution: DistributionSnapshot;
   window: WindowSnapshot;

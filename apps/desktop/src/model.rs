@@ -29,6 +29,14 @@ pub struct DistributionSnapshot {
     pub built_in_runtime: Option<BundledRuntimeSnapshot>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppMetadataSnapshot {
+    pub name: String,
+    pub version: String,
+    pub identifier: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct GlobalSettings {
@@ -177,6 +185,7 @@ pub struct HostSnapshot {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BootstrapPayload {
+    pub app: AppMetadataSnapshot,
     pub settings: GlobalSettings,
     pub distribution: DistributionSnapshot,
     pub window: WindowSnapshot,

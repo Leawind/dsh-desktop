@@ -3,8 +3,8 @@ use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 use crate::endpoint::{dsh_url, normalize_dsh_url};
 use crate::error::{AppError, AppResult};
 use crate::model::{
-    BootstrapPayload, GlobalSettings, GlobalSettingsPatch, HostSnapshot, LOCAL_DSH_HOST,
-    ServiceStatus, StartupAttemptFailure, WindowSnapshot, WindowStartupAttempt,
+    AppMetadataSnapshot, BootstrapPayload, GlobalSettings, GlobalSettingsPatch, HostSnapshot,
+    LOCAL_DSH_HOST, ServiceStatus, StartupAttemptFailure, WindowSnapshot, WindowStartupAttempt,
     WindowStartupResult,
 };
 use crate::service::{self, ProbeResult};
@@ -16,6 +16,12 @@ pub fn initialize_window(
     window: WebviewWindow,
     state: State<'_, AppState>,
 ) -> AppResult<BootstrapPayload> {
+    let package_info = window.app_handle().package_info();
+    let app_metadata = AppMetadataSnapshot {
+        name: package_info.name.clone(),
+        version: package_info.version.to_string(),
+        identifier: window.app_handle().config().identifier.clone(),
+    };
     let window = state.register_window(window.label());
     let settings = state
         .settings
@@ -24,6 +30,7 @@ pub fn initialize_window(
         .clone();
     let host = state.snapshot();
     Ok(BootstrapPayload {
+        app: app_metadata,
         settings,
         distribution: state.runtime_manager.distribution_snapshot(),
         window,

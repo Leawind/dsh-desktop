@@ -61,6 +61,7 @@ onMounted(desktop.initialize);
         v-if="desktop.settingsOpen.value && desktop.currentWindow.value"
         :current-url="desktop.currentWindow.value.url"
         :current-window-label="desktop.currentWindow.value.label"
+        :app-metadata="desktop.appMetadata.value"
         :settings="desktop.settings.value"
         :host="desktop.host.value"
         :distribution="desktop.distribution.value"

@@ -7,6 +7,7 @@ import { UiButton, UiInput, UiSelect, UiSettingRow, UiStatus } from "@dsh-deskto
 import { desktopBridge } from "@/bridge/desktop";
 import { applyLocale, resolveInitialLocale } from "@/i18n";
 import type {
+  AppMetadataSnapshot,
   AppLocale,
   DistributionSnapshot,
   DshHome,
@@ -20,6 +21,7 @@ import type {
 const props = defineProps<{
   currentUrl: string;
   currentWindowLabel: string;
+  appMetadata: AppMetadataSnapshot;
   settings: GlobalSettings;
   host: HostSnapshot;
   distribution: DistributionSnapshot;
@@ -33,7 +35,7 @@ const emit = defineEmits<{
   restartService: [url: string];
 }>();
 
-const tabs = ["window", "windows", "general", "services", "runtime"] as const;
+const tabs = ["window", "general", "runtime", "about"] as const;
 type SettingsTab = (typeof tabs)[number];
 
 const { t } = useI18n();
@@ -353,24 +355,6 @@ onBeforeUnmount(() => {
             <span>{{ t("window.current") }}</span>
           </button>
           <button
-            id="settings-tab-windows"
-            class="settings__tab"
-            :class="{ 'settings__tab--active': activeTab === 'windows' }"
-            type="button"
-            role="tab"
-            :aria-selected="activeTab === 'windows'"
-            aria-controls="settings-panel-windows"
-            :tabindex="activeTab === 'windows' ? 0 : -1"
-            @click="activeTab = 'windows'"
-            @keydown="onTabKeydown"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <rect x="1.75" y="2.5" width="9.5" height="7.5" rx="1.25" />
-              <rect x="4.75" y="6" width="9.5" height="7.5" rx="1.25" />
-            </svg>
-            <span>{{ t("window.openWindows") }}</span>
-          </button>
-          <button
             id="settings-tab-general"
             class="settings__tab"
             :class="{ 'settings__tab--active': activeTab === 'general' }"
@@ -391,26 +375,6 @@ onBeforeUnmount(() => {
             <span>{{ t("settings.global") }}</span>
           </button>
           <button
-            id="settings-tab-services"
-            class="settings__tab"
-            :class="{ 'settings__tab--active': activeTab === 'services' }"
-            type="button"
-            role="tab"
-            :aria-selected="activeTab === 'services'"
-            aria-controls="settings-panel-services"
-            :tabindex="activeTab === 'services' ? 0 : -1"
-            @click="activeTab = 'services'"
-            @keydown="onTabKeydown"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <ellipse cx="8" cy="3.5" rx="5.25" ry="2" />
-              <path
-                d="M2.75 3.5v4c0 1.1 2.35 2 5.25 2s5.25-.9 5.25-2v-4M2.75 7.5v4c0 1.1 2.35 2 5.25 2s5.25-.9 5.25-2v-4"
-              />
-            </svg>
-            <span>{{ t("service.section") }}</span>
-          </button>
-          <button
             id="settings-tab-runtime"
             class="settings__tab"
             :class="{ 'settings__tab--active': activeTab === 'runtime' }"
@@ -426,6 +390,24 @@ onBeforeUnmount(() => {
               <path d="M3 3.5h10v9H3zM5.25 1.75h5.5M5.25 14.25h5.5" />
             </svg>
             <span>{{ t("runtime.section") }}</span>
+          </button>
+          <button
+            id="settings-tab-about"
+            class="settings__tab"
+            :class="{ 'settings__tab--active': activeTab === 'about' }"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'about'"
+            aria-controls="settings-panel-about"
+            :tabindex="activeTab === 'about' ? 0 : -1"
+            @click="activeTab = 'about'"
+            @keydown="onTabKeydown"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="6" />
+              <path d="M8 7v4M8 4.5v.5" />
+            </svg>
+            <span>{{ t("about.section") }}</span>
           </button>
         </div>
       </nav>
@@ -461,48 +443,6 @@ onBeforeUnmount(() => {
               <div class="settings__control-stack">
                 <UiInput id="current-url" v-model="url" type="url" />
                 <span v-if="urlError" class="settings__error">{{ urlError }}</span>
-              </div>
-            </UiSettingRow>
-            <UiSettingRow
-              v-for="endpoint in knownEndpoints"
-              :key="endpoint.url"
-              :label="endpoint.url"
-              :hint="t('window.knownEndpointHint')"
-            >
-              <UiButton size="small" @click="$emit('setTarget', endpoint.url)">
-                {{ t("common.connect") }}
-              </UiButton>
-            </UiSettingRow>
-          </section>
-
-          <section
-            v-show="activeTab === 'windows'"
-            id="settings-panel-windows"
-            class="settings__tabpanel"
-            role="tabpanel"
-            aria-labelledby="settings-tab-windows"
-          >
-            <UiSettingRow
-              v-for="appWindow in host.windows"
-              :key="appWindow.label"
-              :label="appWindow.label"
-              :hint="appWindow.url || t('window.noTarget')"
-            >
-              <div class="settings__inline-control">
-                <UiStatus :tone="appWindow.status === 'running' ? 'success' : 'warning'">
-                  {{ t(`service.status.${appWindow.status}`) }}
-                </UiStatus>
-                <UiButton size="small" @click="desktopBridge.focusWindow(appWindow.label)">
-                  {{ t("window.focus") }}
-                </UiButton>
-                <UiButton
-                  v-if="appWindow.label !== currentWindowLabel"
-                  variant="ghost"
-                  size="small"
-                  @click="desktopBridge.closeWindow(appWindow.label)"
-                >
-                  {{ t("common.close") }}
-                </UiButton>
               </div>
             </UiSettingRow>
           </section>
@@ -629,16 +569,42 @@ onBeforeUnmount(() => {
           </section>
 
           <section
-            v-show="activeTab === 'services'"
-            id="settings-panel-services"
+            v-show="activeTab === 'runtime'"
+            id="settings-panel-runtime"
             class="settings__tabpanel"
             role="tabpanel"
-            aria-labelledby="settings-tab-services"
+            aria-labelledby="settings-tab-runtime"
           >
-            <p v-if="host.endpoints.length === 0" class="settings__empty">
-              {{ t("service.status.unreachable") }}
+            <h2 class="settings__group-title">{{ t("runtime.openWindows") }}</h2>
+            <UiSettingRow
+              v-for="appWindow in host.windows"
+              :key="appWindow.label"
+              :label="appWindow.label"
+              :hint="appWindow.url || t('window.noTarget')"
+            >
+              <div class="settings__inline-control">
+                <UiStatus :tone="appWindow.status === 'running' ? 'success' : 'warning'">
+                  {{ t(`service.status.${appWindow.status}`) }}
+                </UiStatus>
+                <UiButton size="small" @click="desktopBridge.focusWindow(appWindow.label)">
+                  {{ t("window.focus") }}
+                </UiButton>
+                <UiButton
+                  v-if="appWindow.label !== currentWindowLabel"
+                  variant="ghost"
+                  size="small"
+                  @click="desktopBridge.closeWindow(appWindow.label)"
+                >
+                  {{ t("common.close") }}
+                </UiButton>
+              </div>
+            </UiSettingRow>
+
+            <h2 class="settings__group-title">{{ t("runtime.knownServices") }}</h2>
+            <p v-if="knownEndpoints.length === 0" class="settings__empty">
+              {{ t("runtime.noKnownServices") }}
             </p>
-            <template v-for="endpoint in host.endpoints" :key="endpoint.url">
+            <template v-for="endpoint in knownEndpoints" :key="endpoint.url">
               <UiSettingRow :label="endpoint.url" :hint="endpointHint(endpoint)">
                 <div class="settings__inline-control">
                   <UiStatus :tone="endpoint.status === 'running' ? 'success' : 'danger'">
@@ -671,12 +637,15 @@ onBeforeUnmount(() => {
           </section>
 
           <section
-            v-show="activeTab === 'runtime'"
-            id="settings-panel-runtime"
+            v-show="activeTab === 'about'"
+            id="settings-panel-about"
             class="settings__tabpanel"
             role="tabpanel"
-            aria-labelledby="settings-tab-runtime"
+            aria-labelledby="settings-tab-about"
           >
+            <UiSettingRow :label="appMetadata.name" :hint="appMetadata.identifier">
+              <UiStatus tone="info">v{{ appMetadata.version }}</UiStatus>
+            </UiSettingRow>
             <UiSettingRow
               :label="t('runtime.variant')"
               :hint="t(`runtime.variantHint.${distribution.variant}`)"
@@ -687,15 +656,17 @@ onBeforeUnmount(() => {
             </UiSettingRow>
             <template v-if="distribution.builtInRuntime">
               <UiSettingRow
-                :label="`DSH ${distribution.builtInRuntime.dshVersion}`"
+                :label="t('about.builtInRuntime')"
                 :hint="
-                  t('runtime.builtInVersions', {
+                  t('runtime.builtInDetails', {
+                    runtimeId: distribution.builtInRuntime.runtimeId,
                     node: distribution.builtInRuntime.nodeVersion,
                     pnpm: distribution.builtInRuntime.pnpmVersion,
                   })
                 "
               >
                 <UiStatus :tone="distribution.builtInRuntime.installed ? 'success' : 'info'">
+                  DSH {{ distribution.builtInRuntime.dshVersion }} ·
                   {{
                     t(
                       distribution.builtInRuntime.installed
@@ -706,7 +677,13 @@ onBeforeUnmount(() => {
                 </UiStatus>
               </UiSettingRow>
             </template>
-            <p v-else class="settings__empty">{{ t("runtime.notIncluded") }}</p>
+            <UiSettingRow
+              v-else
+              :label="t('about.builtInRuntime')"
+              :hint="t('runtime.notIncluded')"
+            >
+              <UiStatus tone="info">{{ t("runtime.notIncludedStatus") }}</UiStatus>
+            </UiSettingRow>
           </section>
         </div>
       </div>
@@ -909,6 +886,14 @@ onBeforeUnmount(() => {
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-sm);
+}
+
+.settings__group-title {
+  margin: 0;
+  padding: var(--space-4) 0 var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
 }
 
 .settings__attempt-heading {

@@ -12,7 +12,6 @@
   "common": {
     "cancel": "Cancel",
     "close": "Close",
-    "connect": "Connect",
     "details": "Details",
     "add": "Add",
     "retry": "Retry",
@@ -26,8 +25,6 @@
     "current": "Current window",
     "url": "DSH URL",
     "urlHint": "Only HTTP and HTTPS addresses are supported.",
-    "knownEndpointHint": "A DSH service connected successfully during this Host run.",
-    "openWindows": "Open windows",
     "noTarget": "No DSH URL assigned",
     "focus": "Focus",
     "minimize": "Minimize",
@@ -101,7 +98,6 @@
     }
   },
   "service": {
-    "section": "DSH services",
     "external": "External",
     "managed": "Managed by the app",
     "stop": "Stop",
@@ -139,7 +135,10 @@
     }
   },
   "runtime": {
-    "section": "DSH runtime",
+    "section": "Runtime",
+    "openWindows": "Open windows",
+    "knownServices": "Known DSH services",
+    "noKnownServices": "No DSH service has been connected successfully during this Host run.",
     "variant": "Distribution variant",
     "variantName": {
       "bundled": "Bundled",
@@ -149,10 +148,11 @@
       "bundled": "The package includes private Node.js, DSH, and pnpm runtimes.",
       "slim": "The smaller package uses a system or user-provided DSH installation."
     },
-    "builtInVersions": "Node.js {node} · pnpm {pnpm}",
+    "builtInDetails": "{runtimeId} · Node.js {node} · pnpm {pnpm}",
     "installed": "Installed and verified",
     "readyToInstall": "Installs on first launch",
     "notIncluded": "This package does not contain a built-in DSH runtime.",
+    "notIncludedStatus": "Not included",
     "error": {
       "manifestMissing": "The built-in runtime manifest could not be found.",
       "invalidManifest": "The built-in runtime manifest is invalid.",
@@ -162,6 +162,10 @@
       "versionMismatch": "The built-in DSH version does not match: expected {expected}, got {actual}.",
       "targetMismatch": "The built-in runtime target does not match: expected {expected}, got {actual}."
     }
+  },
+  "about": {
+    "section": "About",
+    "builtInRuntime": "Built-in DSH runtime"
   },
   "locale": {
     "zh-CN": "简体中文",

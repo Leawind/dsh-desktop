@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, readonly, ref } from "vue";
 import { desktopBridge } from "@/bridge/desktop";
 import { applyLocale, resolveInitialLocale } from "@/i18n";
 import type {
+  AppMetadataSnapshot,
   AppError,
   DistributionSnapshot,
   GlobalSettings,
@@ -22,6 +23,11 @@ export function resolveFrameUrl(window: WindowSnapshot | null, status: ServiceSt
 }
 
 export function useDesktopApp() {
+  const appMetadata = ref<AppMetadataSnapshot>({
+    name: "DSH Desktop",
+    version: "",
+    identifier: "io.github.leawind.dsh-desktop",
+  });
   const settings = ref<GlobalSettings>({
     locale: null,
     dshSource: { type: "system" },
@@ -48,6 +54,7 @@ export function useDesktopApp() {
   async function initialize(): Promise<void> {
     try {
       const payload = await desktopBridge.initializeWindow();
+      appMetadata.value = payload.app;
       settings.value = payload.settings;
       distribution.value = payload.distribution;
       currentWindow.value = payload.window;
@@ -169,6 +176,7 @@ export function useDesktopApp() {
   });
 
   return {
+    appMetadata: readonly(appMetadata),
     settings: readonly(settings),
     distribution: readonly(distribution),
     currentWindow: readonly(currentWindow),
