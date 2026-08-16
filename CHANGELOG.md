@@ -1,15 +1,6 @@
 # 更新日志
 
-## [0.1.0-rc.2]
-
-### 修复
-
-- 将 AppImage runtime 固定到可复现的上游发行版并校验 SHA-256，避免 Linux 发布构建因上游持续构建变更而失败。
-- 修复 Windows 上构建脚本无法启动 `pnpm` 命令的问题。
-
-## [0.1.0-rc.1]
-
-### 新增
+## [0.1.0]
 
 - 提供 Windows、Linux 和 macOS 桌面应用。
 - 提供内置 Node.js 与 DSH 运行环境的 `bundled` 安装包，以及使用外部 DSH 的 `slim` 安装包。
