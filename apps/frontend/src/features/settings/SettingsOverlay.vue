@@ -101,124 +101,131 @@ onBeforeUnmount(() => {
 <template>
   <section class="settings" role="presentation" @keydown.esc="emit('close')">
     <div class="settings__mask" aria-hidden="true" @click="emit('close')" />
+
     <div class="settings__panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div class="settings__background">
         <img src="/app-icon.png" />
       </div>
 
-      <nav class="settings__nav" :aria-label="t('settings.title')">
+      <div class="settings__titlebar">
         <h1 id="settings-title" class="settings__title">{{ t("settings.title") }}</h1>
-        <div class="settings__tabs" role="tablist" :aria-label="t('settings.title')">
-          <button
-            id="settings-tab-window"
-            class="settings__tab"
-            :class="{ 'settings__tab--active': activeTab === 'window' }"
-            type="button"
-            role="tab"
-            :aria-selected="activeTab === 'window'"
-            aria-controls="settings-panel-window"
-            :tabindex="activeTab === 'window' ? 0 : -1"
-            @click="activeTab = 'window'"
-            @keydown="onTabKeydown"
-          >
-            <ElIcon aria-hidden="true"><Monitor /></ElIcon>
-            <span>{{ t("window.current") }}</span>
-          </button>
-          <button
-            id="settings-tab-general"
-            class="settings__tab"
-            :class="{ 'settings__tab--active': activeTab === 'general' }"
-            type="button"
-            role="tab"
-            :aria-selected="activeTab === 'general'"
-            aria-controls="settings-panel-general"
-            :tabindex="activeTab === 'general' ? 0 : -1"
-            @click="activeTab = 'general'"
-            @keydown="onTabKeydown"
-          >
-            <ElIcon aria-hidden="true"><Setting /></ElIcon>
-            <span>{{ t("settings.global") }}</span>
-          </button>
-          <button
-            id="settings-tab-runtime"
-            class="settings__tab"
-            :class="{ 'settings__tab--active': activeTab === 'runtime' }"
-            type="button"
-            role="tab"
-            :aria-selected="activeTab === 'runtime'"
-            aria-controls="settings-panel-runtime"
-            :tabindex="activeTab === 'runtime' ? 0 : -1"
-            @click="activeTab = 'runtime'"
-            @keydown="onTabKeydown"
-          >
-            <ElIcon aria-hidden="true"><Cpu /></ElIcon>
-            <span>{{ t("runtime.section") }}</span>
-          </button>
-          <button
-            id="settings-tab-about"
-            class="settings__tab"
-            :class="{ 'settings__tab--active': activeTab === 'about' }"
-            type="button"
-            role="tab"
-            :aria-selected="activeTab === 'about'"
-            aria-controls="settings-panel-about"
-            :tabindex="activeTab === 'about' ? 0 : -1"
-            @click="activeTab = 'about'"
-            @keydown="onTabKeydown"
-          >
-            <ElIcon aria-hidden="true"><InfoFilled /></ElIcon>
-            <span>{{ t("about.section") }}</span>
-          </button>
-        </div>
-      </nav>
+        <button
+          class="settings__close"
+          type="button"
+          :aria-label="t('common.close')"
+          autofocus
+          @click="emit('close')"
+        >
+          <ElIcon aria-hidden="true"><Close /></ElIcon>
+        </button>
+      </div>
 
-      <div class="settings__content">
-        <header class="settings__header">
-          <button
-            class="settings__close"
-            type="button"
-            :aria-label="t('common.close')"
-            autofocus
-            @click="emit('close')"
-          >
-            <ElIcon aria-hidden="true"><Close /></ElIcon>
-          </button>
-        </header>
+      <div class="settings__body">
+        <nav class="settings__nav" :aria-label="t('settings.title')">
+          <div class="settings__tabs" role="tablist" :aria-label="t('settings.title')">
+            <button
+              id="settings-tab-window"
+              class="settings__tab"
+              :class="{ 'settings__tab--active': activeTab === 'window' }"
+              type="button"
+              role="tab"
+              :aria-selected="activeTab === 'window'"
+              aria-controls="settings-panel-window"
+              :tabindex="activeTab === 'window' ? 0 : -1"
+              @click="activeTab = 'window'"
+              @keydown="onTabKeydown"
+            >
+              <ElIcon aria-hidden="true"><Monitor /></ElIcon>
+              <span>{{ t("window.current") }}</span>
+            </button>
+            <button
+              id="settings-tab-general"
+              class="settings__tab"
+              :class="{ 'settings__tab--active': activeTab === 'general' }"
+              type="button"
+              role="tab"
+              :aria-selected="activeTab === 'general'"
+              aria-controls="settings-panel-general"
+              :tabindex="activeTab === 'general' ? 0 : -1"
+              @click="activeTab = 'general'"
+              @keydown="onTabKeydown"
+            >
+              <ElIcon aria-hidden="true"><Setting /></ElIcon>
+              <span>{{ t("settings.global") }}</span>
+            </button>
+            <button
+              id="settings-tab-runtime"
+              class="settings__tab"
+              :class="{ 'settings__tab--active': activeTab === 'runtime' }"
+              type="button"
+              role="tab"
+              :aria-selected="activeTab === 'runtime'"
+              aria-controls="settings-panel-runtime"
+              :tabindex="activeTab === 'runtime' ? 0 : -1"
+              @click="activeTab = 'runtime'"
+              @keydown="onTabKeydown"
+            >
+              <ElIcon aria-hidden="true"><Cpu /></ElIcon>
+              <span>{{ t("runtime.section") }}</span>
+            </button>
+            <button
+              id="settings-tab-about"
+              class="settings__tab"
+              :class="{ 'settings__tab--active': activeTab === 'about' }"
+              type="button"
+              role="tab"
+              :aria-selected="activeTab === 'about'"
+              aria-controls="settings-panel-about"
+              :tabindex="activeTab === 'about' ? 0 : -1"
+              @click="activeTab = 'about'"
+              @keydown="onTabKeydown"
+            >
+              <ElIcon aria-hidden="true"><InfoFilled /></ElIcon>
+              <span>{{ t("about.section") }}</span>
+            </button>
+          </div>
+        </nav>
 
-        <div class="settings__options">
-          <CurrentWindowPage v-show="activeTab === 'window'" v-model:url="url" :error="urlError" />
-          <GlobalSettingsPage
-            v-show="activeTab === 'general'"
-            v-model:locale="locale"
-            v-model:page-scale-percent="pageScalePercent"
-            v-model:source-type="sourceType"
-            v-model:custom-executable="customExecutable"
-            v-model:npx-version="npxVersion"
-            v-model:home-type="homeType"
-            v-model:custom-dsh-home="customDshHome"
-            v-model:attempts="attempts"
-            v-model:idle-timeout-minutes="idleTimeoutMinutes"
-            :distribution="distribution"
-            :error="settingsError"
-            :locale-options="localeOptions"
-            :source-options="sourceOptions"
-            :home-options="homeOptions"
-            :attempt-options="attemptOptions"
-          />
-          <RuntimePage
-            v-show="activeTab === 'runtime'"
-            :current-window-label="currentWindowLabel"
-            :host="host"
-            :distribution="distribution"
-            :dsh-source="settings.dshSource"
-            @stop-service="emit('stopService', $event)"
-            @restart-service="emit('restartService', $event)"
-          />
-          <AboutPage
-            v-show="activeTab === 'about'"
-            :app-metadata="appMetadata"
-            :distribution="distribution"
-          />
+        <div class="settings__content">
+          <div class="settings__options">
+            <CurrentWindowPage
+              v-show="activeTab === 'window'"
+              v-model:url="url"
+              :error="urlError"
+            />
+            <GlobalSettingsPage
+              v-show="activeTab === 'general'"
+              v-model:locale="locale"
+              v-model:page-scale-percent="pageScalePercent"
+              v-model:source-type="sourceType"
+              v-model:custom-executable="customExecutable"
+              v-model:npx-version="npxVersion"
+              v-model:home-type="homeType"
+              v-model:custom-dsh-home="customDshHome"
+              v-model:attempts="attempts"
+              v-model:idle-timeout-minutes="idleTimeoutMinutes"
+              :distribution="distribution"
+              :error="settingsError"
+              :locale-options="localeOptions"
+              :source-options="sourceOptions"
+              :home-options="homeOptions"
+              :attempt-options="attemptOptions"
+            />
+            <RuntimePage
+              v-show="activeTab === 'runtime'"
+              :current-window-label="currentWindowLabel"
+              :host="host"
+              :distribution="distribution"
+              :dsh-source="settings.dshSource"
+              @stop-service="emit('stopService', $event)"
+              @restart-service="emit('restartService', $event)"
+            />
+            <AboutPage
+              v-show="activeTab === 'about'"
+              :app-metadata="appMetadata"
+              :distribution="distribution"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -246,6 +253,9 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 1;
   display: flex;
+  flex-flow: column nowrap;
+  justify-content: space-between;
+  align-items: stretch;
   width: 800px;
   height: min(800px, calc(100% - 48px));
   max-width: calc(100% - 48px);
@@ -257,9 +267,6 @@ onBeforeUnmount(() => {
 
 .settings__panel > * {
   z-index: 1;
-  transition:
-    opacity 300ms,
-    filter 300ms;
 }
 .settings__panel > .settings__background {
   z-index: 0;
@@ -272,7 +279,7 @@ onBeforeUnmount(() => {
   top: 0;
   width: 100%;
   height: 100%;
-  opacity: 0.2;
+  opacity: 0.13;
   filter: blur(0.3em);
 }
 .settings__panel > .settings__background > img {
@@ -280,13 +287,17 @@ onBeforeUnmount(() => {
   height: 100%;
 }
 
-.settings__nav {
+.settings__panel > .settings__titlebar {
+  height: 3em;
+  width: 100%;
+
   display: flex;
-  width: 188px;
-  flex: none;
-  flex-direction: column;
-  gap: 18px;
-  padding: 22px 12px 0;
+  flex-flow: row nowrap;
+  justify-content: space-between;
+  align-items: center;
+
+  margin: 0;
+  padding: 2em 1em;
 }
 
 .settings__title {
@@ -296,6 +307,41 @@ onBeforeUnmount(() => {
   font-size: var(--font-size-md);
   font-weight: 500;
   line-height: var(--line-height-md);
+}
+
+.settings__close {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--color-text-primary);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.settings__close:hover {
+  background: var(--color-interactive-hover);
+}
+
+.settings__panel > .settings__body {
+  flex-grow: 1;
+
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: stretch;
+}
+
+.settings__panel > .settings__body > .settings__nav {
+  display: flex;
+  width: 188px;
+  flex: none;
+  flex-direction: column;
+  gap: 18px;
+  padding: 0 12px 0;
 }
 
 .settings__tabs {
@@ -348,41 +394,6 @@ onBeforeUnmount(() => {
   min-width: 0;
   flex: 1;
   flex-direction: column;
-}
-
-.settings__header {
-  display: flex;
-  height: 54px;
-  flex: none;
-  align-items: flex-start;
-  justify-content: flex-end;
-  padding: 20px 14px 8px 10px;
-}
-
-.settings__close {
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--color-text-primary);
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-}
-
-.settings__close:hover {
-  background: var(--color-interactive-hover);
-}
-
-.settings__close svg {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.25;
-  stroke-linecap: round;
 }
 
 .settings__options {
