@@ -89,9 +89,12 @@ const { t } = useI18n();
 .titlebar {
   position: relative;
   z-index: 30;
-  display: grid;
   height: var(--titlebar-height);
-  grid-template-columns: 8rem minmax(0, 1fr) 8rem;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: space-between;
   align-items: stretch;
   color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-border);
@@ -101,8 +104,9 @@ const { t } = useI18n();
 
 .titlebar__leading,
 .titlebar__controls {
+  flex-grow: 0;
   display: flex;
-  align-items: stretch;
+  align-items: center;
 }
 
 .titlebar__controls {
@@ -110,14 +114,15 @@ const { t } = useI18n();
 }
 
 .titlebar__app-icon {
-  width: 1.25rem;
-  height: 1.25rem;
+  height: var(--titlebar-height);
+  width: auto;
   margin: 0 0.625rem;
   object-fit: contain;
   pointer-events: none;
 }
 
 .titlebar__drag {
+  flex-grow: 1;
   overflow: hidden;
   color: var(--color-text-secondary);
   border: 0;
@@ -129,9 +134,10 @@ const { t } = useI18n();
 }
 
 .titlebar__button {
-  width: 2.75rem;
-  height: 100%;
+  width: var(--titlebar-height);
+  height: var(--titlebar-height);
   padding: 0;
+  margin: 0;
   border-radius: 0;
   font-size: 1rem;
 }
