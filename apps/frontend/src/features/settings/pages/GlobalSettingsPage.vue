@@ -75,7 +75,7 @@ function moveAttempt(index: number, offset: -1 | 1): void {
       <UiSelect v-model="locale" variant="pill" :options="localeOptions" />
     </UiSettingRow>
     <UiSettingRow :label="$t('settings.source.label')" :hint="$t('settings.source.hint')">
-      <UiSelect v-model="sourceType" :options="sourceOptions" />
+      <UiSelect v-model="sourceType" variant="pill" :options="sourceOptions" />
     </UiSettingRow>
     <UiSettingRow
       v-if="sourceType === 'custom'"
@@ -88,7 +88,7 @@ function moveAttempt(index: number, offset: -1 | 1): void {
       </div>
     </UiSettingRow>
     <UiSettingRow :label="$t('settings.home.label')" :hint="$t('settings.home.hint')">
-      <UiSelect v-model="homeType" :options="homeOptions" />
+      <UiSelect v-model="homeType" variant="pill" :options="homeOptions" />
     </UiSettingRow>
     <UiSettingRow
       v-if="homeType === 'custom'"

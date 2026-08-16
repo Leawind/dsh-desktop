@@ -67,8 +67,8 @@
       "path": "自定义目录",
       "pathHint": "使用绝对路径，或以 ~/ 开头的路径。目录不可用时启动会直接失败。",
       "type": {
-        "environment": "使用 $DSH_HOME（默认）",
-        "custom": "使用自定义目录"
+        "environment": "环境变量 $DSH_HOME",
+        "custom": "自定义目录"
       }
     },
     "attempt": {

@@ -67,8 +67,8 @@
       "path": "Custom directory",
       "pathHint": "Use an absolute path or a path beginning with ~/. Startup fails if the directory is unavailable.",
       "type": {
-        "environment": "Use $DSH_HOME (default)",
-        "custom": "Use a custom directory"
+        "environment": "Environment variable $DSH_HOME",
+        "custom": "Custom directory"
       }
     },
     "attempt": {
