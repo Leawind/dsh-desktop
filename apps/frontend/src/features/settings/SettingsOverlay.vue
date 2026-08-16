@@ -256,12 +256,6 @@ onBeforeUnmount(() => {
   transition:
     opacity 300ms,
     filter 300ms;
-  opacity: 0.3;
-  filter: blur(0.5em);
-}
-body:hover .settings__panel > * {
-  opacity: 1;
-  filter: none;
 }
 .settings__panel > .settings__background {
   z-index: 0;
@@ -274,10 +268,6 @@ body:hover .settings__panel > * {
   top: 0;
   width: 100%;
   height: 100%;
-  opacity: 0.7;
-  filter: none;
-}
-body:hover .settings__panel > .settings__background {
   opacity: 0.2;
   filter: blur(0.3em);
 }
