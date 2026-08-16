@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { Delete, Plus, Rank } from "@element-plus/icons-vue";
-import { ElIcon } from "element-plus";
+import { ElButton, ElIcon, ElInputNumber } from "element-plus";
 import { ref } from "vue";
-import { ElButton, ElInputNumber } from "element-plus";
 
 import { UiButton, UiInput, UiSelect, UiSettingRow } from "@dsh-desktop/ui";
 
@@ -87,9 +86,10 @@ function changeAttemptType(index: number, type: string): void {
 function setPort(
   attempt: Exclude<WindowStartupAttempt, { type: "known-services" }>,
   field: "port" | "startPort" | "endPort",
-  value: string,
+  value: number | null | undefined,
 ): void {
-  const port = Number(value);
+  if (typeof value !== "number" || !Number.isFinite(value)) return;
+  const port = Math.trunc(value);
   if (field === "port" && attempt.type !== "start-range") attempt.port = port;
   if (field === "startPort" && attempt.type === "start-range") attempt.startPort = port;
   if (field === "endPort" && attempt.type === "start-range") attempt.endPort = port;
@@ -238,24 +238,30 @@ function stopDraggingAttempt(): void {
           />
           <template v-if="attempt.type !== 'known-services'">
             <UiInput v-model="attempt.host" :placeholder="$t('settings.attempt.host')" />
-            <UiInput
+            <ElInputNumber
               v-if="attempt.type !== 'start-range'"
-              :model-value="String(attempt.port)"
-              type="number"
-              :placeholder="$t('settings.attempt.port')"
+              :model-value="attempt.port"
+              :min="1"
+              :max="65535"
+              :precision="0"
+              :aria-label="$t('settings.attempt.port')"
               @update:model-value="setPort(attempt, 'port', $event)"
             />
             <template v-else>
-              <UiInput
-                :model-value="String(attempt.startPort)"
-                type="number"
-                :placeholder="$t('settings.attempt.startPort')"
+              <ElInputNumber
+                :model-value="attempt.startPort"
+                :min="1"
+                :max="65535"
+                :precision="0"
+                :aria-label="$t('settings.attempt.startPort')"
                 @update:model-value="setPort(attempt, 'startPort', $event)"
               />
-              <UiInput
-                :model-value="String(attempt.endPort)"
-                type="number"
-                :placeholder="$t('settings.attempt.endPort')"
+              <ElInputNumber
+                :model-value="attempt.endPort"
+                :min="1"
+                :max="65535"
+                :precision="0"
+                :aria-label="$t('settings.attempt.endPort')"
                 @update:model-value="setPort(attempt, 'endPort', $event)"
               />
             </template>
@@ -410,6 +416,10 @@ function stopDraggingAttempt(): void {
 
 .settings-page__attempt-fields > :first-child {
   grid-column: 1 / -1;
+}
+
+.settings-page__attempt-fields :deep(.el-input-number) {
+  width: 100%;
 }
 
 .settings-page__attempt-actions {
