@@ -4,18 +4,15 @@ use std::time::Duration;
 
 use base64::Engine;
 use reqwest::blocking::Client;
-use ring::signature::{ED25519, UnparsedPublicKey};
 use semver::{Version, VersionReq};
 use serde::Deserialize;
 use sha2::{Digest, Sha512};
 
 use crate::error::{AppError, AppResult};
 
-const MANIFEST_URL: &str = "https://leawind.github.io/dsh-desktop/compatibility.json";
-const SIGNATURE_URL: &str = "https://leawind.github.io/dsh-desktop/compatibility.json.sig";
-const PUBLIC_KEY_BASE64: &str = "R2Ot1Jp/FXC8s5u8UHlrI8Zlxq/CN/2yPDvRa6EydyM=";
+const MANIFEST_URL: &str =
+    "https://raw.githubusercontent.com/Leawind/dsh-desktop/main/runtime/compatibility.json";
 const EMBEDDED_MANIFEST: &[u8] = include_bytes!("../../../runtime/compatibility.json");
-const EMBEDDED_SIGNATURE: &str = include_str!("../../../runtime/compatibility.json.sig");
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -216,46 +213,22 @@ fn remote_manifest(cache_directory: &Path) -> AppResult<CompatibilityManifest> {
         .map_err(|error| {
             AppError::new("runtime.error.compatibilityDownloadFailed").technical(error.to_string())
         })?;
-    let signature = client
-        .get(SIGNATURE_URL)
-        .send()
-        .and_then(|response| response.error_for_status())
-        .and_then(|response| response.text())
-        .map_err(|error| {
-            AppError::new("runtime.error.compatibilityDownloadFailed").technical(error.to_string())
-        })?;
-    let parsed = parse_verified(&manifest, &signature)?;
+    let parsed = parse_manifest(&manifest)?;
     fs::create_dir_all(cache_directory).map_err(cache_error)?;
     fs::write(cache_directory.join("compatibility.json"), &manifest).map_err(cache_error)?;
-    fs::write(cache_directory.join("compatibility.json.sig"), signature).map_err(cache_error)?;
     Ok(parsed)
 }
 
 fn cached_manifest(cache_directory: &Path) -> AppResult<CompatibilityManifest> {
     let manifest = fs::read(cache_directory.join("compatibility.json")).map_err(cache_error)?;
-    let signature =
-        fs::read_to_string(cache_directory.join("compatibility.json.sig")).map_err(cache_error)?;
-    parse_verified(&manifest, &signature)
+    parse_manifest(&manifest)
 }
 
 fn embedded_manifest() -> AppResult<CompatibilityManifest> {
-    parse_verified(EMBEDDED_MANIFEST, EMBEDDED_SIGNATURE)
+    parse_manifest(EMBEDDED_MANIFEST)
 }
 
-fn parse_verified(contents: &[u8], signature: &str) -> AppResult<CompatibilityManifest> {
-    let public_key = base64::engine::general_purpose::STANDARD
-        .decode(PUBLIC_KEY_BASE64)
-        .map_err(|error| {
-            AppError::new("runtime.error.invalidCompatibility").technical(error.to_string())
-        })?;
-    let signature = base64::engine::general_purpose::STANDARD
-        .decode(signature.trim())
-        .map_err(|error| {
-            AppError::new("runtime.error.invalidCompatibility").technical(error.to_string())
-        })?;
-    UnparsedPublicKey::new(&ED25519, public_key)
-        .verify(contents, &signature)
-        .map_err(|_| AppError::new("runtime.error.compatibilitySignatureInvalid"))?;
+fn parse_manifest(contents: &[u8]) -> AppResult<CompatibilityManifest> {
     let manifest: CompatibilityManifest = serde_json::from_slice(contents).map_err(|error| {
         AppError::new("runtime.error.invalidCompatibility").technical(error.to_string())
     })?;
@@ -295,8 +268,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn embedded_manifest_is_signed_and_selects_no_update_for_its_baseline() {
-        let manifest = embedded_manifest().expect("embedded manifest must verify");
+    fn embedded_manifest_selects_no_update_for_its_baseline() {
+        let manifest = embedded_manifest().expect("embedded manifest must parse");
         let app = manifest.apps.get("0.1.0-rc.1").expect("app compatibility");
         assert!(
             select_update(app, "0.1.0-rc.6", "24.18.1")

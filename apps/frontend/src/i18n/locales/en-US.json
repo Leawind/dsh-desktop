@@ -187,7 +187,6 @@
       "targetMismatch": "The built-in runtime target does not match: expected {expected}, got {actual}.",
       "compatibilityUnavailable": "No compatibility manifest is available for this app version.",
       "compatibilityDownloadFailed": "The compatibility manifest could not be downloaded.",
-      "compatibilitySignatureInvalid": "The compatibility manifest signature is invalid.",
       "compatibilityCacheFailed": "The verified compatibility manifest could not be cached.",
       "invalidCompatibility": "The compatibility manifest is invalid.",
       "invalidRuntimeVersion": "A runtime version is invalid.",

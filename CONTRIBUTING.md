@@ -83,7 +83,6 @@ DSH Desktop 自身的 WebView 和 DSH 可达性探测会直接连接目标地址
 | `pnpm run build:slim`            | 构建不包含 DSH 运行环境的小型安装包                          |
 | `pnpm run build`                 | 依次构建当前平台的两种安装包                                 |
 | `pnpm run runtime:prepare`       | 准备并校验当前平台的内置运行时                               |
-| `pnpm run runtime:compatibility` | 使用 Ed25519 发布密钥生成兼容性清单和 detached signature      |
 | `pnpm run runtime:test`          | 运行构建和发布脚本的测试                                     |
 | `pnpm run release:prepare`       | 校验发布版本并从更新日志生成本次发布说明                     |
 | `pnpm run release:version`       | 设置应用版本并创建对应的更新日志章节                         |
@@ -183,7 +182,7 @@ pnpm run build:slim -- --appimage-runtime /path/to/runtime-x86_64
 
 推送以 `v` 开头的 tag 会触发 GitHub Actions 构建 Linux、Windows 和 macOS 安装包，并将各平台的 `bundled` 与 `slim` 产物发布到同一个 GitHub Release。
 
-同一工作流还会将 `runtime/compatibility.json` 及其 Ed25519 detached signature 发布到 GitHub Pages。发布仓库必须在 Actions secrets 中配置与应用内置公钥配对的 `COMPATIBILITY_SIGNING_KEY`（PKCS#8 PEM 格式）；该私钥不提交到仓库。兼容性范围只在三个目标平台完成对应验证后更新，并且要明确填写 `rollbackCompatibleRanges`，表示更新后仍可由旧 Runtime 安全读取的 DSH Home 数据范围。
+兼容性清单位于 `runtime/compatibility.json`。应用优先从 GitHub 仓库原始文件获取该清单，失败时使用最近成功缓存，最后使用应用内置清单。兼容性范围只在三个目标平台完成对应验证后更新，并且要明确填写 `rollbackCompatibleRanges`，表示更新后仍可由旧 Runtime 安全读取的 DSH Home 数据范围。
 
 应用版本以 `apps/desktop/Cargo.toml` 为唯一来源，Tauri 构建和应用内元数据会直接使用该版本。准备新版本时运行：
 

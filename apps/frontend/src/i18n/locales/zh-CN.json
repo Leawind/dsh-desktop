@@ -187,7 +187,6 @@
       "targetMismatch": "内置运行时目标平台不匹配：期望 {expected}，实际为 {actual}。",
       "compatibilityUnavailable": "无法取得当前应用版本的兼容性清单。",
       "compatibilityDownloadFailed": "下载兼容性清单失败。",
-      "compatibilitySignatureInvalid": "兼容性清单的签名无效。",
       "compatibilityCacheFailed": "无法缓存已验证的兼容性清单。",
       "invalidCompatibility": "兼容性清单内容无效。",
       "invalidRuntimeVersion": "运行时版本号无效。",
