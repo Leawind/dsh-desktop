@@ -30,7 +30,8 @@ export type DshSource =
   | { type: "none" }
   | { type: "built-in" }
   | { type: "system" }
-  | { type: "custom"; executable: string };
+  | { type: "custom"; executable: string }
+  | { type: "npx"; version: string };
 
 export type DshHome = { type: "environment" } | { type: "custom"; path: string };
 

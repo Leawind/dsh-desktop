@@ -26,6 +26,7 @@ const locale = defineModel<AppLocale>("locale", { required: true });
 const pageScalePercent = defineModel<number>("pageScalePercent", { required: true });
 const sourceType = defineModel<DshSource["type"]>("sourceType", { required: true });
 const customExecutable = defineModel<string>("customExecutable", { required: true });
+const npxVersion = defineModel<string>("npxVersion", { required: true });
 const homeType = defineModel<DshHome["type"]>("homeType", { required: true });
 const customDshHome = defineModel<string>("customDshHome", { required: true });
 const attempts = defineModel<WindowStartupAttempt[]>("attempts", { required: true });
@@ -174,6 +175,16 @@ function stopDraggingAttempt(): void {
     >
       <div class="settings-page__wide-control">
         <UiInput id="dsh-executable" v-model="customExecutable" />
+      </div>
+    </UiSettingRow>
+    <UiSettingRow
+      v-if="sourceType === 'npx'"
+      control-id="npx-dsh-version"
+      :label="$t('settings.npxVersion')"
+      :hint="$t('settings.npxVersionHint')"
+    >
+      <div class="settings-page__wide-control">
+        <UiInput id="npx-dsh-version" v-model="npxVersion" />
       </div>
     </UiSettingRow>
     <UiSettingRow :label="$t('settings.home.label')" :hint="$t('settings.home.hint')">

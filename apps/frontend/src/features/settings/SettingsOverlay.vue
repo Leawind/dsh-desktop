@@ -52,6 +52,7 @@ const {
   pageScalePercent,
   sourceType,
   customExecutable,
+  npxVersion,
   homeType,
   customDshHome,
   attempts,
@@ -192,6 +193,7 @@ onBeforeUnmount(() => {
             v-model:page-scale-percent="pageScalePercent"
             v-model:source-type="sourceType"
             v-model:custom-executable="customExecutable"
+            v-model:npx-version="npxVersion"
             v-model:home-type="homeType"
             v-model:custom-dsh-home="customDshHome"
             v-model:attempts="attempts"

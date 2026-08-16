@@ -98,6 +98,7 @@ pub enum DshSource {
     BuiltIn,
     System,
     Custom { executable: String },
+    Npx { version: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -261,6 +262,18 @@ mod tests {
             serde_json::from_value::<WindowStartupAttempt>(value)
                 .expect("deserialize startup attempt"),
             attempt
+        );
+    }
+
+    #[test]
+    fn serializes_npx_source_with_a_version() {
+        let source = DshSource::Npx {
+            version: "0.1.0-rc.6".to_owned(),
+        };
+
+        assert_eq!(
+            serde_json::to_value(&source).expect("serialize npx source"),
+            serde_json::json!({ "type": "npx", "version": "0.1.0-rc.6" })
         );
     }
 }

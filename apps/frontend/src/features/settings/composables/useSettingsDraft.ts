@@ -46,6 +46,9 @@ export function useSettingsDraft(
   const customExecutable = ref(
     initialSettings.dshSource.type === "custom" ? initialSettings.dshSource.executable : "",
   );
+  const npxVersion = ref(
+    initialSettings.dshSource.type === "npx" ? initialSettings.dshSource.version : "latest",
+  );
   const homeType = ref<DshHome["type"]>(initialSettings.dshHome.type);
   const customDshHome = ref(
     initialSettings.dshHome.type === "custom" ? initialSettings.dshHome.path : "",
@@ -72,6 +75,7 @@ export function useSettingsDraft(
     },
     { value: "system", label: t("settings.source.type.system") },
     { value: "custom", label: t("settings.source.type.custom") },
+    { value: "npx", label: t("settings.source.type.npx") },
   ]);
   const homeOptions = computed(() => [
     { value: "environment", label: t("settings.home.type.environment") },
@@ -92,6 +96,7 @@ export function useSettingsDraft(
       pageScalePercent.value = value.pageScalePercent;
       sourceType.value = value.dshSource.type;
       customExecutable.value = value.dshSource.type === "custom" ? value.dshSource.executable : "";
+      npxVersion.value = value.dshSource.type === "npx" ? value.dshSource.version : "latest";
       homeType.value = value.dshHome.type;
       customDshHome.value = value.dshHome.type === "custom" ? value.dshHome.path : "";
       attempts.value = cloneAttempts(value.windowStartupAttempts);
@@ -106,6 +111,7 @@ export function useSettingsDraft(
       pageScalePercent,
       sourceType,
       customExecutable,
+      npxVersion,
       homeType,
       customDshHome,
       attempts,
@@ -137,6 +143,10 @@ export function useSettingsDraft(
       error.value = t("settings.error.emptyExecutable");
       return null;
     }
+    if (sourceType.value === "npx" && !validNpxVersion(npxVersion.value)) {
+      error.value = t("settings.error.invalidNpxVersion");
+      return null;
+    }
     if (homeType.value === "custom" && !customDshHome.value.trim()) {
       error.value = t("settings.error.emptyDshHome");
       return null;
@@ -150,10 +160,15 @@ export function useSettingsDraft(
       error.value = t("settings.error.invalidIdleTimeout");
       return null;
     }
-    const dshSource: DshSource =
-      sourceType.value === "custom"
-        ? { type: "custom", executable: customExecutable.value.trim() }
-        : { type: sourceType.value };
+    const dshSource: DshSource = (() => {
+      if (sourceType.value === "custom") {
+        return { type: "custom", executable: customExecutable.value.trim() };
+      }
+      if (sourceType.value === "npx") {
+        return { type: "npx", version: npxVersion.value.trim() };
+      }
+      return { type: sourceType.value };
+    })();
     const dshHome: DshHome =
       homeType.value === "custom"
         ? { type: "custom", path: customDshHome.value.trim() }
@@ -192,6 +207,7 @@ export function useSettingsDraft(
     pageScalePercent,
     sourceType,
     customExecutable,
+    npxVersion,
     homeType,
     customDshHome,
     attempts,
@@ -203,4 +219,10 @@ export function useSettingsDraft(
     attemptOptions,
     flush,
   };
+}
+
+function validNpxVersion(value: string): boolean {
+  return (
+    value === "latest" || /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(value)
+  );
 }

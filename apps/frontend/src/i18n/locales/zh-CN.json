@@ -52,6 +52,8 @@
     "increasePageScale": "放大页面",
     "executable": "DSH 可执行文件",
     "executableHint": "指定自定义 dsh 可执行文件的完整路径。",
+    "npxVersion": "npx DSH 版本",
+    "npxVersionHint": "使用系统 PATH 中的 npx 运行 {'@'}deepseek-ai/dsh。填写 latest，或一个确切的 DSH 版本；首次运行可能需要下载。",
     "idleTimeout": "受管服务空闲回收",
     "idleTimeoutHint": "服务没有关联窗口后等待多少分钟再停止；设为 0 时立即停止。",
     "idleTimeoutUnit": "分钟",
@@ -62,7 +64,8 @@
         "none": "不启动 DSH",
         "built-in": "内置 DSH",
         "system": "系统 PATH 中的 DSH",
-        "custom": "自定义可执行文件"
+        "custom": "自定义可执行文件",
+        "npx": "通过 npx 运行 DSH"
       }
     },
     "home": {
@@ -96,6 +99,7 @@
       "invalidPortRange": "起始端口不能大于结束端口。",
       "invalidIpAddress": "请输入有效的 IP 地址。",
       "emptyExecutable": "自定义 DSH 可执行文件路径不能为空。",
+      "invalidNpxVersion": "npx DSH 版本必须是 latest 或一个完整的版本号。",
       "emptyDshHome": "自定义 DSH 用户数据目录不能为空。",
       "relativeDshHome": "DSH 用户数据目录必须是绝对路径，或以 ~/ 开头。",
       "unsupportedSource": "当前发行变体不支持所选的 DSH 来源。",
@@ -125,6 +129,8 @@
       "processExited": "DSH 进程在启动期间退出。",
       "startTimeout": "等待 DSH 在端口 {port} 启动超时。",
       "invalidExecutable": "配置的程序不是可用的 dsh 命令。",
+      "npxNotFound": "找不到 npx 命令。请安装 Node.js，或选择其他 DSH 来源。",
+      "invalidNpx": "无法通过 npx 运行指定的 DSH 版本。",
       "executableNotFound": "找不到 dsh 命令，请在全局设置中指定其路径。",
       "sourceDisabled": "当前设置不允许启动新的 DSH 服务。",
       "builtInUnavailable": "当前安装包不包含内置 DSH。",

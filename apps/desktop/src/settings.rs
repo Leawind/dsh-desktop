@@ -41,6 +41,12 @@ pub fn validate(
             return Err(AppError::new("settings.error.emptyExecutable"));
         }
     }
+    if let DshSource::Npx { version } = &mut patch.dsh_source {
+        *version = version.trim().to_owned();
+        if !valid_npx_dsh_version(version) {
+            return Err(AppError::new("settings.error.invalidNpxVersion"));
+        }
+    }
     if let DshHome::Custom { path } = &mut patch.dsh_home {
         *path = path.trim().to_owned();
         if path.is_empty() {
@@ -78,6 +84,41 @@ pub fn validate(
         }
     }
     Ok(patch)
+}
+
+fn valid_npx_dsh_version(version: &str) -> bool {
+    if version == "latest" {
+        return true;
+    }
+    let (core, build) = version.split_once('+').unwrap_or((version, ""));
+    if !build.is_empty()
+        && !build.split('.').all(|part| {
+            !part.is_empty()
+                && part
+                    .chars()
+                    .all(|character| character.is_ascii_alphanumeric() || character == '-')
+        })
+    {
+        return false;
+    }
+    let (core, pre_release) = core.split_once('-').unwrap_or((core, ""));
+    let valid_identifiers = |value: &str| {
+        !value.is_empty()
+            && value.split('.').all(|part| {
+                !part.is_empty()
+                    && part
+                        .chars()
+                        .all(|character| character.is_ascii_alphanumeric() || character == '-')
+            })
+    };
+    let mut parts = core.split('.');
+    let valid_core = parts
+        .by_ref()
+        .map(|part| !part.is_empty() && part.chars().all(|character| character.is_ascii_digit()))
+        .collect::<Vec<_>>();
+    valid_core.len() == 3
+        && valid_core.into_iter().all(|valid| valid)
+        && (pre_release.is_empty() || valid_identifiers(pre_release))
 }
 
 fn validate_host(host: &mut String) -> AppResult<()> {
@@ -172,6 +213,34 @@ mod tests {
         let settings = GlobalSettings {
             dsh_home: DshHome::Custom {
                 path: "relative/dsh-home".to_owned(),
+            },
+            ..GlobalSettings::default()
+        };
+        assert!(validate(settings, DistributionVariant::Slim).is_err());
+    }
+
+    #[test]
+    fn validates_and_trims_the_npx_dsh_version() {
+        let settings = GlobalSettings {
+            dsh_source: DshSource::Npx {
+                version: " 0.1.0-rc.6 ".to_owned(),
+            },
+            ..GlobalSettings::default()
+        };
+        let validated = validate(settings, DistributionVariant::Slim).expect("valid settings");
+        assert_eq!(
+            validated.dsh_source,
+            DshSource::Npx {
+                version: "0.1.0-rc.6".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_non_version_npx_dsh_selectors() {
+        let settings = GlobalSettings {
+            dsh_source: DshSource::Npx {
+                version: "next".to_owned(),
             },
             ..GlobalSettings::default()
         };

@@ -52,6 +52,8 @@
     "increasePageScale": "Increase page scale",
     "executable": "DSH executable",
     "executableHint": "Enter the full path to a custom dsh executable.",
+    "npxVersion": "npx DSH version",
+    "npxVersionHint": "Uses npx from the system PATH to run {'@'}deepseek-ai/dsh. Enter latest or an exact DSH version; the first run may download it.",
     "idleTimeout": "Managed service idle cleanup",
     "idleTimeoutHint": "Minutes to wait after a service has no windows before stopping it; use 0 to stop it immediately.",
     "idleTimeoutUnit": "Minutes",
@@ -62,7 +64,8 @@
         "none": "Do not start DSH",
         "built-in": "Built-in DSH",
         "system": "DSH on system PATH",
-        "custom": "Custom executable"
+        "custom": "Custom executable",
+        "npx": "Run DSH with npx"
       }
     },
     "home": {
@@ -96,6 +99,7 @@
       "invalidPortRange": "The start port cannot be greater than the end port.",
       "invalidIpAddress": "Enter a valid IP address.",
       "emptyExecutable": "The custom DSH executable path cannot be empty.",
+      "invalidNpxVersion": "The npx DSH version must be latest or a complete version number.",
       "emptyDshHome": "The custom DSH user data directory cannot be empty.",
       "relativeDshHome": "The DSH user data directory must be absolute or begin with ~/.",
       "unsupportedSource": "The selected DSH source is unavailable in this distribution variant.",
@@ -125,6 +129,8 @@
       "processExited": "The DSH process exited during startup.",
       "startTimeout": "Timed out waiting for DSH to start on port {port}.",
       "invalidExecutable": "The configured program is not a usable dsh command.",
+      "npxNotFound": "The npx command was not found. Install Node.js or select another DSH source.",
+      "invalidNpx": "The specified DSH version could not be run through npx.",
       "executableNotFound": "The dsh command was not found. Set its path in global settings.",
       "sourceDisabled": "The current settings do not allow starting a new DSH service.",
       "builtInUnavailable": "This package does not include a built-in DSH runtime.",

@@ -11,6 +11,9 @@ use std::time::{Duration, Instant};
 
 use reqwest::blocking::Client;
 
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
+
 use crate::error::{AppError, AppResult};
 use crate::model::{DshHome, DshSource};
 use crate::runtime::RuntimeManager;
@@ -65,8 +68,7 @@ impl ManagedService {
     }
 
     pub fn stop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        stop_child_tree(&mut self.child);
     }
 
     pub fn diagnostic(&self) -> String {
@@ -134,7 +136,7 @@ pub fn resolve_runtime(
     runtime_manager: &RuntimeManager,
 ) -> AppResult<ResolvedDshRuntime> {
     let runtime_path = effective_path();
-    let (executable, prefix_args, runtime_path, known_version) = match source {
+    let (executable, prefix_args, runtime_path, known_version, invalid_error) = match source {
         DshSource::None => return Err(AppError::new("service.error.sourceDisabled")),
         DshSource::BuiltIn => {
             let runtime = runtime_manager.resolve_built_in()?;
@@ -144,6 +146,7 @@ pub fn resolve_runtime(
                 vec![runtime.dsh_entrypoint.into_os_string()],
                 runtime_path,
                 Some(runtime.dsh_version),
+                "service.error.invalidExecutable",
             )
         }
         DshSource::System => (
@@ -151,15 +154,32 @@ pub fn resolve_runtime(
             Vec::new(),
             runtime_path,
             None,
+            "service.error.invalidExecutable",
         ),
         DshSource::Custom { executable } => (
             resolve_executable(Some(executable), runtime_path.as_deref())?,
             Vec::new(),
             runtime_path,
             None,
+            "service.error.invalidExecutable",
+        ),
+        DshSource::Npx { version } => (
+            runtime_path
+                .as_deref()
+                .and_then(|path| find_on_path("npx", path))
+                .ok_or_else(|| AppError::new("service.error.npxNotFound"))?,
+            vec![OsString::from("--yes"), npx_package_argument(version)],
+            runtime_path,
+            None,
+            "service.error.invalidNpx",
         ),
     };
-    let runtime_version = read_version(&executable, &prefix_args, runtime_path.as_deref())?;
+    let runtime_version = read_version(
+        &executable,
+        &prefix_args,
+        runtime_path.as_deref(),
+        invalid_error,
+    )?;
     if known_version
         .as_ref()
         .is_some_and(|expected| expected != &runtime_version)
@@ -199,6 +219,7 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    configure_process_tree(&mut command);
     apply_dsh_home(&mut command, &launch.dsh_home);
     #[cfg(target_os = "linux")]
     crate::direct_network::restore_child_proxy_environment(&mut command);
@@ -225,8 +246,7 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
         match probe(&url) {
             ProbeResult::Dsh => break,
             ProbeResult::OtherHttp => {
-                let _ = child.kill();
-                let _ = child.wait();
+                stop_child_tree(&mut child);
                 return Err(AppError::new("service.error.portOccupied").arg("port", port));
             }
             ProbeResult::Unreachable => {}
@@ -245,8 +265,7 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
         }
 
         if started_at.elapsed() >= STARTUP_TIMEOUT {
-            let _ = child.kill();
-            let _ = child.wait();
+            stop_child_tree(&mut child);
             return Err(AppError::new("service.error.startTimeout")
                 .arg("port", port)
                 .technical(recent_logs(&logs)));
@@ -296,6 +315,7 @@ fn read_version(
     executable: &Path,
     prefix_args: &[OsString],
     runtime_path: Option<&OsStr>,
+    invalid_error: &str,
 ) -> AppResult<String> {
     let mut command = Command::new(executable);
     command
@@ -305,14 +325,51 @@ fn read_version(
     if let Some(runtime_path) = runtime_path {
         command.env("PATH", runtime_path);
     }
-    let output = command.output().map_err(|error| {
-        AppError::new("service.error.invalidExecutable").technical(error.to_string())
-    })?;
+    let output = command
+        .output()
+        .map_err(|error| AppError::new(invalid_error).technical(error.to_string()))?;
     if !output.status.success() {
-        return Err(AppError::new("service.error.invalidExecutable")
-            .technical(String::from_utf8_lossy(&output.stderr)));
+        return Err(AppError::new(invalid_error).technical(String::from_utf8_lossy(&output.stderr)));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+}
+
+fn configure_process_tree(command: &mut Command) {
+    #[cfg(unix)]
+    command.process_group(0);
+
+    #[cfg(not(unix))]
+    let _ = command;
+}
+
+fn npx_package_argument(version: &str) -> OsString {
+    OsString::from(format!("@deepseek-ai/dsh@{version}"))
+}
+
+fn stop_child_tree(child: &mut Child) {
+    #[cfg(unix)]
+    {
+        // Every managed command starts its own process group. This also terminates the
+        // DSH process that an npx launcher may have created beneath its own process.
+        let process_group = child.id() as i32;
+        unsafe {
+            libc::kill(-process_group, libc::SIGKILL);
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        let pid = child.id().to_string();
+        let _ = Command::new("taskkill")
+            .args(["/PID", &pid, "/T", "/F"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 fn prepend_paths(paths: &[PathBuf], inherited: Option<&OsStr>) -> Option<OsString> {
@@ -414,7 +471,7 @@ mod tests {
 
     use crate::model::DshHome;
 
-    use super::{apply_dsh_home, extract_marked_path};
+    use super::{apply_dsh_home, extract_marked_path, npx_package_argument};
 
     #[test]
     fn extracts_path_after_shell_startup_output() {
@@ -441,5 +498,13 @@ mod tests {
         let mut command = Command::new("dsh");
         apply_dsh_home(&mut command, &DshHome::Environment);
         assert!(command.get_envs().all(|(name, _)| name != "DSH_HOME"));
+    }
+
+    #[test]
+    fn npx_source_always_targets_the_official_dsh_package() {
+        assert_eq!(
+            npx_package_argument("0.1.0-rc.6"),
+            "@deepseek-ai/dsh@0.1.0-rc.6"
+        );
     }
 }
