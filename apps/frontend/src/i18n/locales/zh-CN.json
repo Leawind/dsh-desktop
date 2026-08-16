@@ -78,6 +78,7 @@
       "port": "端口",
       "startPort": "起始端口",
       "endPort": "结束端口",
+      "dragHandle": "拖拽以调整顺序",
       "type": {
         "known-services": "连接已知服务",
         "connect-fixed": "连接指定 IP 和端口",

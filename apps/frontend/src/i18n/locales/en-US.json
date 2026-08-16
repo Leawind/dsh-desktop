@@ -78,6 +78,7 @@
       "port": "Port",
       "startPort": "Start port",
       "endPort": "End port",
+      "dragHandle": "Drag to reorder",
       "type": {
         "known-services": "Connect to a known service",
         "connect-fixed": "Connect to a specific IP and port",

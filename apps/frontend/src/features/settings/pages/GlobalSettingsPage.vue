@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from "vue";
+
 import { UiButton, UiInput, UiSelect, UiSettingRow } from "@dsh-desktop/ui";
 
 import type {
@@ -25,6 +27,18 @@ const homeType = defineModel<DshHome["type"]>("homeType", { required: true });
 const customDshHome = defineModel<string>("customDshHome", { required: true });
 const attempts = defineModel<WindowStartupAttempt[]>("attempts", { required: true });
 const idleTimeoutMinutes = defineModel<number>("idleTimeoutMinutes", { required: true });
+const draggingAttemptIndex = ref<number | null>(null);
+const attemptKeys = new WeakMap<WindowStartupAttempt, string>();
+let nextAttemptKey = 0;
+
+function attemptKey(attempt: WindowStartupAttempt): string {
+  let key = attemptKeys.get(attempt);
+  if (!key) {
+    key = String(nextAttemptKey++);
+    attemptKeys.set(attempt, key);
+  }
+  return key;
+}
 
 function changeAttemptType(index: number, type: string): void {
   const host = "127.0.0.1";
@@ -53,14 +67,23 @@ function addAttempt(): void {
   attempts.value.push({ type: "connect-fixed", host: "127.0.0.1", port: 3080 });
 }
 
-function moveAttempt(index: number, offset: -1 | 1): void {
-  const target = index + offset;
-  if (target < 0 || target >= attempts.value.length) return;
-  const current = attempts.value[index];
-  const other = attempts.value[target];
-  if (!current || !other) return;
-  attempts.value[index] = other;
-  attempts.value[target] = current;
+function startDraggingAttempt(index: number, event: DragEvent): void {
+  draggingAttemptIndex.value = index;
+  event.dataTransfer?.setData("text/plain", String(index));
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+}
+
+function moveDraggedAttempt(targetIndex: number): void {
+  const sourceIndex = draggingAttemptIndex.value;
+  if (sourceIndex === null || sourceIndex === targetIndex) return;
+  const [attempt] = attempts.value.splice(sourceIndex, 1);
+  if (!attempt) return;
+  attempts.value.splice(targetIndex, 0, attempt);
+  draggingAttemptIndex.value = targetIndex;
+}
+
+function stopDraggingAttempt(): void {
+  draggingAttemptIndex.value = null;
 }
 </script>
 
@@ -121,11 +144,33 @@ function moveAttempt(index: number, offset: -1 | 1): void {
         <h2>{{ $t("settings.attempt.label") }}</h2>
         <p>{{ $t("settings.attempt.hint") }}</p>
       </div>
-      <UiButton size="small" @click="addAttempt">{{ $t("common.add") }}</UiButton>
     </div>
     <ol class="settings-page__attempts">
-      <li v-for="(attempt, index) in attempts" :key="index" class="settings-page__attempt">
-        <span class="settings-page__attempt-index">{{ index + 1 }}</span>
+      <li
+        v-for="(attempt, index) in attempts"
+        :key="attemptKey(attempt)"
+        class="settings-page__attempt"
+        :class="{ 'settings-page__attempt--dragging': draggingAttemptIndex === index }"
+        @dragover.prevent="moveDraggedAttempt(index)"
+        @drop.prevent="stopDraggingAttempt"
+      >
+        <span
+          class="settings-page__attempt-drag-handle"
+          draggable="true"
+          :aria-label="$t('settings.attempt.dragHandle')"
+          :title="$t('settings.attempt.dragHandle')"
+          @dragstart="startDraggingAttempt(index, $event)"
+          @dragend="stopDraggingAttempt"
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="5" cy="3.5" r="1" />
+            <circle cx="11" cy="3.5" r="1" />
+            <circle cx="5" cy="8" r="1" />
+            <circle cx="11" cy="8" r="1" />
+            <circle cx="5" cy="12.5" r="1" />
+            <circle cx="11" cy="12.5" r="1" />
+          </svg>
+        </span>
         <div class="settings-page__attempt-fields">
           <UiSelect
             :model-value="attempt.type"
@@ -161,25 +206,22 @@ function moveAttempt(index: number, offset: -1 | 1): void {
           <UiButton
             variant="ghost"
             size="small"
-            :disabled="index === 0"
-            @click="moveAttempt(index, -1)"
+            class="settings-page__attempt-remove"
+            :aria-label="$t('common.remove')"
+            :title="$t('common.remove')"
+            @click="attempts.splice(index, 1)"
           >
-            {{ $t("common.moveUp") }}
-          </UiButton>
-          <UiButton
-            variant="ghost"
-            size="small"
-            :disabled="index === attempts.length - 1"
-            @click="moveAttempt(index, 1)"
-          >
-            {{ $t("common.moveDown") }}
-          </UiButton>
-          <UiButton variant="ghost" size="small" @click="attempts.splice(index, 1)">
-            {{ $t("common.remove") }}
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M3.5 4.5h9M6 2.5h4M5 4.5l.5 8h5l.5-8M6.5 7v3M9.5 7v3" />
+            </svg>
           </UiButton>
         </div>
       </li>
     </ol>
+    <UiButton class="settings-page__attempt-add" @click="addAttempt">
+      <span aria-hidden="true">+</span>
+      {{ $t("common.add") }}
+    </UiButton>
     <p v-if="error" class="settings-page__error settings-page__error--block">{{ error }}</p>
   </section>
 </template>
@@ -198,10 +240,6 @@ function moveAttempt(index: number, offset: -1 | 1): void {
 }
 
 .settings-page__attempt-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
   padding: var(--space-4) 0 var(--space-2);
 }
 
@@ -232,7 +270,7 @@ function moveAttempt(index: number, offset: -1 | 1): void {
 
 .settings-page__attempt {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+  grid-template-columns: 24px minmax(0, 1fr) 24px;
   align-items: start;
   gap: var(--space-2);
   padding: var(--space-3);
@@ -241,13 +279,42 @@ function moveAttempt(index: number, offset: -1 | 1): void {
   background: var(--color-input);
 }
 
-.settings-page__attempt-index {
+.settings-page__attempt--dragging {
+  opacity: 0.5;
+}
+
+.settings-page__attempt-drag-handle {
   display: grid;
   width: 24px;
   height: 24px;
   place-items: center;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  cursor: grab;
+}
+
+.settings-page__attempt-drag-handle:active {
+  cursor: grabbing;
+}
+
+.settings-page__attempt-drag-handle svg,
+.settings-page__attempt-remove svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.settings-page__attempt-remove {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+.settings-page__attempt-remove svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.25;
 }
 
 .settings-page__attempt-fields {
@@ -263,8 +330,12 @@ function moveAttempt(index: number, offset: -1 | 1): void {
 
 .settings-page__attempt-actions {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  justify-content: flex-end;
+}
+
+.settings-page__attempt-add {
+  width: 100%;
+  margin-top: var(--space-2);
 }
 
 .settings-page__error {
