@@ -21,7 +21,7 @@
     "runtime:format": "prettier --write runtime scripts",
     "runtime:format-check": "prettier --check runtime scripts",
     "runtime:lint": "oxlint scripts",
-    "runtime:test": "tsx --test scripts/prepare-release.test.ts scripts/set-release-version.test.ts",
+    "runtime:test": "tsx --test scripts/label-bundles.test.ts scripts/prepare-release.test.ts scripts/set-release-version.test.ts",
     "runtime:typecheck": "tsc --project scripts/tsconfig.json",
     "release:prepare": "tsx scripts/prepare-release.ts",
     "release:version": "tsx scripts/set-release-version.ts",

@@ -119,7 +119,7 @@ pnpm run build:slim
 pnpm run build
 ```
 
-Tauri 会在 Cargo target 目录的 `release/bundle/installers/` 下汇总当前操作系统支持的安装文件。文件名包含 `bundled` 或 `slim`。未自定义 Cargo target 目录时，默认位置为：
+Tauri 会在 Cargo target 目录的 `release/bundle/installers/` 下汇总当前操作系统支持的安装文件。发布文件统一采用 `dsh-desktop-<version>-<variant>-<platform>-<architecture>.<extension>` 格式。未自定义 Cargo target 目录时，默认位置为：
 
 ```text
 apps/desktop/target/release/bundle/installers/
