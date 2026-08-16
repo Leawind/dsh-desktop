@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Close, FullScreen, Minus, RefreshRight, Setting } from "@element-plus/icons-vue";
 import { useI18n } from "vue-i18n";
 
 import { UiButton } from "@dsh-desktop/ui";
@@ -29,7 +30,7 @@ const { t } = useI18n();
         :aria-label="t('window.settings')"
         @click.stop="$emit('settings')"
       >
-        <span aria-hidden="true">⚙</span>
+        <Setting class="titlebar__icon" aria-hidden="true" />
       </UiButton>
       <UiButton
         variant="ghost"
@@ -40,9 +41,7 @@ const { t } = useI18n();
         :title="t(refreshAction === 'retry' ? 'common.retry' : 'window.refresh')"
         @click.stop="$emit('refresh')"
       >
-        <svg class="titlebar__icon" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M13.25 5.75V2.5M13.25 2.5H10M13.25 2.5A6 6 0 1 0 14 9" />
-        </svg>
+        <RefreshRight class="titlebar__icon" aria-hidden="true" />
       </UiButton>
     </div>
     <button
@@ -61,7 +60,7 @@ const { t } = useI18n();
         :aria-label="t('window.minimize')"
         @click.stop="desktopBridge.window.minimize()"
       >
-        <span aria-hidden="true">−</span>
+        <Minus class="titlebar__icon" aria-hidden="true" />
       </UiButton>
       <UiButton
         variant="ghost"
@@ -70,7 +69,7 @@ const { t } = useI18n();
         :aria-label="t('window.maximize')"
         @click.stop="desktopBridge.window.toggleMaximize()"
       >
-        <span aria-hidden="true">□</span>
+        <FullScreen class="titlebar__icon" aria-hidden="true" />
       </UiButton>
       <UiButton
         variant="ghost"
@@ -79,7 +78,7 @@ const { t } = useI18n();
         :aria-label="t('window.close')"
         @click.stop="desktopBridge.window.close()"
       >
-        <span aria-hidden="true">×</span>
+        <Close class="titlebar__icon" aria-hidden="true" />
       </UiButton>
     </div>
   </header>
@@ -133,18 +132,21 @@ const { t } = useI18n();
   white-space: nowrap;
 }
 
+.titlebar__button > * {
+  text-align: center;
+}
 .titlebar__button {
-  width: var(--titlebar-height);
-  height: var(--titlebar-height);
+  border-radius: 100%;
+  width: calc(var(--titlebar-height) * 0.75);
+  height: calc(var(--titlebar-height) * 0.75);
+  margin: calc(var(--titlebar-height) * 0.1);
   padding: 0;
-  margin: 0;
-  border-radius: 0;
-  font-size: 1rem;
+  font-size: 1em;
 }
 
 .titlebar__icon {
-  width: 1rem;
-  height: 1rem;
+  width: 1em;
+  height: 1em;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -158,7 +160,7 @@ const { t } = useI18n();
 }
 
 :global(html[data-platform="macos"]) .titlebar__leading {
-  padding-left: 4.75rem;
+  padding-left: 4.75em;
 }
 
 :global(html[data-platform="macos"]) .titlebar__controls {
