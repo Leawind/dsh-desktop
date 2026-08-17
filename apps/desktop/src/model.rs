@@ -6,7 +6,7 @@ pub const LOCAL_DSH_HOST: &str = "127.0.0.1";
 pub const DEFAULT_SERVICE_IDLE_TIMEOUT_SECONDS: u64 = 0;
 pub const DEFAULT_PAGE_SCALE_PERCENT: f64 = 100.0;
 pub const MIN_PAGE_SCALE_PERCENT: f64 = 50.0;
-pub const MAX_PAGE_SCALE_PERCENT: f64 = 200.0;
+pub const MAX_PAGE_SCALE_PERCENT: f64 = 400.0;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]

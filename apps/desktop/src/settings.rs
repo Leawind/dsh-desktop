@@ -176,7 +176,7 @@ mod tests {
         assert!(validate(settings, DistributionVariant::Slim).is_err());
 
         let settings = GlobalSettings {
-            page_scale_percent: 201.0,
+            page_scale_percent: 401.0,
             ..GlobalSettings::default()
         };
         assert!(validate(settings, DistributionVariant::Slim).is_err());

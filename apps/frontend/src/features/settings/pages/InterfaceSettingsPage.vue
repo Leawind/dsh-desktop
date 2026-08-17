@@ -42,8 +42,8 @@ function formatPageScaleTooltip(value: number): string {
         class="settings-page__page-scale-control"
         v-model="pageScalePercent"
         :min="50"
-        :max="200"
-        :step="10"
+        :max="400"
+        :step="25"
         show-stops
         :format-tooltip="formatPageScaleTooltip"
         :aria-label="$t('settings.pageScale')"

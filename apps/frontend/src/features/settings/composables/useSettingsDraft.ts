@@ -129,7 +129,7 @@ export function useSettingsDraft(
     if (
       !Number.isFinite(pageScalePercent.value) ||
       pageScalePercent.value < 50 ||
-      pageScalePercent.value > 200
+      pageScalePercent.value > 400
     ) {
       error.value = t("settings.error.invalidPageScale");
       return null;
