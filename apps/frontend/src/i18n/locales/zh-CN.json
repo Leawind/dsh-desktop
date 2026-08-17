@@ -53,8 +53,6 @@
     "language": "界面语言",
     "pageScale": "缩放比例",
     "pageScaleHint": "缩放整个桌面页面，包括 DSH 内容。",
-    "decreasePageScale": "缩小页面",
-    "increasePageScale": "放大页面",
     "executable": "DSH 可执行文件",
     "executableHint": "指定自定义 dsh 可执行文件的完整路径。",
     "npxVersion": "npx DSH 版本",

@@ -53,8 +53,6 @@
     "language": "Interface language",
     "pageScale": "Page scale",
     "pageScaleHint": "Scales the entire desktop page, including DSH content.",
-    "decreasePageScale": "Decrease page scale",
-    "increasePageScale": "Increase page scale",
     "executable": "DSH executable",
     "executableHint": "Enter the full path to a custom dsh executable.",
     "npxVersion": "npx DSH version",
