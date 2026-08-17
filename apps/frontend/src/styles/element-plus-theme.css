@@ -94,3 +94,17 @@
 .el-input-number__decrease {
   left: 0.0625rem;
 }
+
+.el-slider {
+  --el-slider-border-radius: 0.1875rem;
+  --el-slider-height: 0.375rem;
+  --el-slider-button-size: 1.25rem;
+  --el-slider-button-wrapper-size: 2.25rem;
+  --el-slider-button-wrapper-offset: -0.9375rem;
+
+  height: var(--control-height);
+}
+
+.el-slider__button {
+  border-width: 0.125rem;
+}

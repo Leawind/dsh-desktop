@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ElInputNumber } from "element-plus";
+import { ElSlider } from "element-plus";
 
 import { UiSelect, UiSettingRow } from "@dsh-desktop/ui";
 
@@ -16,14 +16,8 @@ defineProps<{
   localeOptions: { value: string; label: string }[];
 }>();
 
-function clampPageScale(value: number): number {
-  return Math.min(200, Math.max(50, value));
-}
-
-function setPageScale(value: number | null | undefined): void {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    pageScalePercent.value = clampPageScale(Math.round(value));
-  }
+function formatPageScaleTooltip(value: number): string {
+  return `${value}%`;
 }
 </script>
 
@@ -38,21 +32,22 @@ function setPageScale(value: number | null | undefined): void {
       <UiSelect v-model="locale" variant="pill" :options="localeOptions" @change="emit('select')" />
     </UiSettingRow>
     <UiSettingRow
+      class="settings-page__page-scale-row"
       control-id="page-scale"
       :label="$t('settings.pageScale')"
       :hint="$t('settings.pageScaleHint')"
     >
-      <ElInputNumber
+      <ElSlider
         id="page-scale"
         class="settings-page__page-scale-control"
-        :model-value="pageScalePercent"
+        v-model="pageScalePercent"
         :min="50"
         :max="200"
-        :step="25"
-        :precision="0"
+        :step="10"
+        show-stops
+        :format-tooltip="formatPageScaleTooltip"
         :aria-label="$t('settings.pageScale')"
-        :value-on-clear="50"
-        @update:model-value="setPageScale"
+        @change="emit('select')"
       />
     </UiSettingRow>
   </section>
@@ -67,7 +62,17 @@ function setPageScale(value: number | null | undefined): void {
   border-bottom: 0;
 }
 
+.settings-page__page-scale-row {
+  align-items: stretch;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.settings-page__page-scale-row :deep(.ui-setting-row__text) {
+  padding-right: 0;
+}
+
 .settings-page__page-scale-control {
-  width: 10rem;
+  width: 100%;
 }
 </style>
