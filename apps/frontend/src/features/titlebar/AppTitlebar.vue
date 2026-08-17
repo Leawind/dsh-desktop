@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { Close, FullScreen, Minus, RefreshRight, Setting } from "@element-plus/icons-vue";
-import { computed, nextTick, onBeforeUnmount, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { UiButton, UiInput } from "@dsh-desktop/ui";
 
 import { desktopBridge } from "@/bridge/desktop";
+import { desktopWindowTitle } from "@/composables/useDesktopApp";
 import { useWindowTarget } from "@/composables/useWindowTarget";
 
 const props = defineProps<{
@@ -21,6 +22,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const editing = ref(false);
+const targetHovered = ref(false);
+const targetEditor = ref<HTMLElement | null>(null);
 const targetInput = ref<{ focus: () => void } | null>(null);
 let targetGesture: { x: number; y: number; dragging: boolean } | undefined;
 let suppressTargetClick = false;
@@ -44,6 +47,9 @@ const targetLabel = computed(() => {
   }
 });
 const targetEditable = computed(() => Boolean(props.targetUrl) || props.refreshAction === "retry");
+const visibleTargetLabel = computed(() =>
+  targetHovered.value ? targetLabel.value : desktopWindowTitle,
+);
 
 function beginEditing(): void {
   if (!targetEditable.value) return;
@@ -54,6 +60,11 @@ function beginEditing(): void {
 function finishEditing(): void {
   flushTarget();
   if (!urlError.value) editing.value = false;
+}
+
+function finishEditingWhenClickedOutside(event: PointerEvent): void {
+  if (!editing.value || targetEditor.value?.contains(event.target as Node)) return;
+  finishEditing();
 }
 
 function startTargetGesture(event: MouseEvent): void {
@@ -90,7 +101,11 @@ function onTargetClick(): void {
   beginEditing();
 }
 
-onBeforeUnmount(finishTargetGesture);
+onMounted(() => document.addEventListener("pointerdown", finishEditingWhenClickedOutside, true));
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", finishEditingWhenClickedOutside, true);
+  finishTargetGesture();
+});
 </script>
 
 <template>
@@ -121,25 +136,28 @@ onBeforeUnmount(finishTargetGesture);
       </UiButton>
     </div>
     <div class="titlebar__target">
-      <UiInput
-        v-if="editing"
-        ref="targetInput"
-        v-model="url"
-        class="titlebar__target-input"
-        type="url"
-        content-sized
-        :disabled="!targetEditable"
-        :placeholder="t('window.urlPlaceholder')"
-        :aria-label="t('window.url')"
-        :aria-invalid="Boolean(urlError)"
-        :title="urlError || undefined"
-        @mousedown.stop
-        @blur="finishEditing"
-        @keydown.enter.prevent="finishEditing"
-      />
+      <div v-if="editing" ref="targetEditor">
+        <UiInput
+          ref="targetInput"
+          v-model="url"
+          class="titlebar__target-input"
+          type="url"
+          content-sized
+          :disabled="!targetEditable"
+          :placeholder="t('window.urlPlaceholder')"
+          :aria-label="t('window.url')"
+          :aria-invalid="Boolean(urlError)"
+          :title="urlError || undefined"
+          @blur="finishEditing"
+          @keydown.enter.prevent="finishEditing"
+          @mouseenter="targetHovered = true"
+          @mouseleave="targetHovered = false"
+        />
+      </div>
       <button
         v-else
         class="titlebar__target-button"
+        :class="{ 'titlebar__target-button--endpoint': targetHovered }"
         type="button"
         :disabled="!targetEditable"
         :aria-label="t('window.url')"
@@ -147,8 +165,10 @@ onBeforeUnmount(finishTargetGesture);
         @click="onTargetClick"
         @keydown.enter.prevent="beginEditing"
         @keydown.space.prevent="beginEditing"
+        @mouseenter="targetHovered = true"
+        @mouseleave="targetHovered = false"
       >
-        {{ targetLabel }}
+        {{ visibleTargetLabel }}
       </button>
     </div>
     <div class="titlebar__controls">
@@ -251,6 +271,11 @@ onBeforeUnmount(finishTargetGesture);
 
 .titlebar__target-button {
   width: fit-content;
+}
+
+.titlebar__target-button:not(.titlebar__target-button--endpoint) {
+  border-color: transparent;
+  background: transparent;
 }
 
 .titlebar__target-button:disabled {
