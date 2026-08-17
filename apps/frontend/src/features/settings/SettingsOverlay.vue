@@ -432,9 +432,13 @@ onBeforeUnmount(() => {
     max-width: calc(100% - 1.5rem);
   }
 
-  .settings__nav {
-    width: 9.25rem;
+  .settings__panel > .settings__body > .settings__nav {
+    width: 8rem;
     padding-inline: var(--space-2);
+  }
+
+  .settings__content {
+    padding-inline: var(--space-4);
   }
 }
 </style>

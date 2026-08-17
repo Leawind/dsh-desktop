@@ -56,7 +56,7 @@ defineProps<{
   flex: none;
 }
 
-@media (max-width: 40rem) {
+@media (max-width: 30rem) {
   .ui-setting-row {
     align-items: stretch;
     flex-direction: column;

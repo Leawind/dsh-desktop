@@ -28,7 +28,7 @@ function formatPageScaleTooltip(value: number): string {
     role="tabpanel"
     aria-labelledby="settings-tab-interface"
   >
-    <UiSettingRow :label="$t('settings.language')">
+    <UiSettingRow class="settings-page__language-row" :label="$t('settings.language')">
       <UiSelect v-model="locale" variant="pill" :options="localeOptions" @change="emit('select')" />
     </UiSettingRow>
     <UiSettingRow
@@ -74,5 +74,9 @@ function formatPageScaleTooltip(value: number): string {
 
 .settings-page__page-scale-control {
   width: 100%;
+}
+
+.settings-page__language-row :deep(.ui-setting-row__control) {
+  align-self: flex-end;
 }
 </style>
