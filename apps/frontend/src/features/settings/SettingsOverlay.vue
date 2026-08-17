@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Close, Cpu, InfoFilled, Monitor, Setting } from "@element-plus/icons-vue";
+import { Close, Cpu, InfoFilled, Rank, Setting } from "@element-plus/icons-vue";
 import { ElIcon } from "element-plus";
 import { onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -12,17 +12,15 @@ import type {
   HostSnapshot,
 } from "@/types/desktop";
 
-import { useWindowTarget } from "@/composables/useWindowTarget";
-
 import { useSettingsDraft } from "./composables/useSettingsDraft";
 import AboutPage from "./pages/AboutPage.vue";
-import CurrentWindowPage from "./pages/CurrentWindowPage.vue";
-import GlobalSettingsPage from "./pages/GlobalSettingsPage.vue";
+import DshSettingsPage from "./pages/DshSettingsPage.vue";
+import InterfaceSettingsPage from "./pages/InterfaceSettingsPage.vue";
 import RuntimePage from "./pages/RuntimePage.vue";
+import StartupSettingsPage from "./pages/StartupSettingsPage.vue";
 import { settingsTabs, type SettingsTab } from "./settings-types";
 
 const props = defineProps<{
-  currentUrl: string;
   currentWindowLabel: string;
   appMetadata: AppMetadataSnapshot;
   settings: GlobalSettings;
@@ -32,22 +30,13 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  setTarget: [url: string];
   saveSettings: [settings: GlobalSettingsPatch];
   stopService: [url: string];
   restartService: [url: string];
 }>();
 
 const { t } = useI18n();
-const activeTab = ref<SettingsTab>("window");
-const {
-  url,
-  error: urlError,
-  flush: flushTarget,
-} = useWindowTarget(
-  () => props.currentUrl,
-  (target) => emit("setTarget", target),
-);
+const activeTab = ref<SettingsTab>("interface");
 const {
   locale,
   pageScalePercent,
@@ -95,7 +84,6 @@ function onTabKeydown(event: KeyboardEvent): void {
 
 function flushChanges(): void {
   flushSettings();
-  flushTarget();
 }
 
 function close(): void {
@@ -133,34 +121,49 @@ onBeforeUnmount(() => {
       <div class="settings__body">
         <nav class="settings__nav" :aria-label="t('settings.title')" role="tablist">
           <button
-            id="settings-tab-window"
+            id="settings-tab-interface"
             class="settings__tab"
-            :class="{ 'settings__tab--active': activeTab === 'window' }"
+            :class="{ 'settings__tab--active': activeTab === 'interface' }"
             type="button"
             role="tab"
-            :aria-selected="activeTab === 'window'"
-            aria-controls="settings-panel-window"
-            :tabindex="activeTab === 'window' ? 0 : -1"
-            @click="activeTab = 'window'"
-            @keydown="onTabKeydown"
-          >
-            <ElIcon aria-hidden="true"><Monitor /></ElIcon>
-            <span>{{ t("window.current") }}</span>
-          </button>
-          <button
-            id="settings-tab-general"
-            class="settings__tab"
-            :class="{ 'settings__tab--active': activeTab === 'general' }"
-            type="button"
-            role="tab"
-            :aria-selected="activeTab === 'general'"
-            aria-controls="settings-panel-general"
-            :tabindex="activeTab === 'general' ? 0 : -1"
-            @click="activeTab = 'general'"
+            :aria-selected="activeTab === 'interface'"
+            aria-controls="settings-panel-interface"
+            :tabindex="activeTab === 'interface' ? 0 : -1"
+            @click="activeTab = 'interface'"
             @keydown="onTabKeydown"
           >
             <ElIcon aria-hidden="true"><Setting /></ElIcon>
-            <span>{{ t("settings.global") }}</span>
+            <span>{{ t("settings.page.interface") }}</span>
+          </button>
+          <button
+            id="settings-tab-dsh"
+            class="settings__tab"
+            :class="{ 'settings__tab--active': activeTab === 'dsh' }"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'dsh'"
+            aria-controls="settings-panel-dsh"
+            :tabindex="activeTab === 'dsh' ? 0 : -1"
+            @click="activeTab = 'dsh'"
+            @keydown="onTabKeydown"
+          >
+            <ElIcon aria-hidden="true"><Cpu /></ElIcon>
+            <span>{{ t("settings.page.dsh") }}</span>
+          </button>
+          <button
+            id="settings-tab-startup"
+            class="settings__tab"
+            :class="{ 'settings__tab--active': activeTab === 'startup' }"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === 'startup'"
+            aria-controls="settings-panel-startup"
+            :tabindex="activeTab === 'startup' ? 0 : -1"
+            @click="activeTab = 'startup'"
+            @keydown="onTabKeydown"
+          >
+            <ElIcon aria-hidden="true"><Rank /></ElIcon>
+            <span>{{ t("settings.page.startup") }}</span>
           </button>
           <button
             id="settings-tab-runtime"
@@ -195,23 +198,29 @@ onBeforeUnmount(() => {
         </nav>
 
         <div class="settings__content">
-          <CurrentWindowPage v-show="activeTab === 'window'" v-model:url="url" :error="urlError" />
-          <GlobalSettingsPage
-            v-show="activeTab === 'general'"
+          <InterfaceSettingsPage
+            v-show="activeTab === 'interface'"
             v-model:locale="locale"
             v-model:page-scale-percent="pageScalePercent"
+            :locale-options="localeOptions"
+            @select="flushSettings"
+          />
+          <DshSettingsPage
+            v-show="activeTab === 'dsh'"
             v-model:source-type="sourceType"
             v-model:custom-executable="customExecutable"
             v-model:npx-version="npxVersion"
             v-model:home-type="homeType"
             v-model:custom-dsh-home="customDshHome"
-            v-model:attempts="attempts"
-            v-model:idle-timeout-minutes="idleTimeoutMinutes"
-            :distribution="distribution"
-            :error="settingsError"
-            :locale-options="localeOptions"
             :source-options="sourceOptions"
             :home-options="homeOptions"
+            @select="flushSettings"
+          />
+          <StartupSettingsPage
+            v-show="activeTab === 'startup'"
+            v-model:attempts="attempts"
+            v-model:idle-timeout-minutes="idleTimeoutMinutes"
+            :error="settingsError"
             :attempt-options="attemptOptions"
             @select="flushSettings"
           />

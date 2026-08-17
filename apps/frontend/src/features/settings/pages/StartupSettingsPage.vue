@@ -1,24 +1,14 @@
 <script setup lang="ts">
 import { Delete, Plus, Rank } from "@element-plus/icons-vue";
-import { ElButton, ElIcon, ElInputNumber } from "element-plus";
+import { ElIcon, ElInputNumber } from "element-plus";
 import { ref } from "vue";
 
 import { UiButton, UiInput, UiSelect, UiSettingRow } from "@dsh-desktop/ui";
 
-import type {
-  AppLocale,
-  DistributionSnapshot,
-  DshHome,
-  DshSource,
-  WindowStartupAttempt,
-} from "@/types/desktop";
+import type { WindowStartupAttempt } from "@/types/desktop";
 
-const props = defineProps<{
-  distribution: DistributionSnapshot;
+defineProps<{
   error: string;
-  localeOptions: { value: string; label: string }[];
-  sourceOptions: { value: string; label: string; disabled?: boolean }[];
-  homeOptions: { value: string; label: string }[];
   attemptOptions: { value: string; label: string }[];
 }>();
 
@@ -26,46 +16,11 @@ const emit = defineEmits<{
   select: [];
 }>();
 
-const locale = defineModel<AppLocale>("locale", { required: true });
-const pageScalePercent = defineModel<number>("pageScalePercent", { required: true });
-const sourceType = defineModel<DshSource["type"]>("sourceType", { required: true });
-const customExecutable = defineModel<string>("customExecutable", { required: true });
-const npxVersion = defineModel<string>("npxVersion", { required: true });
-const homeType = defineModel<DshHome["type"]>("homeType", { required: true });
-const customDshHome = defineModel<string>("customDshHome", { required: true });
 const attempts = defineModel<WindowStartupAttempt[]>("attempts", { required: true });
 const idleTimeoutMinutes = defineModel<number>("idleTimeoutMinutes", { required: true });
 const draggingAttemptIndex = ref<number | null>(null);
 const attemptKeys = new WeakMap<WindowStartupAttempt, string>();
 let nextAttemptKey = 0;
-const pageScaleFactor = 1.25;
-
-function clampPageScale(value: number): number {
-  return Math.min(200, Math.max(50, value));
-}
-
-function normalizePageScale(value: number): number {
-  return Number.parseFloat(value.toPrecision(12));
-}
-
-function setPageScale(value: number | null | undefined): void {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    pageScalePercent.value = clampPageScale(normalizePageScale(value));
-  }
-}
-
-function adjustPageScale(direction: 1 | -1): void {
-  setPageScale(pageScalePercent.value * pageScaleFactor ** direction);
-}
-
-function formatPageScale(value: string | number): string {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? String(Math.round(numericValue)) : "";
-}
-
-function parsePageScale(value: string): string {
-  return value;
-}
 
 function attemptKey(attempt: WindowStartupAttempt): string {
   let key = attemptKeys.get(attempt);
@@ -126,89 +81,11 @@ function stopDraggingAttempt(): void {
 
 <template>
   <section
-    id="settings-panel-general"
+    id="settings-panel-startup"
     class="settings-page"
     role="tabpanel"
-    aria-labelledby="settings-tab-general"
+    aria-labelledby="settings-tab-startup"
   >
-    <UiSettingRow :label="$t('settings.language')">
-      <UiSelect v-model="locale" variant="pill" :options="localeOptions" @change="emit('select')" />
-    </UiSettingRow>
-    <UiSettingRow
-      control-id="page-scale"
-      :label="$t('settings.pageScale')"
-      :hint="$t('settings.pageScaleHint')"
-    >
-      <div class="settings-page__page-scale-control">
-        <ElButton
-          :aria-label="$t('settings.decreasePageScale')"
-          :disabled="pageScalePercent <= 50"
-          @click="adjustPageScale(-1)"
-        >
-          −
-        </ElButton>
-        <ElInputNumber
-          id="page-scale"
-          :model-value="pageScalePercent"
-          :min="50"
-          :max="200"
-          :formatter="formatPageScale"
-          :parser="parsePageScale"
-          :aria-label="$t('settings.pageScale')"
-          :controls="false"
-          :value-on-clear="50"
-          @update:model-value="setPageScale"
-        />
-        <ElButton
-          :aria-label="$t('settings.increasePageScale')"
-          :disabled="pageScalePercent >= 200"
-          @click="adjustPageScale(1)"
-        >
-          +
-        </ElButton>
-      </div>
-    </UiSettingRow>
-    <UiSettingRow :label="$t('settings.source.label')" :hint="$t('settings.source.hint')">
-      <UiSelect
-        v-model="sourceType"
-        variant="pill"
-        :options="sourceOptions"
-        @change="emit('select')"
-      />
-    </UiSettingRow>
-    <UiSettingRow
-      v-if="sourceType === 'custom'"
-      control-id="dsh-executable"
-      :label="$t('settings.executable')"
-      :hint="$t('settings.executableHint')"
-    >
-      <div class="settings-page__wide-control">
-        <UiInput id="dsh-executable" v-model="customExecutable" />
-      </div>
-    </UiSettingRow>
-    <UiSettingRow
-      v-if="sourceType === 'npx'"
-      control-id="npx-dsh-version"
-      :label="$t('settings.npxVersion')"
-      :hint="$t('settings.npxVersionHint')"
-    >
-      <div class="settings-page__wide-control">
-        <UiInput id="npx-dsh-version" v-model="npxVersion" />
-      </div>
-    </UiSettingRow>
-    <UiSettingRow :label="$t('settings.home.label')" :hint="$t('settings.home.hint')">
-      <UiSelect v-model="homeType" variant="pill" :options="homeOptions" @change="emit('select')" />
-    </UiSettingRow>
-    <UiSettingRow
-      v-if="homeType === 'custom'"
-      control-id="dsh-home"
-      :label="$t('settings.home.path')"
-      :hint="$t('settings.home.pathHint')"
-    >
-      <div class="settings-page__wide-control">
-        <UiInput id="dsh-home" v-model="customDshHome" />
-      </div>
-    </UiSettingRow>
     <UiSettingRow
       control-id="idle-timeout"
       :label="$t('settings.idleTimeout')"
@@ -315,39 +192,8 @@ function stopDraggingAttempt(): void {
   width: 100%;
 }
 
-.settings-page :deep(.ui-setting-row:last-child) {
-  border-bottom: 0;
-}
-
 .settings-page__wide-control {
   width: 280px;
-}
-
-.settings-page__page-scale-control {
-  display: flex;
-  width: 160px;
-}
-
-.settings-page__page-scale-control :deep(.el-button) {
-  width: 40px;
-  margin: 0;
-  border-radius: 0;
-}
-
-.settings-page__page-scale-control :deep(.el-button:first-child) {
-  border-radius: var(--radius-control) 0 0 var(--radius-control);
-}
-
-.settings-page__page-scale-control :deep(.el-button:last-child) {
-  border-radius: 0 var(--radius-control) var(--radius-control) 0;
-}
-
-.settings-page__page-scale-control :deep(.el-input-number) {
-  width: 80px;
-}
-
-.settings-page__page-scale-control :deep(.el-input__wrapper) {
-  border-radius: 0;
 }
 
 .settings-page__attempt-heading {

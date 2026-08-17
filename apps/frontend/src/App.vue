@@ -83,14 +83,12 @@ onMounted(() => {
 
       <SettingsOverlay
         v-if="desktop.settingsOpen.value && desktop.currentWindow.value"
-        :current-url="desktop.currentWindow.value.url"
         :current-window-label="desktop.currentWindow.value.label"
         :app-metadata="desktop.appMetadata.value"
         :settings="desktop.settings.value"
         :host="desktop.host.value"
         :distribution="desktop.distribution.value"
         @close="desktop.settingsOpen.value = false"
-        @set-target="desktop.setTarget"
         @save-settings="desktop.saveGlobalSettings"
         @stop-service="desktop.stopService"
         @restart-service="desktop.restartService"

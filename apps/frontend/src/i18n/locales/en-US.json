@@ -45,7 +45,11 @@
   },
   "settings": {
     "title": "DSH Harness Settings",
-    "global": "Global settings",
+    "page": {
+      "interface": "Interface",
+      "dsh": "DSH",
+      "startup": "Startup"
+    },
     "language": "Interface language",
     "pageScale": "Page scale",
     "pageScaleHint": "Scales the entire desktop page, including DSH content.",
@@ -133,7 +137,7 @@
       "invalidExecutable": "The configured program is not a usable dsh command.",
       "npxNotFound": "The npx command was not found. Install Node.js or select another DSH source.",
       "invalidNpx": "The specified DSH version could not be run through npx.",
-      "executableNotFound": "The dsh command was not found. Set its path in global settings.",
+      "executableNotFound": "The dsh command was not found. Set its path in DSH settings.",
       "sourceDisabled": "The current settings do not allow starting a new DSH service.",
       "builtInUnavailable": "This package does not include a built-in DSH runtime.",
       "noKnownServices": "No DSH service has been connected successfully during this run.",

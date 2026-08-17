@@ -45,7 +45,11 @@
   },
   "settings": {
     "title": "DSH Desktop 设置",
-    "global": "全局设置",
+    "page": {
+      "interface": "界面",
+      "dsh": "DSH",
+      "startup": "启动"
+    },
     "language": "界面语言",
     "pageScale": "缩放比例",
     "pageScaleHint": "缩放整个桌面页面，包括 DSH 内容。",
@@ -133,7 +137,7 @@
       "invalidExecutable": "配置的程序不是可用的 dsh 命令。",
       "npxNotFound": "找不到 npx 命令。请安装 Node.js，或选择其他 DSH 来源。",
       "invalidNpx": "无法通过 npx 运行指定的 DSH 版本。",
-      "executableNotFound": "找不到 dsh 命令，请在全局设置中指定其路径。",
+      "executableNotFound": "找不到 dsh 命令，请在 DSH 设置中指定其路径。",
       "sourceDisabled": "当前设置不允许启动新的 DSH 服务。",
       "builtInUnavailable": "当前安装包不包含内置 DSH。",
       "noKnownServices": "运行期间还没有成功连接过任何 DSH 服务。",
