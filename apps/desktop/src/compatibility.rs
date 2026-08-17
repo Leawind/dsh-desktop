@@ -191,8 +191,12 @@ pub fn verify_package_integrity(package: &NpmPackageMetadata) -> AppResult<()> {
         .map_err(|error| {
             AppError::new("runtime.error.packageDownloadFailed").technical(error.to_string())
         })?;
-    let actual = Sha512::digest(&archive);
-    if actual.as_slice() != expected.as_slice() {
+    verify_archive_integrity(&expected, &archive)
+}
+
+fn verify_archive_integrity(expected: &[u8], archive: &[u8]) -> AppResult<()> {
+    let actual = Sha512::digest(archive);
+    if actual.as_slice() != expected {
         return Err(AppError::new("runtime.error.packageIntegrityFailed"));
     }
     Ok(())
@@ -296,6 +300,44 @@ mod tests {
                 .expect_err("minor update must be blocked")
                 .code,
             "runtime.error.updateLineBlocked"
+        );
+    }
+
+    #[test]
+    fn selects_same_line_update_only_when_the_current_runtime_can_rollback() {
+        let compatibility = AppCompatibility {
+            dsh: DshCompatibility {
+                allowed_ranges: vec![">=0.1.0-rc.6, <=0.1.0-rc.7".to_owned()],
+                recommended: "0.1.0-rc.7".to_owned(),
+                rollback_compatible_ranges: vec!["=0.1.0-rc.6".to_owned()],
+                blocked: Vec::new(),
+            },
+            node: VersionCompatibility {
+                allowed_ranges: vec![">=24.0.0, <25.0.0".to_owned()],
+            },
+        };
+
+        let update = select_update(&compatibility, "0.1.0-rc.6", "24.18.1")
+            .expect("same-line update must be eligible")
+            .expect("recommended version must be newer");
+        assert_eq!(update.version, "0.1.0-rc.7");
+        assert!(update.automatic_rollback_supported);
+
+        let update = select_update(&compatibility, "0.1.0-rc.5", "24.18.1")
+            .expect("compatibility selection must succeed")
+            .expect("recommended version must be newer");
+        assert!(!update.automatic_rollback_supported);
+    }
+
+    #[test]
+    fn rejects_an_archive_with_a_different_sha512_digest() {
+        let expected = Sha512::digest(b"verified archive");
+        assert!(verify_archive_integrity(&expected, b"verified archive").is_ok());
+        assert_eq!(
+            verify_archive_integrity(&expected, b"modified archive")
+                .expect_err("tampered archive must be rejected")
+                .code,
+            "runtime.error.packageIntegrityFailed"
         );
     }
 }
