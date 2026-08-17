@@ -1,6 +1,11 @@
 import { ref, toValue, watch, type MaybeRefOrGetter } from "vue";
 import { useI18n } from "vue-i18n";
 
+export function withDefaultTargetProtocol(input: string): string {
+  const value = input.trim();
+  return /^[a-z][a-z\d+.-]*:\/\//i.test(value) ? value : `http://${value}`;
+}
+
 export function useWindowTarget(
   currentUrl: MaybeRefOrGetter<string>,
   onSetTarget: (url: string) => void,
@@ -30,7 +35,7 @@ export function useWindowTarget(
   );
 
   function validatedTargetUrl(): string | null {
-    const value = url.value.trim();
+    const value = withDefaultTargetProtocol(url.value);
     let parsed: URL;
     try {
       parsed = new URL(value);

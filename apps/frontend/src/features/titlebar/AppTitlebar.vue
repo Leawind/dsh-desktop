@@ -43,9 +43,10 @@ const targetLabel = computed(() => {
     return props.targetUrl;
   }
 });
+const targetEditable = computed(() => Boolean(props.targetUrl) || props.refreshAction === "retry");
 
 function beginEditing(): void {
-  if (!props.targetUrl) return;
+  if (!targetEditable.value) return;
   editing.value = true;
   void nextTick(() => targetInput.value?.focus());
 }
@@ -93,12 +94,8 @@ onBeforeUnmount(finishTargetGesture);
 </script>
 
 <template>
-  <header
-    class="titlebar"
-    @dblclick="desktopBridge.window.toggleMaximize()"
-    @mousedown.left="desktopBridge.window.startDragging()"
-  >
-    <div class="titlebar__leading" @dblclick.stop>
+  <header class="titlebar" data-tauri-drag-region="deep">
+    <div class="titlebar__leading">
       <img class="titlebar__app-icon" src="/app-icon.png" alt="" aria-hidden="true" />
       <UiButton
         variant="ghost"
@@ -123,16 +120,28 @@ onBeforeUnmount(finishTargetGesture);
         <RefreshRight class="titlebar__icon" aria-hidden="true" />
       </UiButton>
     </div>
-    <div
-      class="titlebar__target"
-      @dblclick.stop
-      @mousedown.left="desktopBridge.window.startDragging()"
-    >
+    <div class="titlebar__target">
+      <UiInput
+        v-if="editing"
+        ref="targetInput"
+        v-model="url"
+        class="titlebar__target-input"
+        type="url"
+        content-sized
+        :disabled="!targetEditable"
+        :placeholder="t('window.urlPlaceholder')"
+        :aria-label="t('window.url')"
+        :aria-invalid="Boolean(urlError)"
+        :title="urlError || undefined"
+        @mousedown.stop
+        @blur="finishEditing"
+        @keydown.enter.prevent="finishEditing"
+      />
       <button
-        v-if="!editing"
+        v-else
         class="titlebar__target-button"
         type="button"
-        :disabled="!targetUrl"
+        :disabled="!targetEditable"
         :aria-label="t('window.url')"
         @mousedown.left.stop="startTargetGesture"
         @click="onTargetClick"
@@ -141,24 +150,8 @@ onBeforeUnmount(finishTargetGesture);
       >
         {{ targetLabel }}
       </button>
-      <UiInput
-        v-else
-        ref="targetInput"
-        v-model="url"
-        class="titlebar__target-input"
-        type="url"
-        content-sized
-        :disabled="!targetUrl"
-        :placeholder="t('window.noTarget')"
-        :aria-label="t('window.url')"
-        :aria-invalid="Boolean(urlError)"
-        :title="urlError || undefined"
-        @mousedown.stop
-        @blur="finishEditing"
-        @keydown.enter.prevent="finishEditing"
-      />
     </div>
-    <div class="titlebar__controls" @dblclick.stop>
+    <div class="titlebar__controls">
       <UiButton
         variant="ghost"
         size="small"
@@ -208,6 +201,8 @@ onBeforeUnmount(finishTargetGesture);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
   user-select: none;
+  /* WebView2/Tauri extension; unknownProperties warning is expected. */
+  app-region: drag;
 }
 
 .titlebar__leading,
@@ -251,6 +246,7 @@ onBeforeUnmount(finishTargetGesture);
   font: inherit;
   font-size: var(--font-size-xs);
   line-height: var(--line-height-xs);
+  app-region: no-drag;
 }
 
 .titlebar__target-button {
@@ -258,7 +254,6 @@ onBeforeUnmount(finishTargetGesture);
 }
 
 .titlebar__target-button:disabled {
-  cursor: not-allowed;
   opacity: 0.4;
 }
 
@@ -272,6 +267,7 @@ onBeforeUnmount(finishTargetGesture);
   margin: calc(var(--titlebar-height) * 0.1);
   padding: 0;
   font-size: 1em;
+  app-region: no-drag;
 }
 
 .titlebar__icon {

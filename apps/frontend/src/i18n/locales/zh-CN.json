@@ -25,6 +25,7 @@
     "current": "当前窗口",
     "url": "DSH URL",
     "urlHint": "仅支持 HTTP 和 HTTPS 地址。",
+    "urlPlaceholder": "host:port",
     "noTarget": "尚未分配 DSH URL",
     "focus": "聚焦",
     "refresh": "刷新当前窗口",

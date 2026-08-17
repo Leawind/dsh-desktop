@@ -25,6 +25,7 @@
     "current": "Current window",
     "url": "DSH URL",
     "urlHint": "Only HTTP and HTTPS addresses are supported.",
+    "urlPlaceholder": "host:port",
     "noTarget": "No DSH URL assigned",
     "focus": "Focus",
     "refresh": "Refresh current window",
