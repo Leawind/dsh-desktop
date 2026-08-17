@@ -39,6 +39,7 @@
   --el-border-color-extra-light: var(--color-border);
   --el-border-color-dark: var(--color-border);
   --el-border-color-darker: var(--color-border);
+  --el-border: 0.0625rem solid var(--color-border);
   --el-border-color-hover: var(--color-focus);
   --el-fill-color: var(--color-control);
   --el-fill-color-light: var(--color-control-hover);
@@ -57,4 +58,39 @@
   --el-overlay-color: var(--color-mask);
   --el-overlay-color-light: var(--color-mask);
   --el-overlay-color-lighter: var(--color-mask);
+}
+
+.el-input-number {
+  width: 9.375rem;
+  line-height: var(--control-height);
+}
+
+.el-input-number .el-input {
+  --el-input-inner-height: calc(var(--el-input-height) - 0.125rem);
+}
+
+.el-input-number .el-input__wrapper {
+  padding: 0.0625rem 2.625rem;
+  box-shadow: 0 0 0 0.0625rem var(--el-input-border-color, var(--el-border-color)) inset;
+}
+
+.el-input-number .el-input__wrapper:hover,
+.el-input-number .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 0.0625rem var(--el-input-focus-border-color, var(--el-color-primary)) inset;
+}
+
+.el-input-number__increase,
+.el-input-number__decrease {
+  width: 2rem;
+  font-size: 0.8125rem;
+  top: 0.0625rem;
+  bottom: 0.0625rem;
+}
+
+.el-input-number__increase {
+  right: 0.0625rem;
+}
+
+.el-input-number__decrease {
+  left: 0.0625rem;
 }

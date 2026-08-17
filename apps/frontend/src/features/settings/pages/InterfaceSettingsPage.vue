@@ -68,6 +68,6 @@ function setPageScale(value: number | null | undefined): void {
 }
 
 .settings-page__page-scale-control {
-  width: 160px;
+  width: 10rem;
 }
 </style>

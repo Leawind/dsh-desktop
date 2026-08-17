@@ -37,7 +37,7 @@ withDefaults(
   align-items: center;
   justify-content: center;
   min-width: 0;
-  border: 1px solid transparent;
+  border: 0.0625rem solid transparent;
   gap: var(--space-1);
   border-radius: var(--radius-button-medium);
   font: inherit;
@@ -49,12 +49,12 @@ withDefaults(
 
 .ui-button--medium {
   height: var(--button-height-medium);
-  padding: 0 14px;
+  padding: 0 0.875rem;
 }
 
 .ui-button--small {
   height: var(--button-height-small);
-  padding: 0 10px;
+  padding: 0 0.625rem;
   border-radius: var(--radius-button-small);
   font-size: var(--font-size-xs);
   line-height: var(--line-height-xs);

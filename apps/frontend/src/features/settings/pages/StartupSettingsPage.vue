@@ -217,7 +217,7 @@ function stopDraggingAttempt(event: PointerEvent): void {
 }
 
 .settings-page__wide-control {
-  width: 280px;
+  width: 17.5rem;
 }
 
 .settings-page__attempt-heading {
@@ -251,11 +251,11 @@ function stopDraggingAttempt(event: PointerEvent): void {
 
 .settings-page__attempt {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 24px;
+  grid-template-columns: 1.5rem minmax(0, 1fr) 1.5rem;
   align-items: start;
   gap: var(--space-2);
   padding: var(--space-3);
-  border: 1px solid var(--color-border);
+  border: 0.0625rem solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-input);
 }
@@ -266,8 +266,8 @@ function stopDraggingAttempt(event: PointerEvent): void {
 
 .settings-page__attempt-drag-handle {
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
   padding: 0;
   place-items: center;
   color: var(--color-text-secondary);
@@ -283,31 +283,31 @@ function stopDraggingAttempt(event: PointerEvent): void {
 }
 
 .settings-page__attempt-drag-handle:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
+  outline: 0.125rem solid var(--color-focus);
+  outline-offset: 0.125rem;
 }
 
 .settings-page__attempt-drag-dots {
   display: grid;
-  grid-template-columns: repeat(2, 3px);
-  gap: 3px;
+  grid-template-columns: repeat(2, 0.1875rem);
+  gap: 0.1875rem;
 }
 
 .settings-page__attempt-drag-dots span {
-  width: 3px;
-  height: 3px;
+  width: 0.1875rem;
+  height: 0.1875rem;
   border-radius: 50%;
   background: currentColor;
 }
 
 .settings-page__attempt-remove svg {
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
 }
 
 .settings-page__attempt-remove {
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
   padding: 0;
 }
 

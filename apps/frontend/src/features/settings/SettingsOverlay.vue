@@ -268,11 +268,11 @@ onBeforeUnmount(() => {
   flex-flow: column nowrap;
   justify-content: space-between;
   align-items: stretch;
-  width: 800px;
-  height: min(800px, calc(100% - 48px));
-  max-width: calc(100% - 48px);
+  width: 50rem;
+  height: min(50rem, calc(100% - 3rem));
+  max-width: calc(100% - 3rem);
   overflow: hidden;
-  border-radius: 24px;
+  border-radius: 1.5rem;
   background: var(--color-surface-raised);
   box-shadow: var(--shadow-menu);
 }
@@ -313,7 +313,7 @@ onBeforeUnmount(() => {
 }
 .settings__title {
   margin: 0;
-  padding: 0 12px;
+  padding: 0 0.75rem;
   color: var(--color-text-primary);
   font-size: var(--font-size-md);
   font-weight: 500;
@@ -321,8 +321,8 @@ onBeforeUnmount(() => {
 }
 .settings__close {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: 1.75rem;
+  height: 1.75rem;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -348,8 +348,8 @@ onBeforeUnmount(() => {
 
 .settings__panel > .settings__body > .settings__nav {
   display: flex;
-  width: 188px;
-  padding: 0 12px 0;
+  width: 11.75rem;
+  padding: 0 0.75rem 0;
 
   display: flex;
   flex-flow: column nowrap;
@@ -358,7 +358,7 @@ onBeforeUnmount(() => {
 
 .settings__panel > .settings__body > .settings__nav > .settings__tab {
   height: 2.8em;
-  padding: 9px 12px;
+  padding: 0.5625rem 0.75rem;
 
   display: flex;
   align-items: center;
@@ -366,7 +366,7 @@ onBeforeUnmount(() => {
 
   overflow: hidden;
   border: 0;
-  border-radius: 12px;
+  border-radius: 0.75rem;
   background: none;
 
   color: var(--color-text-primary);
@@ -404,18 +404,18 @@ onBeforeUnmount(() => {
   flex: 1;
   flex-direction: column;
   overflow-y: auto;
-  padding: 0 24px 24px;
+  padding: 0 1.5rem 1.5rem;
 }
 
 .settings__content::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 0.5rem;
+  height: 0.5rem;
 }
 .settings__content::-webkit-scrollbar-corner {
   background: transparent;
 }
 .settings__content::-webkit-scrollbar-thumb {
-  border-radius: 4px;
+  border-radius: 0.25rem;
   background: var(--color-scrollbar-thumb);
 }
 .settings__content::-webkit-scrollbar-thumb:hover {
@@ -427,11 +427,11 @@ onBeforeUnmount(() => {
 
 @media (max-width: 40rem) {
   .settings__panel {
-    max-width: calc(100% - 24px);
+    max-width: calc(100% - 1.5rem);
   }
 
   .settings__nav {
-    width: 148px;
+    width: 9.25rem;
     padding-inline: var(--space-2);
   }
 }

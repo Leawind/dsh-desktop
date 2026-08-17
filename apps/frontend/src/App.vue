@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from "vue";
+import { onBeforeUnmount, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { UiButton, UiStatus } from "@dsh-desktop/ui";
@@ -12,14 +12,16 @@ import AppTitlebar from "@/features/titlebar/AppTitlebar.vue";
 
 const { t } = useI18n();
 const desktop = useDesktopApp();
-const pageScaleStyle = computed(() => {
-  const scale = desktop.settings.value.pageScalePercent / 100;
-  return {
-    width: `${100 / scale}vw`,
-    height: `${100 / scale}vh`,
-    transform: `scale(${scale})`,
-  };
-});
+let initialRootFontSize = "";
+
+function applyPageScale(pageScalePercent: number): void {
+  document.documentElement.style.fontSize = `${pageScalePercent}%`;
+}
+
+watch(
+  () => desktop.settings.value.pageScalePercent,
+  (pageScalePercent) => applyPageScale(pageScalePercent),
+);
 
 function errorMessage(): string {
   const error = desktop.error.value;
@@ -32,6 +34,8 @@ function attemptName(type: string): string {
 }
 
 onMounted(() => {
+  initialRootFontSize = document.documentElement.style.fontSize;
+  applyPageScale(desktop.settings.value.pageScalePercent);
   watch(
     desktop.windowTitle,
     (title) => {
@@ -41,10 +45,14 @@ onMounted(() => {
   );
   void desktop.initialize();
 });
+
+onBeforeUnmount(() => {
+  document.documentElement.style.fontSize = initialRootFontSize;
+});
 </script>
 
 <template>
-  <div class="app-shell" :style="pageScaleStyle">
+  <div class="app-shell">
     <AppTitlebar
       :refresh-action="desktop.refreshAction.value"
       :target-url="desktop.currentWindow.value?.url ?? ''"
@@ -107,7 +115,6 @@ onMounted(() => {
   grid-template-rows: var(--titlebar-height) minmax(0, 1fr);
   overflow: hidden;
   background: var(--color-background);
-  transform-origin: top left;
 }
 
 .app-content {

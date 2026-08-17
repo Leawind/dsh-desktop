@@ -46,7 +46,7 @@ defineExpose({
   height: var(--control-height);
   padding: 0 var(--space-2);
   color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
+  border: 0.0625rem solid var(--color-border);
   border-radius: var(--radius-control);
   outline: none;
   background: var(--color-input);

@@ -219,7 +219,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: stretch;
   color: var(--color-text-secondary);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 0.0625rem solid var(--color-border);
   background: var(--color-surface);
   user-select: none;
   /* WebView2/Tauri extension; unknownProperties warning is expected. */
@@ -261,7 +261,7 @@ onBeforeUnmount(() => {
   height: calc(var(--titlebar-height) * 0.68);
   padding: 0 var(--space-2);
   color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
+  border: 0.0625rem solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-input);
   font: inherit;

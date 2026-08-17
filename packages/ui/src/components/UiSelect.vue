@@ -225,7 +225,7 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
   gap: var(--space-2);
   padding: 0 var(--space-2);
   color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
+  border: 0.0625rem solid var(--color-border);
   border-radius: var(--radius-control);
   outline: none;
   background: var(--color-input);
@@ -254,7 +254,7 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
   width: auto;
   height: var(--button-height-medium);
   gap: var(--space-3);
-  padding: 0 14px;
+  padding: 0 0.875rem;
   border: none;
   border-radius: var(--radius-button-medium);
   background: var(--color-control);
@@ -290,19 +290,19 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
 .ui-select__menu {
   position: absolute;
   z-index: 100;
-  top: calc(100% + 4px);
+  top: calc(100% + 0.25rem);
   left: 0;
   display: flex;
   width: 100%;
-  max-height: calc(100vh - 24px);
+  max-height: calc(100vh - 1.5rem);
   flex-direction: column;
   gap: 0;
   overflow-y: auto;
   margin: 0;
-  padding: 4px;
+  padding: 0.25rem;
   list-style: none;
-  border: 1px solid var(--color-border-inverted);
-  border-radius: 12px;
+  border: 0.0625rem solid var(--color-border-inverted);
+  border-radius: 0.75rem;
   background: var(--color-menu);
   box-shadow: var(--shadow-menu);
 }
@@ -311,18 +311,18 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
   right: 0;
   left: auto;
   width: max-content;
-  min-width: 218px;
-  max-width: min(360px, calc(100vw - 24px));
+  min-width: 13.625rem;
+  max-width: min(22.5rem, calc(100vw - 1.5rem));
 }
 
 .ui-select__option {
   display: flex;
-  min-height: 40px;
+  min-height: 2.5rem;
   align-items: center;
   gap: var(--space-2);
-  padding: 8px 10px;
+  padding: 0.5rem 0.625rem;
   color: var(--color-text-primary);
-  border-radius: 10px;
+  border-radius: 0.625rem;
   font-size: var(--font-size-sm);
   line-height: var(--line-height-sm);
   cursor: pointer;

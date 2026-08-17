@@ -25,7 +25,7 @@ defineProps<{
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-4) 0;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 0.0625rem solid var(--color-border);
 }
 
 .ui-setting-row__text {
@@ -34,7 +34,7 @@ defineProps<{
   flex: 1;
   flex-direction: column;
   gap: var(--space-1);
-  padding-right: 48px;
+  padding-right: 3rem;
 }
 
 .ui-setting-row__label {

@@ -85,7 +85,7 @@ const customDshHome = defineModel<string>("customDshHome", { required: true });
 }
 
 .settings-page__wide-control {
-  width: 280px;
+  width: 17.5rem;
 }
 
 @media (max-width: 40rem) {
