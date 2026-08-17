@@ -5,6 +5,7 @@
   "windows": ["main", "dsh-*"],
   "permissions": [
     "core:default",
+    "core:webview:allow-set-webview-zoom",
     "core:window:allow-close",
     "core:window:allow-is-maximized",
     "core:window:allow-minimize",

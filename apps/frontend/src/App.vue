@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, watch } from "vue";
+import { onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { UiButton, UiStatus } from "@dsh-desktop/ui";
@@ -12,10 +12,9 @@ import AppTitlebar from "@/features/titlebar/AppTitlebar.vue";
 
 const { t } = useI18n();
 const desktop = useDesktopApp();
-let initialRootFontSize = "";
 
 function applyPageScale(pageScalePercent: number): void {
-  document.documentElement.style.fontSize = `${pageScalePercent}%`;
+  void desktopBridge.webview.setZoom(pageScalePercent / 100);
 }
 
 watch(
@@ -34,7 +33,6 @@ function attemptName(type: string): string {
 }
 
 onMounted(() => {
-  initialRootFontSize = document.documentElement.style.fontSize;
   applyPageScale(desktop.settings.value.pageScalePercent);
   watch(
     desktop.windowTitle,
@@ -44,10 +42,6 @@ onMounted(() => {
     { immediate: true },
   );
   void desktop.initialize();
-});
-
-onBeforeUnmount(() => {
-  document.documentElement.style.fontSize = initialRootFontSize;
 });
 </script>
 

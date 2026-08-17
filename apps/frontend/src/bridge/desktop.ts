@@ -1,5 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import type {
@@ -76,6 +77,11 @@ export const desktopBridge = {
 
   onBuiltInRuntimeUpdated: (listener: (urls: readonly string[]) => void): Promise<UnlistenFn> =>
     listen<string[]>("built-in-runtime-updated", (event) => listener(event.payload)),
+
+  webview: {
+    setZoom: (scaleFactor: number): Promise<void> =>
+      isTauri() ? getCurrentWebview().setZoom(scaleFactor) : Promise.resolve(),
+  },
 
   window: {
     minimize: (): Promise<void> => getCurrentWindow().minimize(),
