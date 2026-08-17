@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Delete, Plus, Rank } from "@element-plus/icons-vue";
+import { Delete, Plus } from "@element-plus/icons-vue";
 import { ElIcon, ElInputNumber } from "element-plus";
 import { ref } from "vue";
 
@@ -147,7 +147,9 @@ function stopDraggingAttempt(event: PointerEvent): void {
           @pointerup="stopDraggingAttempt"
           @pointercancel="stopDraggingAttempt"
         >
-          <ElIcon aria-hidden="true"><Rank /></ElIcon>
+          <span class="settings-page__attempt-drag-dots" aria-hidden="true">
+            <span v-for="dot in 6" :key="dot" />
+          </span>
         </button>
         <div class="settings-page__attempt-fields">
           <UiSelect
@@ -285,11 +287,22 @@ function stopDraggingAttempt(event: PointerEvent): void {
   outline-offset: 2px;
 }
 
-.settings-page__attempt-drag-handle svg,
+.settings-page__attempt-drag-dots {
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  gap: 3px;
+}
+
+.settings-page__attempt-drag-dots span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .settings-page__attempt-remove svg {
   width: 16px;
   height: 16px;
-  fill: currentColor;
 }
 
 .settings-page__attempt-remove {
