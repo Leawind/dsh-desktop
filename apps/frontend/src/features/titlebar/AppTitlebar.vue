@@ -159,8 +159,9 @@ onBeforeUnmount(() => {
         class="titlebar__target-button"
         :class="{ 'titlebar__target-button--endpoint': targetHovered }"
         type="button"
-        :disabled="!targetEditable"
+        :aria-disabled="!targetEditable"
         :aria-label="t('window.url')"
+        :tabindex="targetEditable ? undefined : -1"
         @mousedown.left.stop="startTargetGesture"
         @click="onTargetClick"
         @keydown.enter.prevent="beginEditing"
@@ -278,7 +279,7 @@ onBeforeUnmount(() => {
   background: transparent;
 }
 
-.titlebar__target-button:disabled {
+.titlebar__target-button[aria-disabled="true"] {
   opacity: 0.4;
 }
 
