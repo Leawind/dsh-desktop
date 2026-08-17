@@ -237,6 +237,7 @@ pub fn verify_web_help(runtime: &ResolvedDshRuntime) -> AppResult<()> {
         .args(&runtime.prefix_args)
         .args(["web", "--help"])
         .stdin(Stdio::null());
+    hide_console_window(&mut command);
     if let Some(runtime_path) = runtime.runtime_path.as_ref() {
         command.env("PATH", runtime_path);
     }
@@ -376,6 +377,7 @@ fn read_version(
         .args(prefix_args)
         .arg("--version")
         .stdin(Stdio::null());
+    hide_console_window(&mut command);
     if let Some(runtime_path) = runtime_path {
         command.env("PATH", runtime_path);
     }
@@ -392,9 +394,23 @@ fn configure_process_tree(command: &mut Command) {
     #[cfg(unix)]
     command.process_group(0);
 
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    hide_console_window(command);
+
+    #[cfg(not(any(unix, windows)))]
     let _ = command;
 }
+
+#[cfg(windows)]
+fn hide_console_window(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_console_window(_: &mut Command) {}
 
 fn npx_package_argument(version: &str) -> OsString {
     OsString::from(format!("@deepseek-ai/dsh@{version}"))
@@ -414,12 +430,14 @@ fn stop_child_tree(child: &mut Child) {
     #[cfg(windows)]
     {
         let pid = child.id().to_string();
-        let _ = Command::new("taskkill")
+        let mut taskkill = Command::new("taskkill");
+        taskkill
             .args(["/PID", &pid, "/T", "/F"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+            .stderr(Stdio::null());
+        hide_console_window(&mut taskkill);
+        let _ = taskkill.status();
     }
 
     let _ = child.kill();
