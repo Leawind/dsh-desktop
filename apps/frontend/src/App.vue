@@ -94,6 +94,7 @@ onMounted(() => {
         @save-settings="desktop.saveGlobalSettings"
         @stop-service="desktop.stopService"
         @restart-service="desktop.restartService"
+        @restart-current-window="desktop.retryStartup"
       />
     </main>
   </div>

@@ -16,10 +16,10 @@ defineProps<{
 
 const emit = defineEmits<{
   select: [];
+  restartCurrentWindow: [];
 }>();
 
 const attempts = defineModel<WindowStartupAttempt[]>("attempts", { required: true });
-const idleTimeoutMinutes = defineModel<number>("idleTimeoutMinutes", { required: true });
 const draggingAttemptKey = ref<string | null>(null);
 const attemptKeys = new WeakMap<WindowStartupAttempt, string>();
 let nextAttemptKey = 0;
@@ -107,22 +107,13 @@ function stopDraggingAttempt(event: PointerEvent): void {
     role="tabpanel"
     aria-labelledby="settings-tab-startup"
   >
-    <UiSettingRow
-      control-id="idle-timeout"
-      :label="$t('settings.idleTimeout')"
-      :hint="$t('settings.idleTimeoutHint')"
+    <UiButton
+      class="settings-page__restart-window"
+      variant="primary"
+      @click="emit('restartCurrentWindow')"
     >
-      <div class="settings-page__wide-control">
-        <UiInput
-          id="idle-timeout"
-          :model-value="String(idleTimeoutMinutes)"
-          type="number"
-          min="0"
-          :placeholder="$t('settings.idleTimeoutUnit')"
-          @update:model-value="idleTimeoutMinutes = Number($event)"
-        />
-      </div>
-    </UiSettingRow>
+      {{ $t("settings.attempt.restartCurrentWindow") }}
+    </UiButton>
     <div class="settings-page__attempt-heading">
       <div>
         <h2>{{ $t("settings.attempt.label") }}</h2>
@@ -216,8 +207,8 @@ function stopDraggingAttempt(event: PointerEvent): void {
   width: 100%;
 }
 
-.settings-page__wide-control {
-  width: 17.5rem;
+.settings-page__restart-window {
+  width: 100%;
 }
 
 .settings-page__attempt-heading {

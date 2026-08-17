@@ -33,6 +33,7 @@ const emit = defineEmits<{
   saveSettings: [settings: GlobalSettingsPatch];
   stopService: [url: string];
   restartService: [url: string];
+  restartCurrentWindow: [];
 }>();
 
 const { t } = useI18n();
@@ -212,6 +213,7 @@ onBeforeUnmount(() => {
             v-model:npx-version="npxVersion"
             v-model:home-type="homeType"
             v-model:custom-dsh-home="customDshHome"
+            v-model:idle-timeout-minutes="idleTimeoutMinutes"
             :source-options="sourceOptions"
             :home-options="homeOptions"
             @select="flushSettings"
@@ -219,10 +221,10 @@ onBeforeUnmount(() => {
           <StartupSettingsPage
             v-show="activeTab === 'startup'"
             v-model:attempts="attempts"
-            v-model:idle-timeout-minutes="idleTimeoutMinutes"
             :error="settingsError"
             :attempt-options="attemptOptions"
             @select="flushSettings"
+            @restart-current-window="emit('restartCurrentWindow')"
           />
           <RuntimePage
             v-show="activeTab === 'runtime'"

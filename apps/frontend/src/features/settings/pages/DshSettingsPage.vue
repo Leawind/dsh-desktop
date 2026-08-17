@@ -17,6 +17,7 @@ const customExecutable = defineModel<string>("customExecutable", { required: tru
 const npxVersion = defineModel<string>("npxVersion", { required: true });
 const homeType = defineModel<DshHome["type"]>("homeType", { required: true });
 const customDshHome = defineModel<string>("customDshHome", { required: true });
+const idleTimeoutMinutes = defineModel<number>("idleTimeoutMinutes", { required: true });
 </script>
 
 <template>
@@ -70,6 +71,22 @@ const customDshHome = defineModel<string>("customDshHome", { required: true });
     >
       <div class="settings-page__wide-control">
         <UiInput id="dsh-home" v-model="customDshHome" />
+      </div>
+    </UiSettingRow>
+    <UiSettingRow
+      control-id="idle-timeout"
+      :label="$t('settings.idleTimeout')"
+      :hint="$t('settings.idleTimeoutHint')"
+    >
+      <div class="settings-page__wide-control">
+        <UiInput
+          id="idle-timeout"
+          :model-value="String(idleTimeoutMinutes)"
+          type="number"
+          min="0"
+          :placeholder="$t('settings.idleTimeoutUnit')"
+          @update:model-value="idleTimeoutMinutes = Number($event)"
+        />
       </div>
     </UiSettingRow>
   </section>
