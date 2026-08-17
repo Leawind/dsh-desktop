@@ -208,7 +208,19 @@
   },
   "about": {
     "section": "About",
-    "builtInRuntime": "Built-in DSH runtime"
+    "builtInRuntime": "Built-in DSH runtime",
+    "appUpdate": "DSH Desktop update",
+    "appUpdateHint": "Checks for and installs a signed app update for this distribution variant.",
+    "checkForUpdate": "Check for updates",
+    "checkingForUpdate": "Checking",
+    "updateAvailable": "Version {version} available",
+    "updateNotesUnavailable": "This release has no update notes.",
+    "upToDate": "DSH Desktop is up to date.",
+    "installAndRestart": "Install and restart",
+    "installingUpdate": "Installing",
+    "downloadingUpdate": "Downloading update…",
+    "downloadProgress": "Downloading update: {downloaded} / {total} bytes",
+    "updateFailed": "DSH Desktop could not be updated."
   },
   "locale": {
     "zh-CN": "简体中文",

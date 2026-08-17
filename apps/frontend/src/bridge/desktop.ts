@@ -59,6 +59,8 @@ export const desktopBridge = {
 
   updateBuiltInRuntime: (): Promise<RuntimeUpdateResult> => command("update_built_in_runtime"),
 
+  restartApp: (): Promise<void> => command("restart_app"),
+
   updateGlobalSettings: (patch: GlobalSettingsPatch): Promise<GlobalSettings> =>
     command("update_global_settings", { patch }),
 

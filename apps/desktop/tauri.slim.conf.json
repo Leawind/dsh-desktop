@@ -1,5 +1,12 @@
 {
   "bundle": {
     "resources": {}
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Leawind/dsh-desktop/releases/latest/download/latest-slim.json"
+      ]
+    }
   }
 }

@@ -435,6 +435,11 @@ pub async fn update_built_in_runtime(
     Ok(result)
 }
 
+#[tauri::command]
+pub fn restart_app(app: AppHandle) -> AppResult<()> {
+    app.restart()
+}
+
 fn available_built_in_update(state: &AppState) -> AppResult<RuntimeUpdateSnapshot> {
     let settings = state
         .settings

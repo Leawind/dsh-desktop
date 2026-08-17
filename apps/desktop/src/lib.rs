@@ -26,6 +26,7 @@ pub fn run() {
                 eprintln!("failed to create window for second launch: {error}");
             }
         }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let data_dir = app.path().app_local_data_dir()?;
@@ -59,6 +60,7 @@ pub fn run() {
             commands::restart_service,
             commands::check_built_in_runtime_update,
             commands::update_built_in_runtime,
+            commands::restart_app,
             commands::update_global_settings,
         ])
         .build(tauri::generate_context!())
