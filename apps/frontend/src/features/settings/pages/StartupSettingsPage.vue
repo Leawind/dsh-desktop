@@ -7,6 +7,8 @@ import { UiButton, UiInput, UiSelect, UiSettingRow } from "@dsh-desktop/ui";
 
 import type { WindowStartupAttempt } from "@/types/desktop";
 
+import { moveItem } from "./startupAttemptOrdering";
+
 defineProps<{
   error: string;
   attemptOptions: { value: string; label: string }[];
@@ -18,9 +20,11 @@ const emit = defineEmits<{
 
 const attempts = defineModel<WindowStartupAttempt[]>("attempts", { required: true });
 const idleTimeoutMinutes = defineModel<number>("idleTimeoutMinutes", { required: true });
-const draggingAttemptIndex = ref<number | null>(null);
+const draggingAttemptKey = ref<string | null>(null);
 const attemptKeys = new WeakMap<WindowStartupAttempt, string>();
 let nextAttemptKey = 0;
+let draggingPointerId: number | null = null;
+let draggingAttemptMoved = false;
 
 function attemptKey(attempt: WindowStartupAttempt): string {
   let key = attemptKeys.get(attempt);
@@ -59,23 +63,40 @@ function addAttempt(): void {
   attempts.value.push({ type: "connect-fixed", host: "127.0.0.1", port: 3080 });
 }
 
-function startDraggingAttempt(index: number, event: DragEvent): void {
-  draggingAttemptIndex.value = index;
-  event.dataTransfer?.setData("text/plain", String(index));
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+function startDraggingAttempt(attempt: WindowStartupAttempt, event: PointerEvent): void {
+  if (!event.isPrimary || event.button !== 0) return;
+  draggingAttemptKey.value = attemptKey(attempt);
+  draggingPointerId = event.pointerId;
+  draggingAttemptMoved = false;
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  event.preventDefault();
 }
 
-function moveDraggedAttempt(targetIndex: number): void {
-  const sourceIndex = draggingAttemptIndex.value;
-  if (sourceIndex === null || sourceIndex === targetIndex) return;
-  const [attempt] = attempts.value.splice(sourceIndex, 1);
-  if (!attempt) return;
-  attempts.value.splice(targetIndex, 0, attempt);
-  draggingAttemptIndex.value = targetIndex;
+function moveDraggedAttempt(event: PointerEvent): void {
+  if (event.pointerId !== draggingPointerId || !draggingAttemptKey.value) return;
+  const target = document
+    .elementFromPoint(event.clientX, event.clientY)
+    ?.closest<HTMLElement>("[data-startup-attempt-key]");
+  const targetKey = target?.dataset.startupAttemptKey;
+  if (!targetKey || targetKey === draggingAttemptKey.value) return;
+
+  const sourceIndex = attempts.value.findIndex(
+    (attempt) => attemptKey(attempt) === draggingAttemptKey.value,
+  );
+  const targetIndex = attempts.value.findIndex((attempt) => attemptKey(attempt) === targetKey);
+  if (moveItem(attempts.value, sourceIndex, targetIndex)) draggingAttemptMoved = true;
+  event.preventDefault();
 }
 
-function stopDraggingAttempt(): void {
-  draggingAttemptIndex.value = null;
+function stopDraggingAttempt(event: PointerEvent): void {
+  if (event.pointerId !== draggingPointerId) return;
+  const handle = event.currentTarget as HTMLElement;
+  if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+  const shouldFlush = draggingAttemptMoved;
+  draggingPointerId = null;
+  draggingAttemptKey.value = null;
+  draggingAttemptMoved = false;
+  if (shouldFlush) emit("select");
 }
 </script>
 
@@ -113,20 +134,21 @@ function stopDraggingAttempt(): void {
         v-for="(attempt, index) in attempts"
         :key="attemptKey(attempt)"
         class="settings-page__attempt"
-        :class="{ 'settings-page__attempt--dragging': draggingAttemptIndex === index }"
-        @dragover.prevent="moveDraggedAttempt(index)"
-        @drop.prevent="stopDraggingAttempt"
+        :class="{ 'settings-page__attempt--dragging': draggingAttemptKey === attemptKey(attempt) }"
+        :data-startup-attempt-key="attemptKey(attempt)"
       >
-        <span
+        <button
           class="settings-page__attempt-drag-handle"
-          draggable="true"
+          type="button"
           :aria-label="$t('settings.attempt.dragHandle')"
           :title="$t('settings.attempt.dragHandle')"
-          @dragstart="startDraggingAttempt(index, $event)"
-          @dragend="stopDraggingAttempt"
+          @pointerdown="startDraggingAttempt(attempt, $event)"
+          @pointermove="moveDraggedAttempt"
+          @pointerup="stopDraggingAttempt"
+          @pointercancel="stopDraggingAttempt"
         >
           <ElIcon aria-hidden="true"><Rank /></ElIcon>
-        </span>
+        </button>
         <div class="settings-page__attempt-fields">
           <UiSelect
             :model-value="attempt.type"
@@ -244,13 +266,23 @@ function stopDraggingAttempt(): void {
   display: grid;
   width: 24px;
   height: 24px;
+  padding: 0;
   place-items: center;
   color: var(--color-text-secondary);
+  border: 0;
+  background: transparent;
   cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .settings-page__attempt-drag-handle:active {
   cursor: grabbing;
+}
+
+.settings-page__attempt-drag-handle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .settings-page__attempt-drag-handle svg,
