@@ -81,7 +81,7 @@ onBeforeUnmount(() =>
 
 <template>
   <footer class="statusbar">
-    <div class="statusbar__leading">
+    <div class="statusbar__left">
       <UiButton
         variant="ghost"
         size="small"
@@ -104,10 +104,11 @@ onBeforeUnmount(() =>
       </UiButton>
     </div>
 
-    <p v-if="message" class="statusbar__message" aria-live="polite">{{ message }}</p>
-    <div v-else class="statusbar__message" aria-hidden="true" />
+    <div class="statusbar__center">
+      <p v-if="message" aria-live="polite">{{ message }}</p>
+    </div>
 
-    <div class="statusbar__endpoint">
+    <div class="statusbar__right">
       <div v-if="editing" ref="targetEditor" class="statusbar__target-editor">
         <UiInput
           ref="targetInput"
@@ -145,49 +146,64 @@ onBeforeUnmount(() =>
 
 <style scoped>
 .statusbar {
-  display: flex;
-  min-width: 0;
-  height: 100%;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: 0 var(--space-2);
-  color: var(--color-text-secondary);
-  border-top: 0.0625rem solid var(--color-border);
-  background: var(--color-surface);
-}
+  font-size: 1rem;
 
-.statusbar__leading,
-.statusbar__endpoint {
-  display: flex;
-  flex: none;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.statusbar__button {
-  width: 1.625rem;
-  height: 1.625rem;
+  width: 100%;
+  height: 2em;
   padding: 0;
-}
 
-.statusbar__button > :deep(svg) {
-  width: 1rem;
-  height: 1rem;
-}
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: space-between;
+  align-items: stretch;
 
-.statusbar__message {
-  min-width: 0;
-  flex: 1;
-  margin: 0;
-  overflow: hidden;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-xs);
+  background: var(--color-surface);
+
+  border-top: 1px solid var(--color-border);
+}
+
+.statusbar__left,
+.statusbar__right {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: center;
+  justify-content: start;
+}
+
+.statusbar__left > .statusbar__button {
+  margin: 0;
+  padding: 1.55em;
+  border-radius: 0;
+}
+.statusbar__left > .statusbar__button > :deep(svg) {
+  width: 1.4em;
+  height: 1.4em;
+}
+
+.statusbar__center {
+  height: 100%;
+
+  margin: 0;
+  padding: 0;
+
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: center;
+  align-items: center;
+
+  overflow: hidden;
+
+  font-size: 0.9em;
   text-align: center;
+
+  color: var(--color-text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.statusbar__right {
+  padding: 1em;
 }
 
 .statusbar__target-editor {
@@ -226,7 +242,7 @@ onBeforeUnmount(() =>
     gap: var(--space-2);
   }
 
-  .statusbar__message {
+  .statusbar__center {
     display: none;
   }
 

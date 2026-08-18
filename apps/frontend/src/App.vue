@@ -91,6 +91,7 @@ onMounted(() => {
       />
     </main>
     <AppStatusbar
+      class="app-statusbar"
       :refresh-action="desktop.refreshAction.value"
       :status="desktop.startupStatus.value"
       :target-url="desktop.currentWindow.value?.url ?? ''"
@@ -104,20 +105,22 @@ onMounted(() => {
 
 <style scoped>
 .app-shell {
-  --statusbar-height: 1.6rem;
-
-  display: grid;
-  width: 100vw;
-  height: 100vh;
-  grid-template-rows: minmax(0, 1fr) var(--statusbar-height);
+  display: flex;
+  flex-flow: column nowrap;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   background: var(--color-background);
 }
 
 .app-content {
+  flex: 1;
   position: relative;
   min-width: 0;
   min-height: 0;
+}
+
+.app-statusbar {
 }
 
 .connection-state {
