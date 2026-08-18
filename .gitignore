@@ -16,6 +16,7 @@ apps/desktop/gen/
 apps/desktop/runtime/bundled/
 
 # Runtime preparation cache
+/.cache/
 .cache/runtime/
 .cache/build-tools/
 
