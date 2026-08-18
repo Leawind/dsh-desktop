@@ -21,11 +21,11 @@ import StartupSettingsPage from "./pages/StartupSettingsPage.vue";
 import { settingsTabs, type SettingsTab } from "./settings-types";
 
 const props = defineProps<{
-  currentWindowLabel: string;
   appMetadata: AppMetadataSnapshot;
   settings: GlobalSettings;
   host: HostSnapshot;
   distribution: DistributionSnapshot;
+  updateBuiltInRuntime: () => Promise<void>;
 }>();
 
 const emit = defineEmits<{
@@ -220,10 +220,10 @@ onBeforeUnmount(() => {
           />
           <RuntimePage
             v-show="activeTab === 'runtime'"
-            :current-window-label="currentWindowLabel"
             :host="host"
             :distribution="distribution"
             :dsh-source="settings.dshSource"
+            :update-built-in-runtime="updateBuiltInRuntime"
             @stop-service="emit('stopService', $event)"
             @restart-service="emit('restartService', $event)"
           />

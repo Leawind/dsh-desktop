@@ -64,7 +64,6 @@ pub fn run() {
         state.clone(),
         resources.frontend_directory.clone(),
         windows.clone(),
-        Arc::clone(&running),
         Arc::clone(&client_activity),
     )
     .expect("failed to start the local DSH Desktop bridge");

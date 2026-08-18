@@ -28,11 +28,7 @@
     "urlHint": "仅支持 HTTP 和 HTTPS 地址。",
     "urlPlaceholder": "host:port",
     "noTarget": "尚未分配 DSH URL",
-    "focus": "聚焦",
     "refresh": "刷新当前窗口",
-    "minimize": "最小化",
-    "maximize": "最大化或还原",
-    "close": "关闭窗口",
     "settings": "打开设置",
     "error": {
       "invalidUrl": "URL 格式无效。",

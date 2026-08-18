@@ -82,11 +82,6 @@ export function useDesktopApp() {
           host.value = value;
           syncWindowFromHost();
         }),
-        await desktopBridge.onBuiltInRuntimeUpdated((urls) => {
-          if (currentWindow.value && urls.includes(currentWindow.value.url)) {
-            frameRevision.value += 1;
-          }
-        }),
       );
 
       startupStatus.value = "starting";
@@ -166,6 +161,22 @@ export function useDesktopApp() {
     }
   }
 
+  async function updateBuiltInRuntime(): Promise<void> {
+    error.value = null;
+    try {
+      const result = await desktopBridge.updateBuiltInRuntime();
+      distribution.value = result.distribution;
+      host.value = result.host;
+      syncWindowFromHost();
+      if (currentWindow.value && result.updatedUrls.includes(currentWindow.value.url)) {
+        frameRevision.value += 1;
+      }
+    } catch (cause) {
+      error.value = cause as AppError;
+      throw cause;
+    }
+  }
+
   function syncWindowFromHost(): void {
     const label = currentWindow.value?.label;
     if (!label) return;
@@ -222,5 +233,6 @@ export function useDesktopApp() {
     saveGlobalSettings,
     stopService,
     restartService,
+    updateBuiltInRuntime,
   };
 }

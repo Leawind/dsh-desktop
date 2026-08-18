@@ -2,7 +2,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use serde::Deserialize;
@@ -36,7 +35,6 @@ pub fn start(
     state: AppState,
     frontend: PathBuf,
     windows: WindowRegistry,
-    running: Arc<AtomicBool>,
     client_activity: Arc<Mutex<std::collections::HashMap<String, u64>>>,
 ) -> AppResult<BridgeServer> {
     let bind_address = std::env::var("DSH_DESKTOP_BRIDGE_PORT")
@@ -63,7 +61,6 @@ pub fn start(
             let frontend = frontend.clone();
             let token = server_token.clone();
             let windows = windows.clone();
-            let running = Arc::clone(&running);
             let client_activity = Arc::clone(&client_activity);
             thread::spawn(move || {
                 respond(
@@ -72,7 +69,6 @@ pub fn start(
                     &frontend,
                     &windows,
                     &token,
-                    &running,
                     &client_activity,
                 )
             });
@@ -90,7 +86,6 @@ fn respond(
     frontend: &Path,
     windows: &WindowRegistry,
     token: &str,
-    running: &AtomicBool,
     client_activity: &Mutex<std::collections::HashMap<String, u64>>,
 ) {
     let request_path = path(request.url());
@@ -135,9 +130,7 @@ fn respond(
                         AppError::new("app.error.invalidRequest").technical(error.to_string())
                     })
                 })
-                .and_then(|request: CommandRequest| {
-                    dispatch(&state, windows, running, &label, request)
-                });
+                .and_then(|request: CommandRequest| dispatch(&state, &label, request));
             match result {
                 Ok(value) => json_response(StatusCode(200), json!({ "value": value })),
                 Err(error) => json_response(StatusCode(400), json!({ "error": error })),
@@ -198,13 +191,7 @@ fn session_path(path: &str) -> Option<(&str, &str)> {
     parts.next().is_none().then_some((label, token))
 }
 
-fn dispatch(
-    state: &AppState,
-    windows: &WindowRegistry,
-    running: &AtomicBool,
-    label: &str,
-    request: CommandRequest,
-) -> AppResult<Value> {
+fn dispatch(state: &AppState, label: &str, request: CommandRequest) -> AppResult<Value> {
     let args = request.args;
     match request.name.as_str() {
         "initialize_window" => value(commands::initialize_window(state, label)?),
@@ -225,33 +212,6 @@ fn dispatch(
             )?,
             state,
         )?),
-        "window_minimize" => {
-            windows.get(label).expect("window was checked").minimize();
-            Ok(Value::Null)
-        }
-        "window_maximize" => {
-            windows.get(label).expect("window was checked").maximize();
-            Ok(Value::Null)
-        }
-        "window_close" | "close_app_window" => {
-            let target = args.get("label").and_then(Value::as_str).unwrap_or(label);
-            if let Some(window) = windows.remove(target) {
-                window.close();
-                state.remove_window(target);
-            }
-            if windows.is_empty() {
-                running.store(false, Ordering::Release);
-            }
-            Ok(Value::Null)
-        }
-        "focus_app_window" => {
-            let target = args.get("label").and_then(Value::as_str).unwrap_or(label);
-            windows
-                .get(target)
-                .ok_or_else(|| AppError::new("window.error.notFound"))?
-                .focus();
-            Ok(Value::Null)
-        }
         _ => Err(AppError::new("app.error.unknownCommand")),
     }
 }

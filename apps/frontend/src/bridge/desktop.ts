@@ -83,8 +83,6 @@ function poll<T>(load: () => Promise<T>, listener: (value: T) => void): Promise<
 
 export const desktopBridge = {
   initializeWindow: (): Promise<BootstrapPayload> => command("initialize_window"),
-  focusWindow: (label: string): Promise<void> => command("focus_app_window", { label }),
-  closeWindow: (label: string): Promise<void> => command("close_app_window", { label }),
   getHostSnapshot: (): Promise<HostSnapshot> => command("get_host_snapshot"),
   startWindow: (): Promise<WindowStartupResult> => command("start_window"),
   setWindowTarget: (url: string): Promise<WindowSnapshot> => command("set_window_target", { url }),
@@ -99,12 +97,4 @@ export const desktopBridge = {
     poll(() => command<HostSnapshot>("get_host_snapshot"), listener),
   onBootstrapChanged: (listener: (payload: BootstrapPayload) => void): Promise<UnlistenFn> =>
     poll(() => command<BootstrapPayload>("initialize_window"), listener),
-  onBuiltInRuntimeUpdated: (_listener: (urls: readonly string[]) => void): Promise<UnlistenFn> =>
-    Promise.resolve(() => undefined),
-  window: {
-    minimize: (): Promise<void> => command("window_minimize"),
-    toggleMaximize: (): Promise<void> => command("window_maximize"),
-    close: (): Promise<void> => command("window_close"),
-    startDragging: (): Promise<void> => Promise.resolve(),
-  },
 };

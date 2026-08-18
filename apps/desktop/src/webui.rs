@@ -12,9 +12,6 @@ unsafe extern "C" {
     fn webui_set_resizable(window: usize, status: bool);
     fn webui_set_frameless(window: usize, status: bool);
     fn webui_set_icon_file(window: usize, path: *const std::ffi::c_char);
-    fn webui_minimize(window: usize);
-    fn webui_maximize(window: usize);
-    fn webui_focus(window: usize);
     fn webui_close(window: usize);
     fn webui_clean();
 }
@@ -57,18 +54,6 @@ impl Window {
             webui_set_config(0, false);
             webui_show_wv(self.0, url.as_ptr())
         }
-    }
-
-    pub fn minimize(self) {
-        unsafe { webui_minimize(self.0) };
-    }
-
-    pub fn maximize(self) {
-        unsafe { webui_maximize(self.0) };
-    }
-
-    pub fn focus(self) {
-        unsafe { webui_focus(self.0) };
     }
 
     pub fn close(self) {

@@ -13,10 +13,10 @@ import type {
 } from "@/types/desktop";
 
 const props = defineProps<{
-  currentWindowLabel: string;
   host: HostSnapshot;
   distribution: DistributionSnapshot;
   dshSource: DshSource;
+  updateBuiltInRuntime: () => Promise<void>;
 }>();
 
 const emit = defineEmits<{
@@ -64,7 +64,7 @@ async function updateRuntime(): Promise<void> {
   updating.value = true;
   updateError.value = null;
   try {
-    await desktopBridge.updateBuiltInRuntime();
+    await props.updateBuiltInRuntime();
     runtimeUpdate.value = null;
   } catch (error) {
     updateError.value = t(
@@ -140,17 +140,6 @@ async function updateRuntime(): Promise<void> {
         <UiStatus :tone="appWindow.status === 'running' ? 'success' : 'warning'">
           {{ $t(`service.status.${appWindow.status}`) }}
         </UiStatus>
-        <UiButton size="small" @click="desktopBridge.focusWindow(appWindow.label)">
-          {{ $t("window.focus") }}
-        </UiButton>
-        <UiButton
-          v-if="appWindow.label !== currentWindowLabel"
-          variant="ghost"
-          size="small"
-          @click="desktopBridge.closeWindow(appWindow.label)"
-        >
-          {{ $t("common.close") }}
-        </UiButton>
       </div>
     </UiSettingRow>
 
