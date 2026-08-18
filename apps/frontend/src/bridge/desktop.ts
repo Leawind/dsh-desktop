@@ -59,11 +59,17 @@ function establishSession(): Promise<void> {
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   let response: Response;
   try {
-    await establishSession();
+    try {
+      await establishSession();
+    } catch {
+      // The development proxy may not forward Set-Cookie. Keep the local
+      // bootstrap token as a request-header fallback for this page only.
+    }
     response = await fetch(`/api/command?window=${encodeURIComponent(windowLabel())}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(token() ? { "X-DSH-Desktop-Token": token() } : {}),
       },
       body: JSON.stringify({ name, args }),
     });

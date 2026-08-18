@@ -188,7 +188,7 @@ fn unix_time_millis() -> u64 {
 }
 
 fn authorized(request: &tiny_http::Request, token: &str) -> bool {
-    request
+    let cookie_authorized = request
         .headers()
         .iter()
         .find(|header| header.field.equiv("Cookie"))
@@ -199,7 +199,13 @@ fn authorized(request: &tiny_http::Request, token: &str) -> bool {
                 .split(';')
                 .map(str::trim)
                 .any(|cookie| cookie == format!("dsh_desktop_token={token}"))
-        })
+        });
+    let header_authorized = request
+        .headers()
+        .iter()
+        .find(|header| header.field.equiv("X-DSH-Desktop-Token"))
+        .is_some_and(|header| header.value.as_str() == token);
+    cookie_authorized || header_authorized
 }
 
 fn path(url: &str) -> &str {
