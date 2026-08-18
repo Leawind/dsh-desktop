@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::thread;
 
 use serde::Deserialize;
@@ -11,7 +10,7 @@ use tiny_http::{Header, Method, Response, Server, StatusCode};
 use crate::commands;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
-use crate::window_registry::WindowRegistry;
+use crate::window_registry::{WindowActivityRegistry, WindowRegistry};
 
 #[derive(Deserialize)]
 struct CommandRequest {
@@ -35,7 +34,7 @@ pub fn start(
     state: AppState,
     frontend: PathBuf,
     windows: WindowRegistry,
-    client_activity: Arc<Mutex<std::collections::HashMap<String, u64>>>,
+    client_activity: WindowActivityRegistry,
 ) -> AppResult<BridgeServer> {
     let bind_address = std::env::var("DSH_DESKTOP_BRIDGE_PORT")
         .ok()
@@ -61,7 +60,7 @@ pub fn start(
             let frontend = frontend.clone();
             let token = server_token.clone();
             let windows = windows.clone();
-            let client_activity = Arc::clone(&client_activity);
+            let client_activity = client_activity.clone();
             thread::spawn(move || {
                 respond(
                     request,
@@ -86,7 +85,7 @@ fn respond(
     frontend: &Path,
     windows: &WindowRegistry,
     token: &str,
-    client_activity: &Mutex<std::collections::HashMap<String, u64>>,
+    client_activity: &WindowActivityRegistry,
 ) {
     let request_path = path(request.url());
     let response = if let Some((label, session_token)) = session_path(request_path) {
@@ -116,10 +115,7 @@ fn respond(
             if windows.get(&label).is_none() {
                 return respond_not_found(request);
             }
-            client_activity
-                .lock()
-                .expect("client activity state poisoned")
-                .insert(label.clone(), unix_time_millis());
+            client_activity.record_seen(&label, unix_time_millis());
             let mut body = String::new();
             let result = std::io::Read::read_to_string(&mut request.as_reader(), &mut body)
                 .map_err(|error| {

@@ -43,6 +43,8 @@ jobs:
             build-essential \
             curl \
             file \
+            libappindicator3-dev \
+            libgtk-3-dev \
             wget
 
       - run: pnpm install --frozen-lockfile
@@ -113,6 +115,8 @@ jobs:
             build-essential \
             curl \
             file \
+            libappindicator3-dev \
+            libgtk-3-dev \
             wget
 
       - run: pnpm install --frozen-lockfile

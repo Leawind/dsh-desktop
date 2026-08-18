@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -18,7 +18,6 @@ pub struct AppState {
     pub host: Arc<Mutex<HostState>>,
     pub startup_lock: Arc<Mutex<()>>,
     pub runtime_manager: RuntimeManager,
-    monitor_stopped: Arc<AtomicBool>,
     system_color_scheme: Arc<RwLock<Option<SystemColorScheme>>>,
     next_window_id: Arc<AtomicU64>,
 }
@@ -78,7 +77,6 @@ impl AppState {
             })),
             startup_lock: Arc::new(Mutex::new(())),
             runtime_manager,
-            monitor_stopped: Arc::new(AtomicBool::new(false)),
             system_color_scheme: Arc::new(RwLock::new(crate::system_appearance::detect())),
             next_window_id: Arc::new(AtomicU64::new(1)),
         }
@@ -137,7 +135,6 @@ impl AppState {
     }
 
     pub fn shutdown(&self) {
-        self.monitor_stopped.store(true, Ordering::Relaxed);
         if let Ok(mut host) = self.host.lock() {
             for endpoint in host.endpoints.values_mut() {
                 if let Some(process) = endpoint.process.as_mut() {
@@ -145,10 +142,6 @@ impl AppState {
                 }
             }
         }
-    }
-
-    pub fn monitor_stopped(&self) -> bool {
-        self.monitor_stopped.load(Ordering::Relaxed)
     }
 
     pub fn system_color_scheme(&self) -> Option<SystemColorScheme> {

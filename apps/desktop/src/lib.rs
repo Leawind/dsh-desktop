@@ -11,17 +11,17 @@ mod settings;
 mod single_instance;
 mod state;
 mod system_appearance;
+mod tray;
 mod webui;
 mod window_registry;
 
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use state::AppState;
-use window_registry::WindowRegistry;
+use tao::event::Event;
+use tao::event_loop::{ControlFlow, EventLoopBuilder};
+use tray::TrayAction;
+use window_registry::{WindowActivityRegistry, WindowRegistry};
 
 const CLIENT_DISCONNECT_TIMEOUT_MILLIS: u64 = 3_000;
 
@@ -46,25 +46,13 @@ pub fn run() {
         runtime::RuntimeManager::new(resources.runtime_seed_directory.clone(), data_dir);
     let settings = settings::load(&config_dir, model::DistributionVariant::current());
     let state = AppState::new(config_dir, settings, runtime_manager);
-    let monitor_state = state.clone();
-    std::thread::spawn(move || {
-        while !monitor_state.monitor_stopped() {
-            std::thread::sleep(Duration::from_secs(5));
-            if !monitor_state.monitor_stopped() {
-                monitor_state.refresh_endpoint_health();
-                monitor_state.refresh_system_color_scheme();
-            }
-        }
-    });
-
-    let running = Arc::new(AtomicBool::new(true));
     let windows = WindowRegistry::default();
-    let client_activity = Arc::new(Mutex::new(HashMap::new()));
+    let client_activity = WindowActivityRegistry::default();
     let bridge = bridge_server::start(
         state.clone(),
         resources.frontend_directory.clone(),
         windows.clone(),
-        Arc::clone(&client_activity),
+        client_activity.clone(),
     )
     .expect("failed to start the local DSH Desktop bridge");
     create_window(
@@ -75,29 +63,70 @@ pub fn run() {
         &client_activity,
         &bridge,
     );
-    while running.load(Ordering::Acquire) {
-        match instance.requests.recv_timeout(Duration::from_millis(250)) {
-            Ok(single_instance::HostRequest::OpenWindow) => {
-                let label = state.next_window_label();
-                create_window(
-                    label,
-                    &state,
-                    &resources.icon,
-                    &windows,
-                    &client_activity,
-                    &bridge,
-                );
+    let event_loop = EventLoopBuilder::<tray_icon::menu::MenuEvent>::with_user_event().build();
+    let proxy = event_loop.create_proxy();
+    tray_icon::menu::MenuEvent::set_event_handler(Some(move |event| {
+        let _ = proxy.send_event(event);
+    }));
+    let tray = tray::Tray::create(&resources.icon, saved_locale(&state))
+        .expect("failed to create the DSH Desktop tray icon");
+    let mut last_locale = saved_locale(&state);
+    let mut next_monitor_refresh = std::time::Instant::now() + Duration::from_secs(5);
+
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow =
+            ControlFlow::WaitUntil(std::time::Instant::now() + Duration::from_millis(250));
+        match event {
+            Event::UserEvent(event) => match tray::menu_action(&event) {
+                Some(TrayAction::OpenNewWindow) => {
+                    create_new_window(&state, &resources.icon, &windows, &client_activity, &bridge)
+                }
+                Some(TrayAction::Quit) => {
+                    close_all_windows(&state, &windows, &client_activity);
+                    state.shutdown();
+                    webui::clean();
+                    *control_flow = ControlFlow::Exit;
+                }
+                None => {}
+            },
+            Event::MainEventsCleared => {
+                while let Ok(single_instance::HostRequest::OpenWindow) =
+                    instance.requests.try_recv()
+                {
+                    create_new_window(&state, &resources.icon, &windows, &client_activity, &bridge);
+                }
+                reap_closed_windows(&state, &windows, &client_activity);
+                if std::time::Instant::now() >= next_monitor_refresh {
+                    state.refresh_endpoint_health();
+                    state.refresh_system_color_scheme();
+                    next_monitor_refresh = std::time::Instant::now() + Duration::from_secs(5);
+                }
+                let locale = saved_locale(&state);
+                if locale != last_locale {
+                    tray.update_locale(locale);
+                    last_locale = locale;
+                }
             }
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            _ => {}
         }
-        reap_closed_windows(&state, &windows, &client_activity);
-        if windows.is_empty() {
-            break;
-        }
-    }
-    state.shutdown();
-    webui::clean();
+    });
+}
+
+fn create_new_window(
+    state: &AppState,
+    icon: &std::path::Path,
+    windows: &WindowRegistry,
+    client_activity: &WindowActivityRegistry,
+    bridge: &bridge_server::BridgeServer,
+) {
+    create_window(
+        state.next_window_label(),
+        state,
+        icon,
+        windows,
+        client_activity,
+        bridge,
+    );
 }
 
 fn create_window(
@@ -105,7 +134,7 @@ fn create_window(
     state: &AppState,
     icon: &std::path::Path,
     windows: &WindowRegistry,
-    client_activity: &Mutex<HashMap<String, u64>>,
+    client_activity: &WindowActivityRegistry,
     bridge: &bridge_server::BridgeServer,
 ) {
     let window = webui::Window::create(icon);
@@ -113,18 +142,12 @@ fn create_window(
         development_frontend_url(&bridge.token, &label).unwrap_or_else(|| bridge.url_for(&label));
     state.register_window(&label);
     windows.insert(label.clone(), window);
-    client_activity
-        .lock()
-        .expect("client activity state poisoned")
-        .insert(label.clone(), unix_time_millis());
+    client_activity.insert(label.clone(), unix_time_millis());
     if !window.show(&url) && !window.show_webview_fallback(&url) {
         eprintln!("WebUI could not launch an external browser or the native WebView fallback");
         windows.remove(&label);
         state.remove_window(&label);
-        client_activity
-            .lock()
-            .expect("client activity state poisoned")
-            .remove(&label);
+        client_activity.remove(&label);
         return;
     }
 }
@@ -132,27 +155,37 @@ fn create_window(
 fn reap_closed_windows(
     state: &AppState,
     windows: &WindowRegistry,
-    client_activity: &Mutex<HashMap<String, u64>>,
+    client_activity: &WindowActivityRegistry,
 ) {
     let now = unix_time_millis();
-    let stale = client_activity
-        .lock()
-        .expect("client activity state poisoned")
-        .iter()
-        .filter_map(|(label, last)| {
-            (now.saturating_sub(*last) >= CLIENT_DISCONNECT_TIMEOUT_MILLIS).then_some(label.clone())
-        })
-        .collect::<Vec<_>>();
+    let stale = client_activity.stale_labels(now, CLIENT_DISCONNECT_TIMEOUT_MILLIS);
     for label in stale {
-        client_activity
-            .lock()
-            .expect("client activity state poisoned")
-            .remove(&label);
+        client_activity.remove(&label);
         if let Some(window) = windows.remove(&label) {
             window.close();
             state.remove_window(&label);
         }
     }
+}
+
+fn close_all_windows(
+    state: &AppState,
+    windows: &WindowRegistry,
+    client_activity: &WindowActivityRegistry,
+) {
+    for (label, window) in windows.drain() {
+        client_activity.remove(&label);
+        window.close();
+        state.remove_window(&label);
+    }
+}
+
+fn saved_locale(state: &AppState) -> Option<model::AppLocale> {
+    state
+        .settings
+        .read()
+        .ok()
+        .and_then(|settings| settings.locale)
 }
 
 fn unix_time_millis() -> u64 {
