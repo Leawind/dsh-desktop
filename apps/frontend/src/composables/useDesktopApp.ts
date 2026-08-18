@@ -17,7 +17,6 @@ import type {
 } from "@/types/desktop";
 
 const emptyHost: HostSnapshot = { windows: [], endpoints: [] };
-export const desktopWindowTitle = "Deepseek Harness Desktop";
 
 export function resolveFrameUrl(window: WindowSnapshot | null, status: ServiceStatus): string {
   return status === "running" && window ? window.url : "about:blank";
@@ -27,18 +26,6 @@ export function resolveRefreshAction(status: ServiceStatus): "refresh" | "retry"
   if (status === "running") return "refresh";
   if (status === "failed" || status === "unreachable") return "retry";
   return null;
-}
-
-export function resolveWindowTitle(window: WindowSnapshot | null, status: ServiceStatus): string {
-  if (status !== "running" || !window) return desktopWindowTitle;
-
-  try {
-    const endpoint = new URL(window.url);
-    const port = endpoint.port || (endpoint.protocol === "http:" ? "80" : "443");
-    return `${desktopWindowTitle} - ${endpoint.hostname}:${port}`;
-  } catch {
-    return desktopWindowTitle;
-  }
 }
 
 export function useDesktopApp() {
@@ -71,7 +58,6 @@ export function useDesktopApp() {
 
   const frameUrl = computed(() => resolveFrameUrl(currentWindow.value, startupStatus.value));
   const refreshAction = computed(() => resolveRefreshAction(startupStatus.value));
-  const windowTitle = computed(() => resolveWindowTitle(currentWindow.value, startupStatus.value));
 
   async function initialize(): Promise<void> {
     try {
@@ -229,7 +215,6 @@ export function useDesktopApp() {
     frameRevision: readonly(frameRevision),
     frameUrl,
     refreshAction,
-    windowTitle,
     initialize,
     setTarget,
     retryStartup,

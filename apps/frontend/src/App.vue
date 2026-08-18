@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { onMounted, watch } from "vue";
+import { onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { UiButton, UiStatus } from "@dsh-desktop/ui";
 
-import { desktopBridge } from "@/bridge/desktop";
 import { useDesktopApp } from "@/composables/useDesktopApp";
 import DshFrame from "@/features/dsh-frame/DshFrame.vue";
 import SettingsOverlay from "@/features/settings/SettingsOverlay.vue";
@@ -30,13 +29,6 @@ function statusMessage(): string | null {
 }
 
 onMounted(() => {
-  watch(
-    desktop.windowTitle,
-    (title) => {
-      void desktopBridge.window.setTitle(title);
-    },
-    { immediate: true },
-  );
   void desktop.initialize();
 });
 </script>

@@ -106,6 +106,5 @@ export const desktopBridge = {
     toggleMaximize: (): Promise<void> => command("window_maximize"),
     close: (): Promise<void> => command("window_close"),
     startDragging: (): Promise<void> => Promise.resolve(),
-    setTitle: (_title: string): Promise<void> => Promise.resolve(),
   },
 };

@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { WindowSnapshot } from "@/types/desktop";
 
-import {
-  desktopWindowTitle,
-  resolveFrameUrl,
-  resolveRefreshAction,
-  resolveWindowTitle,
-} from "./useDesktopApp";
+import { resolveFrameUrl, resolveRefreshAction } from "./useDesktopApp";
 
 const window: WindowSnapshot = {
   label: "main",
@@ -41,23 +36,5 @@ describe("resolveRefreshAction", () => {
     expect(resolveRefreshAction("starting")).toBeNull();
     expect(resolveRefreshAction("stopping")).toBeNull();
     expect(resolveRefreshAction("restarting")).toBeNull();
-  });
-});
-
-describe("resolveWindowTitle", () => {
-  it("uses the connected DSH endpoint", () => {
-    expect(resolveWindowTitle(window, "running")).toBe("Deepseek Harness Desktop - 127.0.0.1:3080");
-  });
-
-  it("uses the effective default port and retains an IPv6 endpoint", () => {
-    expect(resolveWindowTitle({ ...window, url: "https://[::1]" }, "running")).toBe(
-      "Deepseek Harness Desktop - [::1]:443",
-    );
-  });
-
-  it("does not show an endpoint until the window is connected", () => {
-    expect(resolveWindowTitle(window, "starting")).toBe(desktopWindowTitle);
-    expect(resolveWindowTitle(window, "failed")).toBe(desktopWindowTitle);
-    expect(resolveWindowTitle(null, "running")).toBe(desktopWindowTitle);
   });
 });
