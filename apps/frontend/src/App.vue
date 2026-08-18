@@ -8,7 +8,7 @@ import { desktopBridge } from "@/bridge/desktop";
 import { useDesktopApp } from "@/composables/useDesktopApp";
 import DshFrame from "@/features/dsh-frame/DshFrame.vue";
 import SettingsOverlay from "@/features/settings/SettingsOverlay.vue";
-import AppTitlebar from "@/features/titlebar/AppTitlebar.vue";
+import AppStatusbar from "@/features/statusbar/AppStatusbar.vue";
 
 const { t } = useI18n();
 const desktop = useDesktopApp();
@@ -32,6 +32,12 @@ function attemptName(type: string): string {
   return t(`settings.attempt.type.${type}`);
 }
 
+function statusMessage(): string | null {
+  if (desktop.startupStatus.value === "starting") return t("app.initializing");
+  if (desktop.error.value) return errorMessage();
+  return null;
+}
+
 onMounted(() => {
   applyPageScale(desktop.settings.value.pageScalePercent);
   watch(
@@ -47,13 +53,6 @@ onMounted(() => {
 
 <template>
   <div class="app-shell">
-    <AppTitlebar
-      :refresh-action="desktop.refreshAction.value"
-      :target-url="desktop.currentWindow.value?.url ?? ''"
-      @settings="desktop.settingsOpen.value = true"
-      @refresh="desktop.refreshCurrentWindow"
-      @set-target="desktop.setTarget"
-    />
     <main class="app-content">
       <DshFrame :url="desktop.frameUrl.value" :revision="desktop.frameRevision.value" />
 
@@ -97,17 +96,26 @@ onMounted(() => {
         @restart-current-window="desktop.retryStartup"
       />
     </main>
+    <AppStatusbar
+      :refresh-action="desktop.refreshAction.value"
+      :status="desktop.startupStatus.value"
+      :target-url="desktop.currentWindow.value?.url ?? ''"
+      :message="statusMessage()"
+      @settings="desktop.settingsOpen.value = true"
+      @refresh="desktop.refreshCurrentWindow"
+      @set-target="desktop.setTarget"
+    />
   </div>
 </template>
 
 <style scoped>
 .app-shell {
-  --titlebar-height: 2.5rem;
+  --statusbar-height: 2rem;
 
   display: grid;
   width: 100vw;
   height: 100vh;
-  grid-template-rows: var(--titlebar-height) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--statusbar-height);
   overflow: hidden;
   background: var(--color-background);
 }
