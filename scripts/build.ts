@@ -5,6 +5,10 @@ import { fileURLToPath } from "node:url";
 
 type DistributionVariant = "bundled" | "slim";
 
+interface CargoMetadata {
+  target_directory: string;
+}
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function run(command: string, args: readonly string[], env = process.env): Promise<void> {
@@ -14,6 +18,21 @@ function run(command: string, args: readonly string[], env = process.env): Promi
     child.once("exit", (code) =>
       code === 0
         ? resolvePromise()
+        : reject(new Error(`${command} exited with code ${String(code)}`)),
+    );
+  });
+}
+
+function capture(command: string, args: readonly string[], env = process.env): Promise<string> {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn(command, args, { cwd: root, env, stdio: ["ignore", "pipe", "inherit"] });
+    let output = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => (output += chunk));
+    child.once("error", reject);
+    child.once("exit", (code) =>
+      code === 0
+        ? resolvePromise(output)
         : reject(new Error(`${command} exited with code ${String(code)}`)),
     );
   });
@@ -40,17 +59,30 @@ async function main(): Promise<void> {
   await run("pnpm", ["run", "frontend:build"]);
   const env = {
     ...process.env,
-    CARGO_TARGET_DIR: join(root, "apps/desktop/target"),
     DSH_DESKTOP_VARIANT: variant,
   };
   await run("cargo", ["build", "--release", "--manifest-path", "apps/desktop/Cargo.toml"], env);
+  const metadata = JSON.parse(
+    await capture(
+      "cargo",
+      [
+        "metadata",
+        "--manifest-path",
+        "apps/desktop/Cargo.toml",
+        "--format-version",
+        "1",
+        "--no-deps",
+      ],
+      env,
+    ),
+  ) as CargoMetadata;
 
   const executable = join(
-    root,
-    "apps/desktop/target/release",
+    metadata.target_directory,
+    "release",
     process.platform === "win32" ? "dsh-desktop.exe" : "dsh-desktop",
   );
-  const artifacts = join(root, "apps/desktop/target/release/artifacts");
+  const artifacts = join(metadata.target_directory, "release", "artifacts");
   await mkdir(artifacts, { recursive: true });
   const version = (await readFile(join(root, "apps/desktop/Cargo.toml"), "utf8")).match(
     /^version\s*=\s*"([^"]+)"$/mu,
