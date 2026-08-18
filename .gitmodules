@@ -1,0 +1,3 @@
+[submodule "apps/desktop/vendor/webui"]
+	path = apps/desktop/vendor/webui
+	url = https://github.com/webui-dev/webui.git

@@ -1,7 +1,6 @@
-import type { UnlistenFn } from "@tauri-apps/api/event";
 import { computed, onBeforeUnmount, readonly, ref } from "vue";
 
-import { desktopBridge } from "@/bridge/desktop";
+import { desktopBridge, type UnlistenFn } from "@/bridge/desktop";
 import { applyLocale, resolveInitialLocale } from "@/i18n";
 import type {
   AppMetadataSnapshot,

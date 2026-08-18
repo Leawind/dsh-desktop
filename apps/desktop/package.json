@@ -2,13 +2,10 @@
   "name": "@dsh-desktop/desktop",
   "private": true,
   "scripts": {
-    "dev:bundled": "pnpm --workspace-root run runtime:prepare && cross-env DSH_DESKTOP_VARIANT=bundled tauri dev --config tauri.bundled.conf.json",
-    "dev:slim": "cross-env DSH_DESKTOP_VARIANT=slim tauri dev --config tauri.slim.conf.json"
+    "dev:bundled": "pnpm --workspace-root run runtime:prepare && pnpm --workspace-root run frontend:build && cross-env DSH_DESKTOP_VARIANT=bundled cargo run --manifest-path Cargo.toml",
+    "dev:slim": "pnpm --workspace-root run frontend:build && cross-env DSH_DESKTOP_VARIANT=slim cargo run --manifest-path Cargo.toml"
   },
   "dependencies": {
     "@dsh-desktop/frontend": "workspace:*"
-  },
-  "devDependencies": {
-    "@tauri-apps/cli": "^2.11.4"
   }
 }

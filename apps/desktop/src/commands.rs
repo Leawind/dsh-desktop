@@ -1,5 +1,3 @@
-use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
-
 use crate::endpoint::{dsh_url, normalize_dsh_url};
 use crate::error::{AppError, AppResult};
 use crate::model::{
@@ -11,18 +9,13 @@ use crate::service::{self, ProbeResult};
 use crate::settings;
 use crate::state::{AppState, EndpointRecord, snapshot_locked};
 
-#[tauri::command]
-pub fn initialize_window(
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-) -> AppResult<BootstrapPayload> {
-    let package_info = window.app_handle().package_info();
+pub fn initialize_window(state: &AppState, label: &str) -> AppResult<BootstrapPayload> {
     let app_metadata = AppMetadataSnapshot {
-        name: package_info.name.clone(),
-        version: package_info.version.to_string(),
-        identifier: window.app_handle().config().identifier.clone(),
+        name: "DSH Desktop".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        identifier: "io.github.leawind.dsh-desktop".to_owned(),
     };
-    let window = state.register_window(window.label());
+    let window = state.register_window(label);
     let settings = state
         .settings
         .read()
@@ -38,39 +31,14 @@ pub fn initialize_window(
     })
 }
 
-#[tauri::command]
-pub fn focus_app_window(app: AppHandle, label: String) -> AppResult<()> {
-    let window = app
-        .get_webview_window(&label)
-        .ok_or_else(|| AppError::new("window.error.notFound"))?;
-    window
-        .unminimize()
-        .and_then(|_| window.show())
-        .and_then(|_| window.set_focus())
-        .map_err(|error| AppError::new("window.error.focusFailed").technical(error.to_string()))
-}
-
-#[tauri::command]
-pub fn close_app_window(app: AppHandle, label: String) -> AppResult<()> {
-    let window = app
-        .get_webview_window(&label)
-        .ok_or_else(|| AppError::new("window.error.notFound"))?;
-    window
-        .close()
-        .map_err(|error| AppError::new("window.error.closeFailed").technical(error.to_string()))
-}
-
-#[tauri::command]
-pub fn get_host_snapshot(state: State<'_, AppState>) -> HostSnapshot {
+pub fn get_host_snapshot(state: &AppState) -> HostSnapshot {
     state.snapshot()
 }
 
-#[tauri::command]
 pub fn set_window_target(
-    app: AppHandle,
-    window: WebviewWindow,
+    window_label: &str,
     url: String,
-    state: State<'_, AppState>,
+    state: &AppState,
 ) -> AppResult<WindowSnapshot> {
     let url = normalize_dsh_url(&url)?;
     let probe = service::probe(&url);
@@ -83,7 +51,7 @@ pub fn set_window_target(
         .host
         .lock()
         .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
-    if !host.assign_window(window.label(), &url, status) {
+    if !host.assign_window(window_label, &url, status) {
         return Err(AppError::new("window.error.notFound"));
     }
     let endpoint = host
@@ -96,31 +64,13 @@ pub fn set_window_target(
     }
     host.reap_idle_services(idle_timeout);
     let snapshot = host
-        .window_snapshot(window.label())
+        .window_snapshot(window_label)
         .ok_or_else(|| AppError::new("window.error.notFound"))?;
-    let host_snapshot = snapshot_locked(&host);
-    drop(host);
-    let _ = app.emit("host-snapshot-changed", host_snapshot);
     Ok(snapshot)
 }
 
-#[tauri::command]
-pub async fn start_window(
-    app: AppHandle,
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-) -> AppResult<WindowStartupResult> {
-    let state = state.inner().clone();
-    let window_label = window.label().to_owned();
-    let result =
-        tauri::async_runtime::spawn_blocking(move || run_window_startup(&state, &window_label))
-            .await
-            .map_err(|error| {
-                AppError::new("app.error.taskFailed").technical(error.to_string())
-            })??;
-
-    let _ = app.emit("host-snapshot-changed", &result.host);
-    Ok(result)
+pub fn start_window(state: &AppState, window_label: &str) -> AppResult<WindowStartupResult> {
+    run_window_startup(state, window_label)
 }
 
 fn run_window_startup(state: &AppState, window_label: &str) -> AppResult<WindowStartupResult> {
@@ -377,67 +327,22 @@ fn register_managed_service(
     Ok(())
 }
 
-#[tauri::command]
-pub async fn stop_service(
-    app: AppHandle,
-    url: String,
-    state: State<'_, AppState>,
-) -> AppResult<HostSnapshot> {
+pub fn stop_service(state: &AppState, url: String) -> AppResult<HostSnapshot> {
     let url = normalize_dsh_url(&url)?;
-    let state = state.inner().clone();
-    let snapshot = tauri::async_runtime::spawn_blocking(move || stop_managed(&state, &url))
-        .await
-        .map_err(|error| AppError::new("app.error.taskFailed").technical(error.to_string()))??;
-    let _ = app.emit("host-snapshot-changed", &snapshot);
-    Ok(snapshot)
+    stop_managed(state, &url)
 }
 
-#[tauri::command]
-pub async fn restart_service(
-    app: AppHandle,
-    url: String,
-    state: State<'_, AppState>,
-) -> AppResult<HostSnapshot> {
+pub fn restart_service(state: &AppState, url: String) -> AppResult<HostSnapshot> {
     let url = normalize_dsh_url(&url)?;
-    let state = state.inner().clone();
-    let snapshot = tauri::async_runtime::spawn_blocking(move || restart_managed(&state, &url))
-        .await
-        .map_err(|error| AppError::new("app.error.taskFailed").technical(error.to_string()))??;
-    let _ = app.emit("host-snapshot-changed", &snapshot);
-    Ok(snapshot)
+    restart_managed(state, &url)
 }
 
-#[tauri::command]
-pub async fn check_built_in_runtime_update(
-    state: State<'_, AppState>,
-) -> AppResult<RuntimeUpdateSnapshot> {
-    let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || available_built_in_update(&state))
-        .await
-        .map_err(|error| AppError::new("app.error.taskFailed").technical(error.to_string()))?
+pub fn check_built_in_runtime_update(state: &AppState) -> AppResult<RuntimeUpdateSnapshot> {
+    available_built_in_update(state)
 }
 
-#[tauri::command]
-pub async fn update_built_in_runtime(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> AppResult<RuntimeUpdateResult> {
-    let state = state.inner().clone();
-    let result =
-        tauri::async_runtime::spawn_blocking(move || apply_built_in_runtime_update(&state))
-            .await
-            .map_err(|error| {
-                AppError::new("app.error.taskFailed").technical(error.to_string())
-            })??;
-    let _ = app.emit("host-snapshot-changed", &result.host);
-    let _ = app.emit("runtime-distribution-changed", &result.distribution);
-    let _ = app.emit("built-in-runtime-updated", &result.updated_urls);
-    Ok(result)
-}
-
-#[tauri::command]
-pub fn restart_app(app: AppHandle) -> AppResult<()> {
-    app.restart()
+pub fn update_built_in_runtime(state: &AppState) -> AppResult<RuntimeUpdateResult> {
+    apply_built_in_runtime_update(state)
 }
 
 fn available_built_in_update(state: &AppState) -> AppResult<RuntimeUpdateSnapshot> {
@@ -813,11 +718,9 @@ fn set_window_status(host: &mut crate::state::HostState, url: &str, status: Serv
     }
 }
 
-#[tauri::command]
 pub fn update_global_settings(
-    app: AppHandle,
     patch: GlobalSettingsPatch,
-    state: State<'_, AppState>,
+    state: &AppState,
 ) -> AppResult<GlobalSettings> {
     let settings = settings::validate(patch, crate::model::DistributionVariant::current())?;
     settings::save(&state.config_dir, &settings)?;
@@ -825,9 +728,6 @@ pub fn update_global_settings(
         .settings
         .write()
         .map_err(|_| AppError::new("app.error.stateUnavailable"))? = settings.clone();
-    let _ = app.emit("global-settings-changed", &settings);
-    if let Some(snapshot) = state.reap_idle_services() {
-        let _ = app.emit("host-snapshot-changed", snapshot);
-    }
+    let _ = state.reap_idle_services();
     Ok(settings)
 }

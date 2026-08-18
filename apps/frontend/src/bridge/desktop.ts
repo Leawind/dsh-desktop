@@ -1,27 +1,22 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-
 import type {
   AppError,
   BootstrapPayload,
+  DistributionSnapshot,
   GlobalSettings,
   GlobalSettingsPatch,
   HostSnapshot,
-  DistributionSnapshot,
   RuntimeUpdateResult,
   RuntimeUpdateSnapshot,
-  WindowStartupResult,
   WindowSnapshot,
+  WindowStartupResult,
 } from "@/types/desktop";
+
+export type UnlistenFn = () => void;
 
 function normalizeError(error: unknown): AppError {
   if (typeof error === "object" && error !== null && "code" in error) {
     const candidate = error as Partial<AppError>;
-    if (typeof candidate.code === "string") {
-      return candidate as AppError;
-    }
+    if (typeof candidate.code === "string") return candidate as AppError;
   }
   return {
     code: "app.error.unknown",
@@ -29,68 +24,84 @@ function normalizeError(error: unknown): AppError {
   };
 }
 
+function token(): string {
+  return new URLSearchParams(window.location.search).get("token") ?? "";
+}
+
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
+  let response: Response;
   try {
-    return await invoke<T>(name, args);
+    response = await fetch("/api/command", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-DSH-Desktop-Token": token(),
+      },
+      body: JSON.stringify({ name, args }),
+    });
   } catch (error) {
     throw normalizeError(error);
   }
+  const payload = (await response.json()) as { value?: T; error?: AppError };
+  if (!response.ok || payload.error) throw normalizeError(payload.error);
+  return payload.value as T;
+}
+
+function poll<T>(load: () => Promise<T>, listener: (value: T) => void): Promise<UnlistenFn> {
+  let previous = "";
+  const update = async () => {
+    try {
+      const value = await load();
+      const next = JSON.stringify(value);
+      if (next !== previous) {
+        previous = next;
+        listener(value);
+      }
+    } catch {
+      // Commands surface errors to their caller; background refresh can retry.
+    }
+  };
+  void update();
+  const timer = window.setInterval(() => void update(), 2_000);
+  return Promise.resolve(() => window.clearInterval(timer));
 }
 
 export const desktopBridge = {
   initializeWindow: (): Promise<BootstrapPayload> => command("initialize_window"),
-
   focusWindow: (label: string): Promise<void> => command("focus_app_window", { label }),
-
   closeWindow: (label: string): Promise<void> => command("close_app_window", { label }),
-
   getHostSnapshot: (): Promise<HostSnapshot> => command("get_host_snapshot"),
-
   startWindow: (): Promise<WindowStartupResult> => command("start_window"),
-
   setWindowTarget: (url: string): Promise<WindowSnapshot> => command("set_window_target", { url }),
-
   stopService: (url: string): Promise<HostSnapshot> => command("stop_service", { url }),
-
   restartService: (url: string): Promise<HostSnapshot> => command("restart_service", { url }),
-
   checkBuiltInRuntimeUpdate: (): Promise<RuntimeUpdateSnapshot> =>
     command("check_built_in_runtime_update"),
-
   updateBuiltInRuntime: (): Promise<RuntimeUpdateResult> => command("update_built_in_runtime"),
-
   restartApp: (): Promise<void> => command("restart_app"),
-
   updateGlobalSettings: (patch: GlobalSettingsPatch): Promise<GlobalSettings> =>
     command("update_global_settings", { patch }),
-
   onHostSnapshotChanged: (listener: (snapshot: HostSnapshot) => void): Promise<UnlistenFn> =>
-    listen<HostSnapshot>("host-snapshot-changed", (event) => listener(event.payload)),
-
+    poll(() => command<HostSnapshot>("get_host_snapshot"), listener),
   onGlobalSettingsChanged: (listener: (settings: GlobalSettings) => void): Promise<UnlistenFn> =>
-    listen<GlobalSettings>("global-settings-changed", (event) => listener(event.payload)),
-
+    poll(async () => (await command<BootstrapPayload>("initialize_window")).settings, listener),
   onRuntimeDistributionChanged: (
     listener: (distribution: DistributionSnapshot) => void,
   ): Promise<UnlistenFn> =>
-    listen<DistributionSnapshot>("runtime-distribution-changed", (event) =>
-      listener(event.payload),
-    ),
-
-  onBuiltInRuntimeUpdated: (listener: (urls: readonly string[]) => void): Promise<UnlistenFn> =>
-    listen<string[]>("built-in-runtime-updated", (event) => listener(event.payload)),
-
+    poll(async () => (await command<BootstrapPayload>("initialize_window")).distribution, listener),
+  onBuiltInRuntimeUpdated: (_listener: (urls: readonly string[]) => void): Promise<UnlistenFn> =>
+    Promise.resolve(() => undefined),
   webview: {
-    setZoom: (scaleFactor: number): Promise<void> =>
-      isTauri() ? getCurrentWebview().setZoom(scaleFactor) : Promise.resolve(),
+    setZoom: (scaleFactor: number): Promise<void> => {
+      document.documentElement.style.zoom = String(scaleFactor);
+      return Promise.resolve();
+    },
   },
-
   window: {
-    minimize: (): Promise<void> => getCurrentWindow().minimize(),
-    toggleMaximize: (): Promise<void> => getCurrentWindow().toggleMaximize(),
-    close: (): Promise<void> => getCurrentWindow().close(),
-    startDragging: (): Promise<void> => getCurrentWindow().startDragging(),
-    setTitle: (title: string): Promise<void> =>
-      isTauri() ? getCurrentWindow().setTitle(title) : Promise.resolve(),
+    minimize: (): Promise<void> => command("window_minimize"),
+    toggleMaximize: (): Promise<void> => command("window_maximize"),
+    close: (): Promise<void> => command("window_close"),
+    startDragging: (): Promise<void> => Promise.resolve(),
+    setTitle: (_title: string): Promise<void> => Promise.resolve(),
   },
 };

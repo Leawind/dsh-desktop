@@ -28,20 +28,12 @@ DSH Desktop 面向以下桌面平台发布：
 
 | 变体      | 内容                                        | 适用场景                                                     |
 | --------- | ------------------------------------------- | ------------------------------------------------------------ |
-| `bundled` | Tauri 应用、Node.js、DSH、pnpm 和运行时清单 | 安装后直接使用，不要求用户另外安装或下载运行环境             |
-| `slim`    | Tauri 应用                                  | 使用系统 `PATH` 中的 DSH、用户指定的 DSH，或者只连接已有服务 |
+| `bundled` | WebUI Host、Vue 前端、Node.js、DSH、pnpm 和运行时清单 | 安装后直接使用，不要求用户另外安装或下载运行环境             |
+| `slim`    | WebUI Host 和 Vue 前端                            | 使用系统 `PATH` 中的 DSH、用户指定的 DSH，或者只连接已有服务 |
 
 两种变体提供相同的桌面功能。`bundled` 是面向多数用户的推荐下载，`slim` 提供更小的安装包。发行变体是构建产物的固有能力，不是可以在运行时修改的全局设置。
 
-两个变体使用相同的应用版本号，通过安装包文件名中的 `bundled` 或 `slim` 发行变体字段区分。应用更新保持当前发行变体，不在自动更新过程中切换到另一变体。
-
-### DSH Desktop 应用更新
-
-DSH Desktop 使用 Tauri 更新器检查 GitHub Release 中的静态更新清单。`bundled` 和 `slim` 分别读取各自的清单，只接收与当前发行变体相同的平台安装包。每份清单记录确切应用版本、更新说明、平台安装包 URL 及其签名。
-
-应用内置更新公钥。发布工作流使用与该公钥匹配的私钥生成更新包签名；客户端在下载前验证签名，拒绝未签名或签名不匹配的更新。用户在“关于”页主动检查更新，确认安装后下载更新包并重启应用。Windows 安装程序在安装阶段自行退出当前应用，其他平台由 Host 重启应用完成切换。
-
-更新清单使用 GitHub Release 的 `latest/download` 地址，因此稳定版用户只接收最新稳定发布。预发布版本继续作为 GitHub Release 提供下载，不替代稳定更新通道。
+两个变体使用相同的应用版本号，通过发行包文件名中的 `bundled` 或 `slim` 字段区分。
 
 ## 总体架构
 
@@ -252,7 +244,7 @@ ownerNonce
 
 ### 主窗口
 
-每个主窗口是一个本地 DSH Desktop WebView，由自定义标题栏、内容区和设置层组成。DSH Web UI 使用填满内容区的 iframe 加载。
+每个主窗口由 WebUI 在已安装浏览器中创建，加载仅绑定回环地址的 DSH Desktop 前端。Rust Host 启动该本地页面并通过带随机令牌的 HTTP bridge 提供类型化命令；浏览器不获得文件或进程权限。DSH Web UI 使用填满内容区的 iframe 加载。
 
 ```text
 ┌─────────────────────────────────────────────┐
@@ -320,7 +312,7 @@ ownerNonce
 
 项目自有的前端源码、测试、构建脚本和配置脚本使用 TypeScript，不直接编写 JavaScript 业务脚本。工具链支持 TypeScript 配置时使用 `.ts`；工具强制要求 JavaScript 文件时，该文件只保留必要的声明式配置，不承载业务逻辑。
 
-TypeScript 启用严格检查。禁止使用未经说明的 `any`，Tauri IPC、全局状态事件、持久化数据和国际化参数都定义明确类型。构建和 CI 至少执行类型检查、格式检查、静态检查和前端测试。
+TypeScript 启用严格检查。禁止使用未经说明的 `any`，HTTP bridge、持久化数据和国际化参数都定义明确类型。构建和 CI 至少执行类型检查、格式检查、静态检查和前端测试。
 
 项目检查、测试和构建命令统一定义在 `package.json` 的 scripts 中。前端脚本使用 `frontend:<name>`，Rust Host 脚本使用 `rust:<name>`；同时涉及前后端且由 CI 直接调用的仓库级脚本不加作用域前缀。本地开发与 CI 调用相同的脚本入口；CI 工作流只负责准备平台工具链、安装系统依赖和调用对应的 pnpm script。
 
@@ -328,7 +320,7 @@ TypeScript 启用严格检查。禁止使用未经说明的 `any`，Tauri IPC、
 
 前端负责界面展示、用户输入、窗口内局部状态和国际化。Rust Host 是窗口列表、全局设置、服务端点、进程所有权和运行时状态的权威数据源。
 
-前端通过集中的类型化 bridge 调用 Tauri 命令并订阅 Host 事件。业务组件不直接调用低层 Tauri API。bridge 统一完成：
+前端通过集中的类型化 bridge 调用回环 HTTP 命令，并以状态轮询同步 Host 变更。业务组件不直接调用低层浏览器或网络 API。bridge 统一完成：
 
 - 请求和响应类型定义；
 - 结构化错误转换；
@@ -345,11 +337,9 @@ TypeScript 启用严格检查。禁止使用未经说明的 `any`，Tauri IPC、
 apps/
 ├── desktop/
 │   ├── src/           Rust Host
-│   ├── capabilities/  Tauri 权限配置
-│   └── tauri.conf.json
 └── frontend/
     ├── src/
-    │   ├── bridge/      类型化 Tauri IPC 和事件边界
+    │   ├── bridge/      类型化 HTTP IPC 边界
     │   ├── composables/ Vue 响应式组合逻辑
     │   ├── features/    窗口、服务和设置界面
     │   ├── i18n/        locale 清单和语言资源
@@ -404,14 +394,14 @@ DSH Desktop 的自有界面与其支持的 DSH Web UI 保持一致的视觉语�
 
 DSH iframe 是不可信的远程内容边界：
 
-- 只有 DSH Desktop 的本地顶层页面获得完成窗口和服务管理所需的 Tauri capability；
-- iframe 中的 DSH 页面不获得 Tauri IPC capability；
-- 应用不向 iframe 注入 Tauri API、进程控制函数或本地文件访问能力；
+- 只有 DSH Desktop 的本地顶层页面能携带 bridge 令牌调用 Host；
+- iframe 中的 DSH 页面不获得 bridge 令牌；
+- 应用不向 iframe 注入 Host 命令、进程控制函数或本地文件访问能力；
 - 顶层页面的 Content Security Policy 只允许 iframe 使用受支持的 HTTP 和 HTTPS 协议，iframe 的 `src` 只由应用在校验窗口 URL 后设置；
 - DSH 页面的外部导航按明确的导航策略在当前 iframe 或系统浏览器中打开；
 - 修改窗口 URL 时先校验协议和地址，再更新 iframe 和加载策略。
 
-开发构建可以通过窗口 WebView 的开发者工具选中和调试 DSH iframe。
+开发构建可以使用浏览器开发者工具选中和调试 DSH iframe。
 
 DSH 响应需要允许被嵌入。连接检查会识别 `X-Frame-Options` 或 CSP `frame-ancestors` 造成的嵌入失败，并显示可诊断的错误页和“在系统浏览器中打开”操作。
 

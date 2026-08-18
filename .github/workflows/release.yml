@@ -34,18 +34,13 @@ jobs:
         with:
           workspaces: "./apps/desktop -> target"
 
-      - name: Install Tauri system dependencies
+      - name: Install WebUI build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             build-essential \
             curl \
             file \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev \
             wget
 
       - run: pnpm install --frozen-lockfile
@@ -77,8 +72,6 @@ jobs:
     env:
       APPLE_SIGNING_IDENTITY: ${{ matrix.signing_identity }}
       CARGO_TARGET_DIR: ${{ github.workspace }}/apps/desktop/target
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -105,7 +98,7 @@ jobs:
             apps/desktop/runtime/bundled
           key: bundled-runtime-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtime/versions.json', 'runtime/package.json', 'runtime/package-lock.json', 'scripts/prepare-runtime.ts', 'scripts/appimage-runtimes.json') }}
 
-      - name: Install Tauri system dependencies
+      - name: Install WebUI build dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -113,16 +106,9 @@ jobs:
             build-essential \
             curl \
             file \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev \
             wget
 
       - run: pnpm install --frozen-lockfile
-      - name: Require updater signing key
-        run: node -e "if (!process.env.TAURI_SIGNING_PRIVATE_KEY) throw new Error('TAURI_SIGNING_PRIVATE_KEY is required to publish signed application updates')"
       - run: pnpm run build
 
       - uses: actions/upload-artifact@v4
@@ -160,13 +146,6 @@ jobs:
           merge-multiple: true
 
       - run: pnpm install --frozen-lockfile
-      - run: >-
-          pnpm run updater:manifest --
-          --tag "${{ github.ref_name }}"
-          --notes release-metadata/release-notes.md
-          --assets release-assets
-          --output release-assets
-
       - uses: softprops/action-gh-release@v2
         with:
           name: DSH Desktop ${{ github.ref_name }}

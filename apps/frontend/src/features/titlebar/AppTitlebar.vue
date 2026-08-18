@@ -222,8 +222,9 @@ onBeforeUnmount(() => {
   border-bottom: 0.0625rem solid var(--color-border);
   background: var(--color-surface);
   user-select: none;
-  /* WebView2/Tauri extension; unknownProperties warning is expected. */
+  /* WebUI reads this extension when it creates a frameless browser window. */
   app-region: drag;
+  --webui-app-region: drag;
 }
 
 .titlebar__leading,
@@ -268,6 +269,7 @@ onBeforeUnmount(() => {
   font-size: var(--font-size-xs);
   line-height: var(--line-height-xs);
   app-region: no-drag;
+  --webui-app-region: no-drag;
 }
 
 .titlebar__target-button {
@@ -294,6 +296,7 @@ onBeforeUnmount(() => {
   padding: 0;
   font-size: 1em;
   app-region: no-drag;
+  --webui-app-region: no-drag;
 }
 
 .titlebar__icon {

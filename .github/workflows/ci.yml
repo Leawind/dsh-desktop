@@ -32,18 +32,13 @@ jobs:
         with:
           workspaces: "./apps/desktop -> target"
 
-      - name: Install Tauri system dependencies
+      - name: Install WebUI build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             build-essential \
             curl \
             file \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev \
             wget
 
       - run: pnpm install --frozen-lockfile
