@@ -24,7 +24,10 @@ function normalizeError(error: unknown): AppError {
 }
 
 function token(): string {
-  return new URLSearchParams(window.location.search).get("token") ?? "";
+  const queryToken = new URLSearchParams(window.location.search).get("token");
+  if (queryToken) return queryToken;
+  const [, session, , sessionToken] = window.location.pathname.split("/");
+  return session === "session" ? (sessionToken ?? "") : "";
 }
 
 function windowLabel(): string {

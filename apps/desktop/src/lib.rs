@@ -170,8 +170,7 @@ fn development_frontend_url(token: &str, label: &str) -> Option<String> {
     if url.scheme() != "http" || !matches!(url.host_str(), Some("127.0.0.1" | "localhost")) {
         return None;
     }
-    url.query_pairs_mut()
-        .append_pair("token", token)
-        .append_pair("window", label);
+    url.set_path(&format!("/session/{label}/{token}/"));
+    url.set_query(None);
     Some(url.into())
 }
