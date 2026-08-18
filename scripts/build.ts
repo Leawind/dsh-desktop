@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { cp, mkdir, rm } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,30 +50,17 @@ async function main(): Promise<void> {
     "apps/desktop/target/release",
     process.platform === "win32" ? "dsh-desktop.exe" : "dsh-desktop",
   );
-  const staging = join(root, "apps/desktop/target/release/bundle", `dsh-desktop-${variant}`);
-  const installers = join(root, "apps/desktop/target/release/bundle/installers");
-  await rm(staging, { recursive: true, force: true });
-  await mkdir(staging, { recursive: true });
-  await cp(
-    executable,
-    join(staging, process.platform === "win32" ? "dsh-desktop.exe" : "dsh-desktop"),
-  );
-  await cp(join(root, "apps/frontend/dist"), join(staging, "frontend"), { recursive: true });
-  await cp(join(root, "apps/desktop/icons"), join(staging, "icons"), { recursive: true });
-  if (variant === "bundled") {
-    await cp(join(root, "apps/desktop/runtime/bundled"), join(staging, "runtime/bundled"), {
-      recursive: true,
-    });
-  }
-  await mkdir(installers, { recursive: true });
-  const archive = `dsh-desktop-${process.env.npm_package_version ?? "0.1.1"}-${variant}-${platform()}-${architecture()}.tar.gz`;
-  await run("tar", [
-    "-czf",
-    join(installers, archive),
-    "-C",
-    dirname(staging),
-    `dsh-desktop-${variant}`,
-  ]);
+  const artifacts = join(root, "apps/desktop/target/release/artifacts");
+  await mkdir(artifacts, { recursive: true });
+  const version = (await readFile(join(root, "apps/desktop/Cargo.toml"), "utf8")).match(
+    /^version\s*=\s*"([^"]+)"$/mu,
+  )?.[1];
+  if (!version) throw new Error("Could not read the desktop package version");
+  const filename = `dsh-desktop-${version}-${variant}-${platform()}-${architecture()}${
+    process.platform === "win32" ? ".exe" : ""
+  }`;
+  await rm(join(artifacts, filename), { force: true });
+  await copyFile(executable, join(artifacts, filename));
 }
 
 await main();

@@ -86,16 +86,7 @@ impl DistributionVariant {
 }
 
 impl RuntimeManager {
-    pub fn new(resource_directory: PathBuf, data_directory: PathBuf) -> Self {
-        let packaged_seed = resource_directory.join("runtime").join("bundled");
-        let development_seed = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("runtime")
-            .join("bundled");
-        let seed_directory = if packaged_seed.join(MANIFEST_FILE).is_file() {
-            packaged_seed
-        } else {
-            development_seed
-        };
+    pub fn new(seed_directory: PathBuf, data_directory: PathBuf) -> Self {
         Self {
             variant: DistributionVariant::current(),
             seed_directory,

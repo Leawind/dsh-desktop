@@ -113,8 +113,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: installers-${{ matrix.artifact }}
-          path: apps/desktop/target/release/bundle/installers/*
+          name: executables-${{ matrix.artifact }}
+          path: apps/desktop/target/release/artifacts/*
           if-no-files-found: error
 
   publish:
@@ -141,7 +141,7 @@ jobs:
 
       - uses: actions/download-artifact@v5
         with:
-          pattern: installers-*
+          pattern: executables-*
           path: release-assets
           merge-multiple: true
 

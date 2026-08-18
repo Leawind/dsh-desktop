@@ -2,6 +2,7 @@ mod bridge_server;
 mod commands;
 mod compatibility;
 mod direct_network;
+mod embedded_resources;
 mod endpoint;
 mod error;
 mod model;
@@ -28,8 +29,10 @@ pub fn run() {
     let data_dir = dirs::data_local_dir()
         .unwrap_or_else(std::env::temp_dir)
         .join("dsh-desktop");
-    let resource_dir = resource_directory();
-    let runtime_manager = runtime::RuntimeManager::new(resource_dir, data_dir);
+    let resources = embedded_resources::materialize(&data_dir)
+        .expect("failed to materialize embedded application resources");
+    let runtime_manager =
+        runtime::RuntimeManager::new(resources.runtime_seed_directory.clone(), data_dir);
     let settings = settings::load(&config_dir, model::DistributionVariant::current());
     let state = AppState::new(config_dir, settings, runtime_manager);
     state.register_window("main");
@@ -44,9 +47,8 @@ pub fn run() {
         }
     });
 
-    let icon = resource_directory().join("icons/icon.png");
-    let window = webui::Window::create(&icon);
-    let frontend = frontend_directory();
+    let window = webui::Window::create(&resources.icon);
+    let frontend = resources.frontend_directory;
     let running = Arc::new(AtomicBool::new(true));
     let last_client_activity = Arc::new(AtomicU64::new(0));
     let url = bridge_server::start(
@@ -83,22 +85,4 @@ fn unix_time_millis() -> u64 {
         .as_millis()
         .try_into()
         .unwrap_or(u64::MAX)
-}
-
-fn resource_directory() -> std::path::PathBuf {
-    std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(std::path::Path::to_path_buf))
-        .unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")))
-}
-
-fn frontend_directory() -> std::path::PathBuf {
-    if let Ok(path) = std::env::var("DSH_DESKTOP_FRONTEND_DIST") {
-        return path.into();
-    }
-    let packaged = resource_directory().join("frontend");
-    if packaged.is_dir() {
-        return packaged;
-    }
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../frontend/dist")
 }
