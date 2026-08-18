@@ -2,6 +2,7 @@
 defineProps<{
   url: string;
   revision: number;
+  colorScheme: "light" | "dark" | null;
 }>();
 </script>
 
@@ -9,6 +10,7 @@ defineProps<{
   <iframe
     :key="revision"
     class="dsh-frame"
+    :class="colorScheme && `dsh-frame--${colorScheme}`"
     :src="url"
     title="DeepSeek Harness"
     allow="clipboard-read; clipboard-write"
@@ -23,5 +25,13 @@ defineProps<{
   height: 100%;
   border: 0;
   background: var(--color-background);
+}
+
+.dsh-frame--light {
+  color-scheme: light;
+}
+
+.dsh-frame--dark {
+  color-scheme: dark;
 }
 </style>

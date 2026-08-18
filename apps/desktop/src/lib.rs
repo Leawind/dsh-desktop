@@ -9,6 +9,7 @@ mod runtime;
 mod service;
 mod settings;
 mod state;
+mod system_appearance;
 mod webui;
 
 use std::sync::Arc;
@@ -36,6 +37,7 @@ pub fn run() {
             std::thread::sleep(Duration::from_secs(5));
             if !monitor_state.monitor_stopped() {
                 monitor_state.refresh_endpoint_health();
+                monitor_state.refresh_system_color_scheme();
             }
         }
     });

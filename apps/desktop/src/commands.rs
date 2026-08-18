@@ -28,6 +28,7 @@ pub fn initialize_window(state: &AppState, label: &str) -> AppResult<BootstrapPa
         distribution: state.runtime_manager.distribution_snapshot(),
         window,
         host,
+        system_color_scheme: state.system_color_scheme(),
     })
 }
 

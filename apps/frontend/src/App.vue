@@ -44,7 +44,11 @@ onMounted(() => {
 <template>
   <div class="app-shell">
     <main class="app-content">
-      <DshFrame :url="desktop.frameUrl.value" :revision="desktop.frameRevision.value" />
+      <DshFrame
+        :url="desktop.frameUrl.value"
+        :revision="desktop.frameRevision.value"
+        :color-scheme="desktop.systemColorScheme.value"
+      />
 
       <section
         v-if="desktop.startupStatus.value === 'starting'"

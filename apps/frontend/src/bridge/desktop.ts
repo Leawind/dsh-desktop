@@ -1,7 +1,6 @@
 import type {
   AppError,
   BootstrapPayload,
-  DistributionSnapshot,
   GlobalSettings,
   GlobalSettingsPatch,
   HostSnapshot,
@@ -83,12 +82,8 @@ export const desktopBridge = {
     command("update_global_settings", { patch }),
   onHostSnapshotChanged: (listener: (snapshot: HostSnapshot) => void): Promise<UnlistenFn> =>
     poll(() => command<HostSnapshot>("get_host_snapshot"), listener),
-  onGlobalSettingsChanged: (listener: (settings: GlobalSettings) => void): Promise<UnlistenFn> =>
-    poll(async () => (await command<BootstrapPayload>("initialize_window")).settings, listener),
-  onRuntimeDistributionChanged: (
-    listener: (distribution: DistributionSnapshot) => void,
-  ): Promise<UnlistenFn> =>
-    poll(async () => (await command<BootstrapPayload>("initialize_window")).distribution, listener),
+  onBootstrapChanged: (listener: (payload: BootstrapPayload) => void): Promise<UnlistenFn> =>
+    poll(() => command<BootstrapPayload>("initialize_window"), listener),
   onBuiltInRuntimeUpdated: (_listener: (urls: readonly string[]) => void): Promise<UnlistenFn> =>
     Promise.resolve(() => undefined),
   window: {

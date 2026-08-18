@@ -7,6 +7,8 @@ export type EndpointOwnership = "external" | "managed";
 
 export type DistributionVariant = "bundled" | "slim";
 
+export type SystemColorScheme = "light" | "dark";
+
 export interface BundledRuntimeSnapshot {
   runtimeId: string;
   nodeVersion: string;
@@ -93,6 +95,7 @@ export interface BootstrapPayload {
   distribution: DistributionSnapshot;
   window: WindowSnapshot;
   host: HostSnapshot;
+  systemColorScheme: SystemColorScheme | null;
 }
 
 export interface RuntimeUpdateSnapshot {

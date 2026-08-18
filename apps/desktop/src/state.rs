@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use crate::model::{
     EndpointOwnership, EndpointSnapshot, GlobalSettings, HostSnapshot, ServiceStatus,
-    WindowSnapshot,
+    SystemColorScheme, WindowSnapshot,
 };
 use crate::runtime::RuntimeManager;
 use crate::service::ManagedService;
@@ -19,6 +19,7 @@ pub struct AppState {
     pub startup_lock: Arc<Mutex<()>>,
     pub runtime_manager: RuntimeManager,
     monitor_stopped: Arc<AtomicBool>,
+    system_color_scheme: Arc<RwLock<Option<SystemColorScheme>>>,
     next_window_id: Arc<AtomicU64>,
 }
 
@@ -78,6 +79,7 @@ impl AppState {
             startup_lock: Arc::new(Mutex::new(())),
             runtime_manager,
             monitor_stopped: Arc::new(AtomicBool::new(false)),
+            system_color_scheme: Arc::new(RwLock::new(crate::system_appearance::detect())),
             next_window_id: Arc::new(AtomicU64::new(1)),
         }
     }
@@ -147,6 +149,22 @@ impl AppState {
 
     pub fn monitor_stopped(&self) -> bool {
         self.monitor_stopped.load(Ordering::Relaxed)
+    }
+
+    pub fn system_color_scheme(&self) -> Option<SystemColorScheme> {
+        self.system_color_scheme
+            .read()
+            .ok()
+            .and_then(|scheme| *scheme)
+    }
+
+    pub fn refresh_system_color_scheme(&self) {
+        let Some(scheme) = crate::system_appearance::detect() else {
+            return;
+        };
+        if let Ok(mut current) = self.system_color_scheme.write() {
+            *current = Some(scheme);
+        }
     }
 
     pub fn refresh_endpoint_health(&self) -> HostSnapshot {

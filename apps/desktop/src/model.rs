@@ -45,6 +45,13 @@ pub struct AppMetadataSnapshot {
     pub identifier: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SystemColorScheme {
+    Light,
+    Dark,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GlobalSettings {
@@ -208,6 +215,7 @@ pub struct BootstrapPayload {
     pub distribution: DistributionSnapshot,
     pub window: WindowSnapshot,
     pub host: HostSnapshot,
+    pub system_color_scheme: Option<SystemColorScheme>,
 }
 
 #[derive(Debug, Clone, Serialize)]

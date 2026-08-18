@@ -11,6 +11,7 @@ import type {
   HostSnapshot,
   ServiceStatus,
   StartupAttemptFailure,
+  SystemColorScheme,
   WindowSnapshot,
   WindowStartupResult,
 } from "@/types/desktop";
@@ -64,6 +65,7 @@ export function useDesktopApp() {
   const error = ref<AppError | null>(null);
   const startupFailures = ref<StartupAttemptFailure[]>([]);
   const settingsOpen = ref(false);
+  const systemColorScheme = ref<SystemColorScheme | null>(null);
   const frameRevision = ref(0);
   const unlisteners: UnlistenFn[] = [];
 
@@ -79,19 +81,20 @@ export function useDesktopApp() {
       distribution.value = payload.distribution;
       currentWindow.value = payload.window;
       host.value = payload.host;
+      systemColorScheme.value = payload.systemColorScheme;
       applyLocale(resolveInitialLocale(payload.settings.locale));
 
       unlisteners.push(
-        await desktopBridge.onGlobalSettingsChanged((value) => {
-          settings.value = value;
-          applyLocale(resolveInitialLocale(value.locale));
+        await desktopBridge.onBootstrapChanged((value) => {
+          appMetadata.value = value.app;
+          settings.value = value.settings;
+          distribution.value = value.distribution;
+          systemColorScheme.value = value.systemColorScheme;
+          applyLocale(resolveInitialLocale(value.settings.locale));
         }),
         await desktopBridge.onHostSnapshotChanged((value) => {
           host.value = value;
           syncWindowFromHost();
-        }),
-        await desktopBridge.onRuntimeDistributionChanged((value) => {
-          distribution.value = value;
         }),
         await desktopBridge.onBuiltInRuntimeUpdated((urls) => {
           if (currentWindow.value && urls.includes(currentWindow.value.url)) {
@@ -222,6 +225,7 @@ export function useDesktopApp() {
     error: readonly(error),
     startupFailures: readonly(startupFailures),
     settingsOpen,
+    systemColorScheme: readonly(systemColorScheme),
     frameRevision: readonly(frameRevision),
     frameUrl,
     refreshAction,
