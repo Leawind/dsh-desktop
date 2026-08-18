@@ -44,7 +44,7 @@ pub fn materialize(data_directory: &Path) -> AppResult<EmbeddedResources> {
 }
 
 fn is_complete(root: &Path) -> bool {
-    root.join("frontend/index.html").is_file()
+    (FRONTEND_FILES.is_empty() || root.join("frontend/index.html").is_file())
         && root.join("icons/icon.png").is_file()
         && (RUNTIME_SEED_FILES.is_empty() || root.join("runtime/bundled/manifest.json").is_file())
 }
@@ -91,7 +91,9 @@ mod tests {
         ));
         let _ = fs::remove_dir_all(&directory);
         let resources = materialize(&directory).expect("materialize resources");
-        assert!(resources.frontend_directory.join("index.html").is_file());
+        if !FRONTEND_FILES.is_empty() {
+            assert!(resources.frontend_directory.join("index.html").is_file());
+        }
         assert!(resources.icon.is_file());
         let _ = fs::remove_dir_all(directory);
     }

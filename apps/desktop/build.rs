@@ -8,6 +8,7 @@ fn main() {
         "DSH_DESKTOP_VARIANT must be bundled or slim"
     );
     println!("cargo:rerun-if-env-changed=DSH_DESKTOP_VARIANT");
+    println!("cargo:rerun-if-env-changed=DSH_DESKTOP_DEVELOPMENT");
     println!("cargo:rustc-env=DSH_DESKTOP_VARIANT={variant}");
     println!(
         "cargo:rustc-env=DSH_DESKTOP_TARGET={}",
@@ -17,7 +18,9 @@ fn main() {
     let manifest_dir = std::path::PathBuf::from(
         std::env::var("CARGO_MANIFEST_DIR").expect("Cargo did not provide CARGO_MANIFEST_DIR"),
     );
-    generate_embedded_assets(&manifest_dir, &variant);
+    let development = std::env::var_os("DSH_DESKTOP_DEVELOPMENT").is_some();
+    println!("cargo:rustc-env=DSH_DESKTOP_DEVELOPMENT={development}");
+    generate_embedded_assets(&manifest_dir, &variant, development);
     let webui_dir = manifest_dir.join("vendor/webui");
     println!("cargo:rerun-if-changed={}", webui_dir.display());
     let make = if cfg!(target_os = "windows") {
@@ -54,17 +57,21 @@ fn main() {
     }
 }
 
-fn generate_embedded_assets(manifest_dir: &Path, variant: &str) {
+fn generate_embedded_assets(manifest_dir: &Path, variant: &str, development: bool) {
     let frontend = manifest_dir.join("../frontend/dist");
-    assert!(
-        frontend.is_dir(),
-        "frontend build output is missing; run `pnpm run frontend:build` first"
-    );
     let icons = manifest_dir.join("icons");
     let icon = icons.join("icon.png");
     let runtime = manifest_dir.join("runtime/bundled");
 
-    let frontend_files = collect_files(&frontend);
+    let frontend_files = if development {
+        Vec::new()
+    } else {
+        assert!(
+            frontend.is_dir(),
+            "frontend build output is missing; run `pnpm run frontend:build` first"
+        );
+        collect_files(&frontend)
+    };
     let icon_files = vec![icon];
     let runtime_files = (variant == "bundled").then(|| {
         let files = collect_files(&runtime);

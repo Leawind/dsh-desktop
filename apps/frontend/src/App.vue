@@ -15,7 +15,7 @@ const desktop = useDesktopApp();
 
 function errorMessage(): string {
   const error = desktop.error.value;
-  if (!error) return t("app.error.unknown");
+  if (!error || typeof error.code !== "string") return t("app.error.unknown");
   return t(error.code, error.args ?? {});
 }
 

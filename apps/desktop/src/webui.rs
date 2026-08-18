@@ -14,6 +14,7 @@ unsafe extern "C" {
     fn webui_set_icon_file(window: usize, path: *const std::ffi::c_char);
     fn webui_minimize(window: usize);
     fn webui_maximize(window: usize);
+    fn webui_focus(window: usize);
     fn webui_close(window: usize);
     fn webui_clean();
 }
@@ -64,6 +65,10 @@ impl Window {
 
     pub fn maximize(self) {
         unsafe { webui_maximize(self.0) };
+    }
+
+    pub fn focus(self) {
+        unsafe { webui_focus(self.0) };
     }
 
     pub fn close(self) {

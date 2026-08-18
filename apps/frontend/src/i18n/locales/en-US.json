@@ -135,7 +135,7 @@
       "invalidNpx": "The specified DSH version could not be run through npx.",
       "executableNotFound": "The dsh command was not found. Set its path in DSH settings.",
       "sourceDisabled": "The current settings do not allow starting a new DSH service.",
-      "builtInUnavailable": "This package does not include a built-in DSH runtime.",
+      "builtInUnavailable": "This distribution file does not include a built-in DSH runtime.",
       "noKnownServices": "No DSH service has been connected successfully during this run.",
       "knownServicesUnavailable": "All known DSH services are currently unavailable.",
       "unreachable": "Unable to reach {url}.",
@@ -160,13 +160,13 @@
       "slim": "Slim"
     },
     "variantHint": {
-      "bundled": "The package includes private Node.js, DSH, and pnpm runtimes.",
-      "slim": "The smaller package uses a system or user-provided DSH installation."
+      "bundled": "The distribution file includes private Node.js, DSH, and pnpm runtimes.",
+      "slim": "The smaller distribution file uses a system or user-provided DSH installation."
     },
     "builtInDetails": "{runtimeId} · Node.js {node} · pnpm {pnpm}",
     "installed": "Installed and verified",
     "readyToInstall": "Installs on first launch",
-    "notIncluded": "This package does not contain a built-in DSH runtime.",
+    "notIncluded": "This distribution file does not contain a built-in DSH runtime.",
     "notIncludedStatus": "Not included",
     "builtInUpdate": "Built-in runtime update",
     "currentVersion": "Current version",

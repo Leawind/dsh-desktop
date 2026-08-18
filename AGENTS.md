@@ -16,7 +16,7 @@
 ## 架构约束
 
 - 仓库中的桌面 Host、Vue 前端和 UI 组件库保持目录分离：
-  - `apps/desktop`：Tauri/Rust Host；
+  - `apps/desktop`：WebUI/Rust Host；
   - `apps/frontend`：Vue 3 应用；
   - `packages/ui`：与 DSH 视觉语言对齐的可复用组件。
 - 前端使用 Vue 3 和 TypeScript，不直接编写 JavaScript 源文件。

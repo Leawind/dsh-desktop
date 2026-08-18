@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use serde::Deserialize;
@@ -11,9 +12,7 @@ use tiny_http::{Header, Method, Response, Server, StatusCode};
 use crate::commands;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
-use crate::webui::Window;
-
-const WINDOW_LABEL: &str = "main";
+use crate::window_registry::WindowRegistry;
 
 #[derive(Deserialize)]
 struct CommandRequest {
@@ -22,14 +21,29 @@ struct CommandRequest {
     args: Value,
 }
 
+pub struct BridgeServer {
+    base_url: String,
+    pub token: String,
+}
+
+impl BridgeServer {
+    pub fn url_for(&self, label: &str) -> String {
+        format!("{}/?token={}&window={label}", self.base_url, self.token)
+    }
+}
+
 pub fn start(
     state: AppState,
-    window: Window,
     frontend: PathBuf,
+    windows: WindowRegistry,
     running: Arc<AtomicBool>,
-    last_client_activity: Arc<AtomicU64>,
-) -> AppResult<String> {
-    let server = Server::http("127.0.0.1:0").map_err(|error| {
+    client_activity: Arc<Mutex<std::collections::HashMap<String, u64>>>,
+) -> AppResult<BridgeServer> {
+    let bind_address = std::env::var("DSH_DESKTOP_BRIDGE_PORT")
+        .ok()
+        .map(|port| format!("127.0.0.1:{port}"))
+        .unwrap_or_else(|| "127.0.0.1:0".to_owned());
+    let server = Server::http(&bind_address).map_err(|error| {
         AppError::new("app.error.bridgeUnavailable").technical(error.to_string())
     })?;
     let address = server.server_addr();
@@ -48,46 +62,59 @@ pub fn start(
             let state = Arc::clone(&state);
             let frontend = frontend.clone();
             let token = server_token.clone();
+            let windows = windows.clone();
             let running = Arc::clone(&running);
-            let last_client_activity = Arc::clone(&last_client_activity);
+            let client_activity = Arc::clone(&client_activity);
             thread::spawn(move || {
                 respond(
                     request,
                     state,
-                    window,
                     &frontend,
+                    &windows,
                     &token,
                     &running,
-                    &last_client_activity,
+                    &client_activity,
                 )
             });
         }
     });
-    Ok(format!("http://{address}/?token={token}"))
+    Ok(BridgeServer {
+        base_url: format!("http://{address}"),
+        token,
+    })
 }
 
 fn respond(
     mut request: tiny_http::Request,
     state: Arc<AppState>,
-    window: Window,
     frontend: &Path,
+    windows: &WindowRegistry,
     token: &str,
     running: &AtomicBool,
-    last_client_activity: &AtomicU64,
+    client_activity: &Mutex<std::collections::HashMap<String, u64>>,
 ) {
-    let response = if request.url().starts_with("/api/") {
+    let response = if path(request.url()).starts_with("/api/") {
         if !authorized(&request, token) {
             json_response(
                 StatusCode(403),
                 json!({ "error": AppError::new("app.error.unauthorized") }),
             )
-        } else if request.method() != &Method::Post || request.url() != "/api/command" {
+        } else if request.method() != &Method::Post || path(request.url()) != "/api/command" {
             json_response(
                 StatusCode(404),
                 json!({ "error": AppError::new("app.error.notFound") }),
             )
         } else {
-            last_client_activity.store(unix_time_millis(), Ordering::Release);
+            let Some(label) = window_label(request.url()) else {
+                return respond_unauthorized(request);
+            };
+            if windows.get(&label).is_none() {
+                return respond_not_found(request);
+            }
+            client_activity
+                .lock()
+                .expect("client activity state poisoned")
+                .insert(label.clone(), unix_time_millis());
             let mut body = String::new();
             let result = std::io::Read::read_to_string(&mut request.as_reader(), &mut body)
                 .map_err(|error| {
@@ -98,7 +125,9 @@ fn respond(
                         AppError::new("app.error.invalidRequest").technical(error.to_string())
                     })
                 })
-                .and_then(|request: CommandRequest| dispatch(&state, window, running, request));
+                .and_then(|request: CommandRequest| {
+                    dispatch(&state, windows, running, &label, request)
+                });
             match result {
                 Ok(value) => json_response(StatusCode(200), json!({ "value": value })),
                 Err(error) => json_response(StatusCode(400), json!({ "error": error })),
@@ -108,6 +137,20 @@ fn respond(
         static_response(frontend, request.url())
     };
     let _ = request.respond(response);
+}
+
+fn respond_unauthorized(request: tiny_http::Request) {
+    let _ = request.respond(json_response(
+        StatusCode(403),
+        json!({ "error": AppError::new("app.error.unauthorized") }),
+    ));
+}
+
+fn respond_not_found(request: tiny_http::Request) {
+    let _ = request.respond(json_response(
+        StatusCode(404),
+        json!({ "error": AppError::new("app.error.notFound") }),
+    ));
 }
 
 fn unix_time_millis() -> u64 {
@@ -127,22 +170,34 @@ fn authorized(request: &tiny_http::Request, token: &str) -> bool {
         .is_some_and(|header| header.value.as_str() == token)
 }
 
+fn path(url: &str) -> &str {
+    url.split('?').next().unwrap_or(url)
+}
+
+fn window_label(url: &str) -> Option<String> {
+    let query = url.split_once('?')?.1;
+    url::form_urlencoded::parse(query.as_bytes())
+        .find_map(|(name, value)| (name == "window").then(|| value.into_owned()))
+        .filter(|label| !label.is_empty())
+}
+
 fn dispatch(
     state: &AppState,
-    window: Window,
+    windows: &WindowRegistry,
     running: &AtomicBool,
+    label: &str,
     request: CommandRequest,
 ) -> AppResult<Value> {
     let args = request.args;
     match request.name.as_str() {
-        "initialize_window" => value(commands::initialize_window(state, WINDOW_LABEL)?),
+        "initialize_window" => value(commands::initialize_window(state, label)?),
         "get_host_snapshot" => value(commands::get_host_snapshot(state)),
         "set_window_target" => value(commands::set_window_target(
-            WINDOW_LABEL,
+            label,
             string(&args, "url")?,
             state,
         )?),
-        "start_window" => value(commands::start_window(state, WINDOW_LABEL)?),
+        "start_window" => value(commands::start_window(state, label)?),
         "stop_service" => value(commands::stop_service(state, string(&args, "url")?)?),
         "restart_service" => value(commands::restart_service(state, string(&args, "url")?)?),
         "check_built_in_runtime_update" => value(commands::check_built_in_runtime_update(state)?),
@@ -154,19 +209,32 @@ fn dispatch(
             state,
         )?),
         "window_minimize" => {
-            window.minimize();
+            windows.get(label).expect("window was checked").minimize();
             Ok(Value::Null)
         }
         "window_maximize" => {
-            window.maximize();
+            windows.get(label).expect("window was checked").maximize();
             Ok(Value::Null)
         }
-        "window_close" | "restart_app" => {
-            window.close();
-            running.store(false, Ordering::Release);
+        "window_close" | "close_app_window" => {
+            let target = args.get("label").and_then(Value::as_str).unwrap_or(label);
+            if let Some(window) = windows.remove(target) {
+                window.close();
+                state.remove_window(target);
+            }
+            if windows.is_empty() {
+                running.store(false, Ordering::Release);
+            }
             Ok(Value::Null)
         }
-        "focus_app_window" | "close_app_window" => Ok(Value::Null),
+        "focus_app_window" => {
+            let target = args.get("label").and_then(Value::as_str).unwrap_or(label);
+            windows
+                .get(target)
+                .ok_or_else(|| AppError::new("window.error.notFound"))?
+                .focus();
+            Ok(Value::Null)
+        }
         _ => Err(AppError::new("app.error.unknownCommand")),
     }
 }

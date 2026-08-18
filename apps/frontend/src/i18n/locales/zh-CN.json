@@ -135,7 +135,7 @@
       "invalidNpx": "无法通过 npx 运行指定的 DSH 版本。",
       "executableNotFound": "找不到 dsh 命令，请在 DSH 设置中指定其路径。",
       "sourceDisabled": "当前设置不允许启动新的 DSH 服务。",
-      "builtInUnavailable": "当前安装包不包含内置 DSH。",
+      "builtInUnavailable": "当前发行文件不包含内置 DSH。",
       "noKnownServices": "运行期间还没有成功连接过任何 DSH 服务。",
       "knownServicesUnavailable": "已知的 DSH 服务当前均不可用。",
       "unreachable": "无法访问 {url}。",
@@ -160,13 +160,13 @@
       "slim": "Slim"
     },
     "variantHint": {
-      "bundled": "安装包包含独立的 Node.js、DSH 和 pnpm。",
-      "slim": "安装包较小，使用系统或用户指定的 DSH。"
+      "bundled": "发行文件包含独立的 Node.js、DSH 和 pnpm。",
+      "slim": "发行文件较小，使用系统或用户指定的 DSH。"
     },
     "builtInDetails": "{runtimeId} · Node.js {node} · pnpm {pnpm}",
     "installed": "已安装并验证",
     "readyToInstall": "首次启动时安装",
-    "notIncluded": "当前安装包不包含内置 DSH 运行时。",
+    "notIncluded": "当前发行文件不包含内置 DSH 运行时。",
     "notIncludedStatus": "未包含",
     "builtInUpdate": "内置运行时更新",
     "currentVersion": "当前版本",

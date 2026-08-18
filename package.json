@@ -7,9 +7,9 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @dsh-desktop/desktop run dev:slim",
-    "dev:bundled": "pnpm --filter @dsh-desktop/desktop run dev:bundled",
-    "dev:slim": "pnpm --filter @dsh-desktop/desktop run dev:slim",
+    "dev": "tsx scripts/dev.ts slim",
+    "dev:bundled": "tsx scripts/dev.ts bundled",
+    "dev:slim": "tsx scripts/dev.ts slim",
     "build": "pnpm run build:bundled && pnpm run build:slim",
     "build:bundled": "tsx scripts/build.ts bundled",
     "build:slim": "tsx scripts/build.ts slim",

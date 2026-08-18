@@ -96,7 +96,7 @@ jobs:
             .cache/runtime
             .cache/build-tools
             apps/desktop/runtime/bundled
-          key: bundled-runtime-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtime/versions.json', 'runtime/package.json', 'runtime/package-lock.json', 'scripts/prepare-runtime.ts', 'scripts/appimage-runtimes.json') }}
+          key: bundled-runtime-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtime/versions.json', 'runtime/package.json', 'runtime/package-lock.json', 'scripts/prepare-runtime.ts') }}
 
       - name: Install WebUI build dependencies
         if: runner.os == 'Linux'

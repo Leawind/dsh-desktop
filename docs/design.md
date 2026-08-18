@@ -37,7 +37,7 @@ DSH Desktop 面向以下桌面平台发布：
 
 ## 总体架构
 
-每个系统用户只运行一个 DSH Desktop Host。Host 管理多个桌面窗口、DSH 服务端点和 DSH 运行时。
+DSH Desktop 同一用户会话只运行一个 Host。首次启动创建 Host 和第一个浏览器窗口；之后启动可执行文件会通过仅绑定回环地址、带随机令牌的本地 IPC 请求 Host 创建新窗口，随后立即退出。Host 管理全部浏览器窗口、DSH 服务端点和 DSH 运行时。
 
 ```text
 DSH Desktop Host
@@ -59,7 +59,7 @@ DSH Desktop Host
 | 对象             | 职责                                                        |
 | ---------------- | ----------------------------------------------------------- |
 | Desktop Host     | 保存全局状态，管理窗口、服务、运行时和更新                  |
-| App Window       | 承载自定义标题栏、设置界面和一个 DSH iframe                 |
+| App Window       | 承载浏览器标题栏、设置界面、状态栏和一个 DSH iframe         |
 | Service Endpoint | Endpoint Registry 中由规范化 URL 识别的运行时连接目标       |
 | Managed Process  | 由 Desktop Host 启动并仍持有进程所有权的本地 `dsh web` 进程 |
 | DSH Runtime      | 一个已安装、经过验证且可以独立启动的确切 DSH 版本           |
@@ -67,11 +67,7 @@ DSH Desktop Host
 
 ## 应用实例与窗口
 
-DSH Desktop 使用单进程、多窗口模型。
-
-用户再次启动 DSH Desktop 时，新的启动请求会被转发给已经运行的 Desktop Host。Host 根据请求创建新窗口，随后结束新启动的进程。这样可以同时打开多个独立窗口，同时统一管理本地 DSH 服务。
-
-每个窗口具有独立的：
+DSH Desktop 使用单 Host、多浏览器窗口模型。每个窗口具有独立的：
 
 - 窗口标识；
 - 标题、位置和尺寸；
@@ -193,8 +189,8 @@ DSH Desktop 将桌面壳自身的连接与 DSH 服务进程的连接分开处理
 
 桌面壳直接连接目标地址，不使用系统代理。这一规则适用于：
 
-- 开发模式下 WebView 加载本地 Vite 服务；
-- WebView 中的 DSH iframe；
+- 开发模式下浏览器加载本地 Vite 服务；
+- 浏览器中的 DSH iframe；
 - Rust Host 对 DSH URL 的存活探测和类型识别；
 - 用户为窗口配置的远程 DSH URL。
 
@@ -204,11 +200,7 @@ Managed Process 使用另一条环境边界。应用启动时保存原有代理�
 
 各平台的实现如下：
 
-- Linux：在 WebKitGTK 创建首个 WebView 前选择 GIO 的 `environment` proxy resolver，并从桌面进程环境中移除标准代理变量；启动 Managed Process 时恢复这些变量；
-- Windows：主窗口和动态创建的窗口都向 WebView2 传入 `--no-proxy-server`；DSH 子进程自然继承原有环境；
-- macOS：Rust Host 的 DSH 探测直接连接，WKWebView 当前遵循 macOS 的平台网络策略。macOS 发布验证包含开启系统代理时的本地开发入口、回环 DSH iframe 和自定义远程 URL 测试。
-
-WebKitGTK 和 WebView2 的平台开关分别参考 [WebKitGTK network proxy settings](https://webkitgtk.org/reference/webkit2gtk/2.40.4/method.WebContext.set_network_proxy_settings.html) 和 [WebView2 browser flags](https://learn.microsoft.com/microsoft-edge/webview2/concepts/webview-features-flags)。
+Rust Host 对回环地址的 DSH 探测直接连接，不依赖系统代理的 localhost 例外设置。由 WebUI 启动的外部浏览器与 Managed Process 保留用户原有的代理环境和浏览器配置。
 
 ### 进程所有权与生命周期
 
@@ -244,27 +236,27 @@ ownerNonce
 
 ### 主窗口
 
-每个主窗口由 WebUI 在已安装浏览器中创建，加载仅绑定回环地址的 DSH Desktop 前端。Rust Host 启动该本地页面并通过带随机令牌的 HTTP bridge 提供类型化命令；浏览器不获得文件或进程权限。DSH Web UI 使用填满内容区的 iframe 加载。
+每个主窗口由唯一 Host 通过 WebUI 在已安装浏览器中创建，加载仅绑定回环地址的 DSH Desktop 前端。开发模式由 Vite 提供页面与热更新，并将 `/api` 代理到 Host 的固定回环 bridge 端口；发行模式由 Host 提供嵌入资源。窗口 URL 同时携带窗口标识和随机 bridge 令牌，Rust Host 据此将命令分派到正确窗口；浏览器不获得文件或进程权限。DSH Web UI 使用填满内容区的 iframe 加载。
 
 Host 总是先使用 WebUI 启动已安装的外部浏览器。仅当 WebUI 无法启动任何外部浏览器时，才使用平台原生 WebView 作为回退；原生 WebView 不作为常规运行路径。
 
 ```text
 ┌─────────────────────────────────────────────┐
-│ ⚙                 DSH             [─][□][×] │
-├─────────────────────────────────────────────┤
 │                                             │
 │               DSH Web UI iframe             │
 │                                             │
+├─────────────────────────────────────────────┤
+│ ⚙  ↻        状态提示       URL · 连接状态  │
 └─────────────────────────────────────────────┘
 ```
 
-标题栏取代系统装饰，不再增加额外工具栏。其左侧依次提供设置和刷新按钮，中间区域显示简短标题并用于拖动窗口，窗口控制按钮按平台惯例排列。刷新按钮在当前窗口已连接 DSH 时刷新页面，在窗口启动失败或目标不可访问时重新执行窗口启动策略；启动、停止或重启过程中暂时禁用。macOS 保留原生交通灯按钮，设置和刷新按钮放在同一标题栏区域。
+浏览器提供窗口装饰。DSH Desktop 在内容区底部显示窄状态栏：左侧提供设置和刷新按钮，中间显示状态提示，右侧提供可编辑的当前端点和连接状态。刷新按钮在当前窗口已连接 DSH 时刷新页面，在窗口启动失败或目标不可访问时重新执行窗口启动策略；启动、停止或重启过程中暂时禁用。
 
-正常使用时，除标题栏外的全部空间都属于 DSH iframe。窗口不常驻显示 URL 栏、服务工具栏或管理侧栏。
+正常使用时，除状态栏外的全部空间都属于 DSH iframe。
 
 ### 设置界面
 
-点击标题栏的设置按钮后，设置界面在当前窗口内显示，不创建可以独立拖动的设置窗口。设置层覆盖标题栏下方的内容区，DSH iframe 保持挂载，关闭设置后恢复显示。
+点击状态栏的设置按钮后，设置界面在当前窗口内显示，不创建可以独立拖动的设置窗口。设置层覆盖内容区，DSH iframe 保持挂载，关闭设置后恢复显示。
 
 设置界面使用与 DSH 设置页一致的居中双栏面板。左侧是分区标签导航，右侧由固定关闭入口和可滚动设置项组成；设置项采用左侧标题与说明、右侧控件的行布局。设置页仅包含“当前窗口”“全局设置”“运行时”和“关于”四项。
 
@@ -300,7 +292,7 @@ Host 总是先使用 WebUI 启动已安装的外部浏览器。仅当 WebUI 无�
 
 - 查看应用名称、版本和应用标识；
 - 查看当前发行变体；
-- 查看安装包是否包含内置 DSH 运行时；
+- 查看当前发行文件是否包含内置 DSH 运行时；
 - 对于内置运行时，查看 Runtime ID、DSH、Node.js 和 pnpm 版本以及安装状态。
 
 重启、停止或更新共享进程时，界面显示目标 URL 和受影响的窗口数量。
@@ -676,7 +668,7 @@ Rust Host 向前端返回结构化错误代码、插值参数和可选的技术�
 
 - 搭建 WebUI、Vue 3、TypeScript 和 Vite 工程；
 - 建立类型化 HTTP bridge 和基础权限边界；
-- 实现单实例、多窗口和自定义标题栏；
+- 实现单实例 Host、多浏览器窗口和底部状态栏；
 - 实现 DSH iframe 和当前窗口的 URL 设置；
 - 实现已知服务、固定连接、固定端口启动和端口范围启动策略；
 - 实现 `none`、`system` 和 `custom` 来源；
@@ -712,10 +704,9 @@ Rust Host 向前端返回结构化错误代码、插值参数和可选的技术�
 
 ### 跨平台发行与维护
 
-- 为 Windows、Linux 和 macOS 生成 `bundled` 与 `slim` 安装包；
+- 为 Windows、Linux 和 macOS 生成 `bundled` 与 `slim` 单文件可执行程序；
 - 建立 DSH 和 iframe 的跨平台兼容性测试；
-- 实现已签名的 DSH Desktop 应用更新；
 - 完善诊断、故障恢复和日志导出；
 - 验证两种语言、浅色与深色主题、键盘操作和主要界面布局。
 
-该阶段的完成标准是：三个目标平台的两种发行变体均能完成全新安装、首次启动、DSH 会话和卸载验证；`bundled` 额外完成内置 DSH 更新验证。
+该阶段的完成标准是：三个目标平台的两种发行变体均能完成首次启动、DSH 会话和关闭验证；`bundled` 额外完成内置 DSH 更新验证。

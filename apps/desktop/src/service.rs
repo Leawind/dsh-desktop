@@ -276,8 +276,6 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
         .stderr(Stdio::piped());
     configure_process_tree(&mut command);
     apply_dsh_home(&mut command, &launch.dsh_home);
-    #[cfg(target_os = "linux")]
-    crate::direct_network::restore_child_proxy_environment(&mut command);
     if let Some(runtime_path) = runtime.runtime_path.as_ref() {
         command.env("PATH", runtime_path);
     }

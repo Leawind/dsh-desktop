@@ -27,10 +27,14 @@ function token(): string {
   return new URLSearchParams(window.location.search).get("token") ?? "";
 }
 
+function windowLabel(): string {
+  return new URLSearchParams(window.location.search).get("window") ?? "";
+}
+
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   let response: Response;
   try {
-    response = await fetch("/api/command", {
+    response = await fetch(`/api/command?window=${encodeURIComponent(windowLabel())}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -41,7 +45,12 @@ async function command<T>(name: string, args?: Record<string, unknown>): Promise
   } catch (error) {
     throw normalizeError(error);
   }
-  const payload = (await response.json()) as { value?: T; error?: AppError };
+  let payload: { value?: T; error?: AppError };
+  try {
+    payload = (await response.json()) as { value?: T; error?: AppError };
+  } catch (error) {
+    throw normalizeError(error);
+  }
   if (!response.ok || payload.error) throw normalizeError(payload.error);
   return payload.value as T;
 }
@@ -77,7 +86,6 @@ export const desktopBridge = {
   checkBuiltInRuntimeUpdate: (): Promise<RuntimeUpdateSnapshot> =>
     command("check_built_in_runtime_update"),
   updateBuiltInRuntime: (): Promise<RuntimeUpdateResult> => command("update_built_in_runtime"),
-  restartApp: (): Promise<void> => command("restart_app"),
   updateGlobalSettings: (patch: GlobalSettingsPatch): Promise<GlobalSettings> =>
     command("update_global_settings", { patch }),
   onHostSnapshotChanged: (listener: (snapshot: HostSnapshot) => void): Promise<UnlistenFn> =>
