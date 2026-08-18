@@ -296,7 +296,7 @@ onBeforeUnmount(() => {
   padding: var(--space-3);
   border: 0.0625rem solid var(--color-border);
   border-radius: var(--radius-control);
-  background: var(--color-input);
+  background: var(--color-menu);
 }
 
 .settings-page__attempt--dragging {
