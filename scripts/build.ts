@@ -10,6 +10,7 @@ interface CargoMetadata {
 }
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 function run(command: string, args: readonly string[], env = process.env): Promise<void> {
   return new Promise((resolvePromise, reject) => {
@@ -55,8 +56,8 @@ async function main(): Promise<void> {
   if (variant !== "bundled" && variant !== "slim") {
     throw new Error("Usage: build.ts <bundled|slim>");
   }
-  if (variant === "bundled") await run("pnpm", ["run", "runtime:prepare"]);
-  await run("pnpm", ["run", "frontend:build"]);
+  if (variant === "bundled") await run(pnpmCommand, ["run", "runtime:prepare"]);
+  await run(pnpmCommand, ["run", "frontend:build"]);
   const env = {
     ...process.env,
     DSH_DESKTOP_VARIANT: variant,

@@ -55,6 +55,10 @@ fn main() {
         println!("cargo:rustc-link-lib=uuid");
         println!("cargo:rustc-link-lib=stdc++");
     }
+    if cfg!(target_os = "macos") {
+        println!("cargo:rustc-link-lib=framework=Cocoa");
+        println!("cargo:rustc-link-lib=framework=WebKit");
+    }
 }
 
 fn generate_embedded_assets(manifest_dir: &Path, variant: &str, development: bool) {
