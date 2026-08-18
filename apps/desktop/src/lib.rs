@@ -11,6 +11,8 @@ mod settings;
 mod state;
 mod webui;
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use state::AppState;
@@ -41,7 +43,8 @@ pub fn run() {
     let icon = resource_directory().join("icons/icon.png");
     let window = webui::Window::create(&icon);
     let frontend = frontend_directory();
-    let url = bridge_server::start(state.clone(), window, frontend)
+    let running = Arc::new(AtomicBool::new(true));
+    let url = bridge_server::start(state.clone(), window, frontend, Arc::clone(&running))
         .expect("failed to start the local DSH Desktop bridge");
     if !window.show(&url) && !window.show_webview_fallback(&url) {
         eprintln!("WebUI could not launch an external browser or the native WebView fallback");
@@ -49,7 +52,9 @@ pub fn run() {
         webui::clean();
         return;
     }
-    webui::wait();
+    while running.load(Ordering::Acquire) {
+        std::thread::sleep(Duration::from_millis(250));
+    }
     state.shutdown();
     webui::clean();
 }

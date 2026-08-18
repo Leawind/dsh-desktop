@@ -15,7 +15,6 @@ unsafe extern "C" {
     fn webui_minimize(window: usize);
     fn webui_maximize(window: usize);
     fn webui_close(window: usize);
-    fn webui_wait();
     fn webui_clean();
 }
 
@@ -70,10 +69,6 @@ impl Window {
     pub fn close(self) {
         unsafe { webui_close(self.0) };
     }
-}
-
-pub fn wait() {
-    unsafe { webui_wait() };
 }
 
 pub fn clean() {

@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use serde::Deserialize;
@@ -21,7 +22,12 @@ struct CommandRequest {
     args: Value,
 }
 
-pub fn start(state: AppState, window: Window, frontend: PathBuf) -> AppResult<String> {
+pub fn start(
+    state: AppState,
+    window: Window,
+    frontend: PathBuf,
+    running: Arc<AtomicBool>,
+) -> AppResult<String> {
     let server = Server::http("127.0.0.1:0").map_err(|error| {
         AppError::new("app.error.bridgeUnavailable").technical(error.to_string())
     })?;
@@ -41,7 +47,8 @@ pub fn start(state: AppState, window: Window, frontend: PathBuf) -> AppResult<St
             let state = Arc::clone(&state);
             let frontend = frontend.clone();
             let token = server_token.clone();
-            thread::spawn(move || respond(request, state, window, &frontend, &token));
+            let running = Arc::clone(&running);
+            thread::spawn(move || respond(request, state, window, &frontend, &token, &running));
         }
     });
     Ok(format!("http://{address}/?token={token}"))
@@ -53,6 +60,7 @@ fn respond(
     window: Window,
     frontend: &Path,
     token: &str,
+    running: &AtomicBool,
 ) {
     let response = if request.url().starts_with("/api/") {
         if !authorized(&request, token) {
@@ -76,7 +84,7 @@ fn respond(
                         AppError::new("app.error.invalidRequest").technical(error.to_string())
                     })
                 })
-                .and_then(|request: CommandRequest| dispatch(&state, window, request));
+                .and_then(|request: CommandRequest| dispatch(&state, window, running, request));
             match result {
                 Ok(value) => json_response(StatusCode(200), json!({ "value": value })),
                 Err(error) => json_response(StatusCode(400), json!({ "error": error })),
@@ -96,7 +104,12 @@ fn authorized(request: &tiny_http::Request, token: &str) -> bool {
         .is_some_and(|header| header.value.as_str() == token)
 }
 
-fn dispatch(state: &AppState, window: Window, request: CommandRequest) -> AppResult<Value> {
+fn dispatch(
+    state: &AppState,
+    window: Window,
+    running: &AtomicBool,
+    request: CommandRequest,
+) -> AppResult<Value> {
     let args = request.args;
     match request.name.as_str() {
         "initialize_window" => value(commands::initialize_window(state, WINDOW_LABEL)?),
@@ -127,6 +140,7 @@ fn dispatch(state: &AppState, window: Window, request: CommandRequest) -> AppRes
         }
         "window_close" | "restart_app" => {
             window.close();
+            running.store(false, Ordering::Release);
             Ok(Value::Null)
         }
         "focus_app_window" | "close_app_window" => Ok(Value::Null),
