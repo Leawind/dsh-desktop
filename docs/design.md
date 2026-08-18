@@ -236,7 +236,7 @@ ownerNonce
 
 ### 主窗口
 
-每个主窗口由唯一 Host 通过 WebUI 在已安装浏览器中创建，加载仅绑定回环地址的 DSH Desktop 前端。开发模式由 Vite 提供页面与热更新，并将 `/api` 代理到 Host 的固定回环 bridge 端口；发行模式由 Host 提供嵌入资源。窗口 URL 同时携带窗口标识和随机 bridge 令牌，Rust Host 据此将命令分派到正确窗口；浏览器不获得文件或进程权限。DSH Web UI 使用填满内容区的 iframe 加载。
+每个主窗口由唯一 Host 通过 WebUI 在已安装浏览器中创建，加载仅绑定回环地址的 DSH Desktop 前端。开发模式由 Vite 提供页面与热更新，并将 `/api` 代理到 Host 的固定回环 bridge 端口；发行模式由 Host 提供嵌入资源。首次加载使用随机会话令牌建立仅限本地 bridge 的 `HttpOnly` Cookie，后续命令由浏览器自动认证；浏览器不获得文件或进程权限。DSH Web UI 使用填满内容区的 iframe 加载。
 
 Host 总是先使用 WebUI 启动已安装的外部浏览器。仅当 WebUI 无法启动任何外部浏览器时，才使用平台原生 WebView 作为回退；原生 WebView 不作为常规运行路径。
 
@@ -387,8 +387,8 @@ DSH Desktop 的自有界面与其支持的 DSH Web UI 保持一致的视觉语�
 
 DSH iframe 是不可信的远程内容边界：
 
-- 只有 DSH Desktop 的本地顶层页面能携带 bridge 令牌调用 Host；
-- iframe 中的 DSH 页面不获得 bridge 令牌；
+- 只有 DSH Desktop 的本地顶层页面会获得 bridge 会话 Cookie；
+- iframe 中的 DSH 页面不获得 bridge 会话；
 - 应用不向 iframe 注入 Host 命令、进程控制函数或本地文件访问能力；
 - 顶层页面的 Content Security Policy 只允许 iframe 使用受支持的 HTTP 和 HTTPS 协议，iframe 的 `src` 只由应用在校验窗口 URL 后设置；
 - DSH 页面的外部导航按明确的导航策略在当前 iframe 或系统浏览器中打开；

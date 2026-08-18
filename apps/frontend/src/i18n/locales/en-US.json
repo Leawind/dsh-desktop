@@ -5,6 +5,7 @@
     "error": {
       "title": "Unable to connect to DSH",
       "unknown": "An unknown error occurred.",
+      "unauthorized": "The local DSH Desktop session could not be verified. Reopen this window.",
       "stateUnavailable": "The application state is temporarily unavailable.",
       "taskFailed": "The background task failed."
     }

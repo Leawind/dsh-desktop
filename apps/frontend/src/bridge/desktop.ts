@@ -28,17 +28,39 @@ function token(): string {
 }
 
 function windowLabel(): string {
-  return new URLSearchParams(window.location.search).get("window") ?? "";
+  const queryLabel = new URLSearchParams(window.location.search).get("window");
+  if (queryLabel) return queryLabel;
+  const [, session, label] = window.location.pathname.split("/");
+  return session === "session" ? decodeURIComponent(label ?? "") : "";
+}
+
+let session: Promise<void> | undefined;
+
+function establishSession(): Promise<void> {
+  if (session) return session;
+  const sessionToken = token();
+  if (!sessionToken) return Promise.resolve();
+  const parameters = new URLSearchParams({ token: sessionToken, window: windowLabel() });
+  session = fetch(`/api/session?${parameters}`, { credentials: "same-origin" })
+    .then((response) => {
+      if (!response.ok)
+        throw new Error(`Unable to establish the DSH Desktop session (${response.status})`);
+    })
+    .catch((error: unknown) => {
+      session = undefined;
+      throw error;
+    });
+  return session;
 }
 
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   let response: Response;
   try {
+    await establishSession();
     response = await fetch(`/api/command?window=${encodeURIComponent(windowLabel())}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-DSH-Desktop-Token": token(),
       },
       body: JSON.stringify({ name, args }),
     });
