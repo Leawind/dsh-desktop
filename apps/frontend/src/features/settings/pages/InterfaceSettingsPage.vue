@@ -79,4 +79,11 @@ function formatPageScaleTooltip(value: number): string {
 .settings-page__language-row :deep(.ui-setting-row__control) {
   align-self: flex-end;
 }
+
+@media (max-width: 30rem) {
+  .settings-page__language-row :deep(.ui-setting-row__control) {
+    width: auto;
+    margin-left: auto;
+  }
+}
 </style>
