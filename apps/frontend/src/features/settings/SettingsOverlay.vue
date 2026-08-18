@@ -33,7 +33,6 @@ const emit = defineEmits<{
   saveSettings: [settings: GlobalSettingsPatch];
   stopService: [url: string];
   restartService: [url: string];
-  restartCurrentWindow: [];
 }>();
 
 const { t } = useI18n();
@@ -222,7 +221,6 @@ onBeforeUnmount(() => {
             :error="settingsError"
             :attempt-options="attemptOptions"
             @select="flushSettings"
-            @restart-current-window="emit('restartCurrentWindow')"
           />
           <RuntimePage
             v-show="activeTab === 'runtime'"

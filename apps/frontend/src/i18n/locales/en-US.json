@@ -88,7 +88,6 @@
       "startPort": "Start port",
       "endPort": "End port",
       "dragHandle": "Drag to reorder",
-      "restartCurrentWindow": "Restart current window",
       "type": {
         "known-services": "Connect to a known service",
         "connect-fixed": "Connect to a specific IP and port",

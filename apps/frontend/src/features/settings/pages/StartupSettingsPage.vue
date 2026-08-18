@@ -16,7 +16,6 @@ defineProps<{
 
 const emit = defineEmits<{
   select: [];
-  restartCurrentWindow: [];
 }>();
 
 const attempts = defineModel<WindowStartupAttempt[]>("attempts", { required: true });
@@ -107,13 +106,6 @@ function stopDraggingAttempt(event: PointerEvent): void {
     role="tabpanel"
     aria-labelledby="settings-tab-startup"
   >
-    <UiButton
-      class="settings-page__restart-window"
-      variant="primary"
-      @click="emit('restartCurrentWindow')"
-    >
-      {{ $t("settings.attempt.restartCurrentWindow") }}
-    </UiButton>
     <div class="settings-page__attempt-heading">
       <div>
         <h2>{{ $t("settings.attempt.label") }}</h2>
@@ -204,10 +196,6 @@ function stopDraggingAttempt(event: PointerEvent): void {
 
 <style scoped>
 .settings-page {
-  width: 100%;
-}
-
-.settings-page__restart-window {
   width: 100%;
 }
 
