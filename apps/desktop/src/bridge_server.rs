@@ -190,6 +190,7 @@ fn session_path(path: &str) -> Option<(&str, &str)> {
 fn dispatch(state: &AppState, label: &str, request: CommandRequest) -> AppResult<Value> {
     let args = request.args;
     match request.name.as_str() {
+        "heartbeat" => value(()),
         "initialize_window" => value(commands::initialize_window(state, label)?),
         "get_host_snapshot" => value(commands::get_host_snapshot(state)),
         "set_window_target" => value(commands::set_window_target(

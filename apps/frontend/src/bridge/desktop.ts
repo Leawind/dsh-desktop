@@ -12,6 +12,8 @@ import type {
 
 export type UnlistenFn = () => void;
 
+const heartbeatIntervalMillis = 250;
+
 function normalizeError(error: unknown): AppError {
   if (typeof error === "object" && error !== null && "code" in error) {
     const candidate = error as Partial<AppError>;
@@ -81,7 +83,16 @@ function poll<T>(load: () => Promise<T>, listener: (value: T) => void): Promise<
   return Promise.resolve(() => window.clearInterval(timer));
 }
 
+function heartbeat(): UnlistenFn {
+  const timer = window.setInterval(
+    () => void command<void>("heartbeat").catch(() => {}),
+    heartbeatIntervalMillis,
+  );
+  return () => window.clearInterval(timer);
+}
+
 export const desktopBridge = {
+  startWindowHeartbeat: (): UnlistenFn => heartbeat(),
   initializeWindow: (): Promise<BootstrapPayload> => command("initialize_window"),
   getHostSnapshot: (): Promise<HostSnapshot> => command("get_host_snapshot"),
   startWindow: (): Promise<WindowStartupResult> => command("start_window"),

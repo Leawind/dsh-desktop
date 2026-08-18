@@ -9,6 +9,7 @@ pub struct WindowRegistry(Arc<Mutex<HashMap<String, Window>>>);
 #[derive(Clone, Copy)]
 pub struct WindowActivity {
     pub last_seen: u64,
+    pub connected: bool,
 }
 
 #[derive(Clone, Default)]
@@ -19,7 +20,13 @@ impl WindowActivityRegistry {
         self.0
             .lock()
             .expect("window activity registry poisoned")
-            .insert(label, WindowActivity { last_seen: now });
+            .insert(
+                label,
+                WindowActivity {
+                    last_seen: now,
+                    connected: false,
+                },
+            );
     }
 
     pub fn record_seen(&self, label: &str, now: u64) {
@@ -30,6 +37,7 @@ impl WindowActivityRegistry {
             .get_mut(label)
         {
             activity.last_seen = now;
+            activity.connected = true;
         }
     }
 
@@ -40,12 +48,22 @@ impl WindowActivityRegistry {
             .remove(label);
     }
 
-    pub fn stale_labels(&self, now: u64, timeout_millis: u64) -> Vec<String> {
+    pub fn stale_labels(
+        &self,
+        now: u64,
+        disconnect_timeout_millis: u64,
+        initial_connection_timeout_millis: u64,
+    ) -> Vec<String> {
         self.0
             .lock()
             .expect("window activity registry poisoned")
             .iter()
             .filter_map(|(label, activity)| {
+                let timeout_millis = if activity.connected {
+                    disconnect_timeout_millis
+                } else {
+                    initial_connection_timeout_millis
+                };
                 (now.saturating_sub(activity.last_seen) >= timeout_millis).then_some(label.clone())
             })
             .collect()
@@ -61,8 +79,28 @@ mod tests {
         let activity = WindowActivityRegistry::default();
         activity.insert("window".to_owned(), 1);
         activity.record_seen("window", 10);
-        assert!(activity.stale_labels(12, 3).is_empty());
-        assert_eq!(activity.stale_labels(13, 3), vec!["window"]);
+        assert!(activity.stale_labels(12, 3, 30).is_empty());
+        assert_eq!(activity.stale_labels(13, 3, 30), vec!["window"]);
+    }
+
+    #[test]
+    fn heartbeat_expires_at_the_configured_timeout() {
+        let activity = WindowActivityRegistry::default();
+        activity.insert("window".to_owned(), 0);
+
+        activity.record_seen("window", 0);
+
+        assert!(activity.stale_labels(999, 1_000, 10_000).is_empty());
+        assert_eq!(activity.stale_labels(1_000, 1_000, 10_000), vec!["window"]);
+    }
+
+    #[test]
+    fn new_window_has_a_connection_grace_period() {
+        let activity = WindowActivityRegistry::default();
+        activity.insert("window".to_owned(), 0);
+
+        assert!(activity.stale_labels(9_999, 1_000, 10_000).is_empty());
+        assert_eq!(activity.stale_labels(10_000, 1_000, 10_000), vec!["window"]);
     }
 }
 

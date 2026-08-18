@@ -71,6 +71,7 @@ export function useDesktopApp() {
       applyLocale(resolveInitialLocale(payload.settings.locale));
 
       unlisteners.push(
+        desktopBridge.startWindowHeartbeat(),
         await desktopBridge.onBootstrapChanged((value) => {
           appMetadata.value = value.app;
           settings.value = value.settings;

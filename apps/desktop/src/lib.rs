@@ -23,7 +23,14 @@ use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tray::TrayAction;
 use window_registry::{WindowActivityRegistry, WindowRegistry};
 
-const CLIENT_DISCONNECT_TIMEOUT_MILLIS: u64 = 3_000;
+const CLIENT_DISCONNECT_TIMEOUT_MILLIS: u64 = 1_000;
+const INITIAL_WINDOW_CONNECTION_TIMEOUT_MILLIS: u64 = 10_000;
+const HOST_MAINTENANCE_INTERVAL: Duration = Duration::from_millis(250);
+
+enum HostEvent {
+    Tray(tray_icon::menu::MenuEvent),
+    Maintenance,
+}
 
 pub fn run() {
     let config_dir = dirs::config_dir()
@@ -65,21 +72,32 @@ pub fn run() {
     );
     let appearance_state = state.clone();
     std::thread::spawn(move || appearance_state.refresh_system_color_scheme());
-    let event_loop = EventLoopBuilder::<tray_icon::menu::MenuEvent>::with_user_event().build();
+    let event_loop = EventLoopBuilder::<HostEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
     tray_icon::menu::MenuEvent::set_event_handler(Some(move |event| {
-        let _ = proxy.send_event(event);
+        let _ = proxy.send_event(HostEvent::Tray(event));
     }));
+    let maintenance_proxy = event_loop.create_proxy();
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(HOST_MAINTENANCE_INTERVAL);
+            if maintenance_proxy
+                .send_event(HostEvent::Maintenance)
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
     let tray = tray::Tray::create(&resources.icon, saved_locale(&state))
         .expect("failed to create the DSH Desktop tray icon");
     let mut last_locale = saved_locale(&state);
     let mut next_monitor_refresh = std::time::Instant::now() + Duration::from_secs(5);
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow =
-            ControlFlow::WaitUntil(std::time::Instant::now() + Duration::from_millis(250));
+        *control_flow = ControlFlow::Wait;
         match event {
-            Event::UserEvent(event) => match tray::menu_action(&event) {
+            Event::UserEvent(HostEvent::Tray(event)) => match tray::menu_action(&event) {
                 Some(TrayAction::OpenNewWindow) => {
                     create_new_window(&state, &resources.icon, &windows, &client_activity, &bridge)
                 }
@@ -91,6 +109,7 @@ pub fn run() {
                 }
                 None => {}
             },
+            Event::UserEvent(HostEvent::Maintenance) => {}
             Event::MainEventsCleared => {
                 while let Ok(single_instance::HostRequest::OpenWindow) =
                     instance.requests.try_recv()
@@ -164,7 +183,11 @@ fn reap_closed_windows(
     client_activity: &WindowActivityRegistry,
 ) {
     let now = unix_time_millis();
-    let stale = client_activity.stale_labels(now, CLIENT_DISCONNECT_TIMEOUT_MILLIS);
+    let stale = client_activity.stale_labels(
+        now,
+        CLIENT_DISCONNECT_TIMEOUT_MILLIS,
+        INITIAL_WINDOW_CONNECTION_TIMEOUT_MILLIS,
+    );
     for label in stale {
         client_activity.remove(&label);
         if let Some(window) = windows.remove(&label) {
