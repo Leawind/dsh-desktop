@@ -38,7 +38,7 @@ pub fn configure_process() {
         // WebKitGTK asks GIO for its proxy resolver before creating the first webview.
         // Select the environment-backed resolver, then remove proxy variables only from
         // the desktop process. Managed DSH children receive the original values below.
-        // SAFETY: this runs at application startup, before Tauri creates worker threads.
+        // SAFETY: this runs at application startup, before the Host creates worker threads.
         unsafe {
             std::env::set_var("GIO_USE_PROXY_RESOLVER", "environment");
             for (name, _) in original {

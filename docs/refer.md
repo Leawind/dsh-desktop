@@ -27,16 +27,16 @@ npx @deepseek-ai/dsh web
 
 npm 包信息：
 
-| 字段 | 当前值 |
-|---|---|
-| 包名 | `@deepseek-ai/dsh` |
-| 当前版本 | `0.1.0-rc.6` |
-| `latest` dist-tag | `0.1.0-rc.6` |
-| `next` dist-tag | `0.1.0-rc.6` |
-| rc.6 发布时间 | 2026-08-13 12:35:03 UTC |
-| License | MIT |
-| npm executable | `dsh → lib/bin.js` |
-| 发布权限 | public |
+| 字段              | 当前值                  |
+| ----------------- | ----------------------- |
+| 包名              | `@deepseek-ai/dsh`      |
+| 当前版本          | `0.1.0-rc.6`            |
+| `latest` dist-tag | `0.1.0-rc.6`            |
+| `next` dist-tag   | `0.1.0-rc.6`            |
+| rc.6 发布时间     | 2026-08-13 12:35:03 UTC |
+| License           | MIT                     |
+| npm executable    | `dsh → lib/bin.js`      |
+| 发布权限          | public                  |
 
 这些版本信息由 npm 官方 registry 直接查询；包页面是 [@deepseek-ai/dsh](https://www.npmjs.com/package/@deepseek-ai/dsh)。
 
@@ -108,15 +108,15 @@ https://www.npmjs.com/package/@deepseek-ai/dsh
 
 当前 CLI 支持：
 
-| 命令 | 行为 |
-|---|---|
-| `dsh web` | 启动 Web profile |
-| `dsh --profile web` | 与 `dsh web` 等价 |
-| `dsh --profile headless "任务"` | 运行一次持久化任务，打印最终回答后退出 |
-| `dsh --profile <name>` | 启动指定 profile |
-| `dsh plugin --profile <name> ...` | 在 profile 目录内调用 pnpm 管理插件 |
-| `dsh --dump-config` | 输出合成后的配置 |
-| `dsh --dump-default-config` | 输出不含用户层的默认配置 |
+| 命令                              | 行为                                   |
+| --------------------------------- | -------------------------------------- |
+| `dsh web`                         | 启动 Web profile                       |
+| `dsh --profile web`               | 与 `dsh web` 等价                      |
+| `dsh --profile headless "任务"`   | 运行一次持久化任务，打印最终回答后退出 |
+| `dsh --profile <name>`            | 启动指定 profile                       |
+| `dsh plugin --profile <name> ...` | 在 profile 目录内调用 pnpm 管理插件    |
+| `dsh --dump-config`               | 输出合成后的配置                       |
+| `dsh --dump-default-config`       | 输出不含用户层的默认配置               |
 
 `web` 和 `headless` profile 在首次使用时会从内置模板自动初始化。其他名称的 profile 不会自动建立完整应用，需要通过插件命令创建。[CLI README](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/README.zh.md)
 

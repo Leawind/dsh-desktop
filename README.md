@@ -6,7 +6,7 @@
 
 DSH Desktop 是面向 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 的跨平台桌面客户端。它会自动启动或连接现有的本地 DSH Web 服务，你可以像使用普通桌面应用一样打开 DSH，而不必手动输入命令。
 
-DSH Desktop 使用 Tauri/Rust + Vue 3 开发。Host 负责窗口、全局设置和 DSH 服务管理，Vue 前端提供桌面界面，并通过 `<iframe>` 显示 DSH Web 界面。
+DSH Desktop 使用 Rust + WebUI + Vue 3 开发。Host 负责窗口、全局设置和 DSH 服务管理；WebUI 使用已安装浏览器承载 Vue 前端，并通过 `<iframe>` 显示 DSH Web 界面。
 
 ## 功能
 

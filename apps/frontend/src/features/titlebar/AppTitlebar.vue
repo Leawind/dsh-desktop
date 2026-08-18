@@ -109,7 +109,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <header class="titlebar" data-tauri-drag-region="deep">
+  <header class="titlebar">
     <div class="titlebar__leading">
       <img class="titlebar__app-icon" src="/app-icon.png" alt="" aria-hidden="true" />
       <UiButton
