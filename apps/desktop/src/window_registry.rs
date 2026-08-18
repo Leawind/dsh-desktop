@@ -126,10 +126,4 @@ impl WindowRegistry {
             .expect("window registry poisoned")
             .remove(label)
     }
-
-    pub fn drain(&self) -> Vec<(String, Window)> {
-        std::mem::take(&mut *self.0.lock().expect("window registry poisoned"))
-            .into_iter()
-            .collect()
-    }
 }

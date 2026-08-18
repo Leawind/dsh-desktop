@@ -13,6 +13,7 @@ import type {
 export type UnlistenFn = () => void;
 
 const heartbeatIntervalMillis = 250;
+const controlReconnectMillis = 250;
 
 function normalizeError(error: unknown): AppError {
   if (typeof error === "object" && error !== null && "code" in error) {
@@ -91,8 +92,53 @@ function heartbeat(): UnlistenFn {
   return () => window.clearInterval(timer);
 }
 
+function controlSocketUrl(): string {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const query = new URLSearchParams({ window: windowLabel(), token: token() });
+  return `${protocol}//${window.location.host}/api/window-control?${query}`;
+}
+
+function control(): UnlistenFn {
+  let socket: WebSocket | undefined;
+  let reconnect: number | undefined;
+  let stopped = false;
+
+  const connect = () => {
+    if (stopped) return;
+    socket = new WebSocket(controlSocketUrl());
+    socket.addEventListener("message", (event) => {
+      let message: unknown;
+      try {
+        message = JSON.parse(String(event.data));
+      } catch {
+        return;
+      }
+      if (
+        message &&
+        typeof message === "object" &&
+        (message as { type?: unknown }).type === "close"
+      ) {
+        stopped = true;
+        window.close();
+      }
+    });
+    socket.addEventListener("close", () => {
+      if (!stopped) reconnect = window.setTimeout(connect, controlReconnectMillis);
+    });
+    socket.addEventListener("error", () => socket?.close());
+  };
+
+  connect();
+  return () => {
+    stopped = true;
+    if (reconnect !== undefined) window.clearTimeout(reconnect);
+    socket?.close();
+  };
+}
+
 export const desktopBridge = {
   startWindowHeartbeat: (): UnlistenFn => heartbeat(),
+  startWindowControl: (): UnlistenFn => control(),
   initializeWindow: (): Promise<BootstrapPayload> => command("initialize_window"),
   getHostSnapshot: (): Promise<HostSnapshot> => command("get_host_snapshot"),
   startWindow: (): Promise<WindowStartupResult> => command("start_window"),

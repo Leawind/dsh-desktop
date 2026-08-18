@@ -13,6 +13,7 @@ mod state;
 mod system_appearance;
 mod tray;
 mod webui;
+mod window_control;
 mod window_registry;
 
 use std::time::Duration;
@@ -21,6 +22,7 @@ use state::AppState;
 use tao::event::Event;
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tray::TrayAction;
+use window_control::WindowControlRegistry;
 use window_registry::{WindowActivityRegistry, WindowRegistry};
 
 const CLIENT_DISCONNECT_TIMEOUT_MILLIS: u64 = 1_000;
@@ -55,11 +57,13 @@ pub fn run() {
     let state = AppState::new(config_dir, settings, runtime_manager);
     let windows = WindowRegistry::default();
     let client_activity = WindowActivityRegistry::default();
+    let window_controls = WindowControlRegistry::default();
     let bridge = bridge_server::start(
         state.clone(),
         resources.frontend_directory.clone(),
         windows.clone(),
         client_activity.clone(),
+        window_controls.clone(),
     )
     .expect("failed to start the local DSH Desktop bridge");
     create_window(
@@ -102,9 +106,8 @@ pub fn run() {
                     create_new_window(&state, &resources.icon, &windows, &client_activity, &bridge)
                 }
                 Some(TrayAction::Quit) => {
-                    close_all_windows(&state, &windows, &client_activity);
+                    bridge.close_windows();
                     state.shutdown();
-                    webui::clean();
                     *control_flow = ControlFlow::Exit;
                 }
                 None => {}
@@ -116,7 +119,7 @@ pub fn run() {
                 {
                     create_new_window(&state, &resources.icon, &windows, &client_activity, &bridge);
                 }
-                reap_closed_windows(&state, &windows, &client_activity);
+                reap_closed_windows(&state, &windows, &client_activity, &window_controls);
                 if std::time::Instant::now() >= next_monitor_refresh {
                     state.refresh_endpoint_health();
                     state.refresh_system_color_scheme();
@@ -128,7 +131,6 @@ pub fn run() {
                     last_locale = locale;
                 }
                 if state.should_exit_after_idle_reap() {
-                    webui::clean();
                     *control_flow = ControlFlow::Exit;
                 }
             }
@@ -181,6 +183,7 @@ fn reap_closed_windows(
     state: &AppState,
     windows: &WindowRegistry,
     client_activity: &WindowActivityRegistry,
+    window_controls: &WindowControlRegistry,
 ) {
     let now = unix_time_millis();
     let stale = client_activity.stale_labels(
@@ -190,22 +193,11 @@ fn reap_closed_windows(
     );
     for label in stale {
         client_activity.remove(&label);
+        window_controls.remove(&label);
         if let Some(window) = windows.remove(&label) {
             window.close();
             state.remove_window(&label);
         }
-    }
-}
-
-fn close_all_windows(
-    state: &AppState,
-    windows: &WindowRegistry,
-    client_activity: &WindowActivityRegistry,
-) {
-    for (label, window) in windows.drain() {
-        client_activity.remove(&label);
-        window.close();
-        state.remove_window(&label);
     }
 }
 

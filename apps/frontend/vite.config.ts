@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: environment.VITE_DSH_DESKTOP_BRIDGE_URL ?? "http://127.0.0.1:1421",
           changeOrigin: true,
+          ws: true,
         },
       },
       watch: {

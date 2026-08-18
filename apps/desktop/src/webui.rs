@@ -13,7 +13,6 @@ unsafe extern "C" {
     fn webui_set_frameless(window: usize, status: bool);
     fn webui_set_icon_file(window: usize, path: *const std::ffi::c_char);
     fn webui_close(window: usize);
-    fn webui_clean();
 }
 
 #[derive(Clone, Copy)]
@@ -59,8 +58,4 @@ impl Window {
     pub fn close(self) {
         unsafe { webui_close(self.0) };
     }
-}
-
-pub fn clean() {
-    unsafe { webui_clean() };
 }

@@ -1,15 +1,19 @@
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
 
+use base64::Engine;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use sha1::{Digest, Sha1};
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 
 use crate::commands;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
+use crate::window_control::WindowControlRegistry;
 use crate::window_registry::{WindowActivityRegistry, WindowRegistry};
 
 #[derive(Deserialize)]
@@ -22,6 +26,7 @@ struct CommandRequest {
 pub struct BridgeServer {
     base_url: String,
     pub token: String,
+    window_controls: WindowControlRegistry,
 }
 
 impl BridgeServer {
@@ -35,6 +40,7 @@ pub fn start(
     frontend: PathBuf,
     windows: WindowRegistry,
     client_activity: WindowActivityRegistry,
+    window_controls: WindowControlRegistry,
 ) -> AppResult<BridgeServer> {
     let bind_address = std::env::var("DSH_DESKTOP_BRIDGE_PORT")
         .ok()
@@ -54,6 +60,7 @@ pub fn start(
     );
     let state = Arc::new(state);
     let server_token = token.clone();
+    let server_window_controls = window_controls.clone();
     thread::spawn(move || {
         for request in server.incoming_requests() {
             let state = Arc::clone(&state);
@@ -61,6 +68,7 @@ pub fn start(
             let token = server_token.clone();
             let windows = windows.clone();
             let client_activity = client_activity.clone();
+            let window_controls = server_window_controls.clone();
             thread::spawn(move || {
                 respond(
                     request,
@@ -69,6 +77,7 @@ pub fn start(
                     &windows,
                     &token,
                     &client_activity,
+                    &window_controls,
                 )
             });
         }
@@ -76,7 +85,15 @@ pub fn start(
     Ok(BridgeServer {
         base_url: format!("http://{address}"),
         token,
+        window_controls,
     })
+}
+
+impl BridgeServer {
+    pub fn close_windows(&self) {
+        self.window_controls
+            .send_to_all(|stream| write_websocket_text(stream, r#"{"type":"close"}"#));
+    }
 }
 
 fn respond(
@@ -86,8 +103,12 @@ fn respond(
     windows: &WindowRegistry,
     token: &str,
     client_activity: &WindowActivityRegistry,
+    window_controls: &WindowControlRegistry,
 ) {
     let request_path = path(request.url());
+    if request_path == "/api/window-control" {
+        return respond_window_control(request, windows, token, window_controls);
+    }
     let response = if let Some((label, session_token)) = session_path(request_path) {
         if session_token != token || windows.get(label).is_none() {
             json_response(
@@ -138,6 +159,37 @@ fn respond(
     let _ = request.respond(response);
 }
 
+fn respond_window_control(
+    request: tiny_http::Request,
+    windows: &WindowRegistry,
+    token: &str,
+    window_controls: &WindowControlRegistry,
+) {
+    let Some(label) = window_label(request.url()) else {
+        return respond_unauthorized(request);
+    };
+    if query_value(request.url(), "token").as_deref() != Some(token) {
+        return respond_unauthorized(request);
+    }
+    if windows.get(&label).is_none() {
+        return respond_not_found(request);
+    }
+    let Some(key) = websocket_key(&request) else {
+        let _ = request.respond(json_response(
+            StatusCode(400),
+            json!({ "error": AppError::new("app.error.invalidRequest") }),
+        ));
+        return;
+    };
+
+    let response = Response::empty(StatusCode(101)).with_header(
+        Header::from_bytes("Sec-WebSocket-Accept", websocket_accept(&key))
+            .expect("valid websocket accept header"),
+    );
+    let stream = request.upgrade("websocket", response);
+    window_controls.connect(label, stream);
+}
+
 fn respond_unauthorized(request: tiny_http::Request) {
     let _ = request.respond(json_response(
         StatusCode(403),
@@ -174,10 +226,63 @@ fn path(url: &str) -> &str {
 }
 
 fn window_label(url: &str) -> Option<String> {
+    query_value(url, "window").filter(|label| !label.is_empty())
+}
+
+fn query_value(url: &str, expected_name: &str) -> Option<String> {
     let query = url.split_once('?')?.1;
     url::form_urlencoded::parse(query.as_bytes())
-        .find_map(|(name, value)| (name == "window").then(|| value.into_owned()))
-        .filter(|label| !label.is_empty())
+        .find_map(|(name, value)| (name == expected_name).then(|| value.into_owned()))
+}
+
+fn websocket_key(request: &tiny_http::Request) -> Option<String> {
+    (request.method() == &Method::Get)
+        .then_some(())
+        .filter(|_| {
+            request.headers().iter().any(|header| {
+                header.field.equiv("Upgrade")
+                    && header.value.as_str().eq_ignore_ascii_case("websocket")
+            })
+        })
+        .filter(|_| {
+            request.headers().iter().any(|header| {
+                header.field.equiv("Connection")
+                    && header
+                        .value
+                        .as_str()
+                        .split(',')
+                        .any(|value| value.trim().eq_ignore_ascii_case("upgrade"))
+            })
+        })
+        .filter(|_| {
+            request.headers().iter().any(|header| {
+                header.field.equiv("Sec-WebSocket-Version") && header.value.as_str() == "13"
+            })
+        })
+        .and_then(|_| {
+            request.headers().iter().find_map(|header| {
+                header
+                    .field
+                    .equiv("Sec-WebSocket-Key")
+                    .then(|| header.value.as_str().to_owned())
+            })
+        })
+}
+
+fn websocket_accept(key: &str) -> String {
+    let mut digest = Sha1::new();
+    digest.update(key.as_bytes());
+    digest.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+    base64::engine::general_purpose::STANDARD.encode(digest.finalize())
+}
+
+fn write_websocket_text(stream: &mut dyn Write, text: &str) -> std::io::Result<()> {
+    let payload = text.as_bytes();
+    let length =
+        u8::try_from(payload.len()).expect("control messages fit in a short websocket frame");
+    stream.write_all(&[0x81, length])?;
+    stream.write_all(payload)?;
+    stream.flush()
 }
 
 fn session_path(path: &str) -> Option<(&str, &str)> {
@@ -261,6 +366,28 @@ mod tests {
             Some(("dsh-1", "a1b2"))
         );
         assert_eq!(session_path("/session/dsh-1/"), None);
+    }
+
+    #[test]
+    fn accepts_websocket_keys_using_the_rfc_handshake() {
+        assert_eq!(
+            websocket_accept("dGhlIHNhbXBsZSBub25jZQ=="),
+            "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+        );
+    }
+
+    #[test]
+    fn reads_control_credentials_from_the_query() {
+        let url = "/api/window-control?window=main%20window&token=secret";
+        assert_eq!(window_label(url).as_deref(), Some("main window"));
+        assert_eq!(query_value(url, "token").as_deref(), Some("secret"));
+    }
+
+    #[test]
+    fn writes_the_close_event_as_a_short_unmasked_text_frame() {
+        let mut bytes = Vec::new();
+        write_websocket_text(&mut bytes, r#"{"type":"close"}"#).unwrap();
+        assert_eq!(bytes, b"\x81\x10{\"type\":\"close\"}");
     }
 }
 

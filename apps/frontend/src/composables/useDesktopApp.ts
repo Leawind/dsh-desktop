@@ -72,6 +72,7 @@ export function useDesktopApp() {
 
       unlisteners.push(
         desktopBridge.startWindowHeartbeat(),
+        desktopBridge.startWindowControl(),
         await desktopBridge.onBootstrapChanged((value) => {
           appMetadata.value = value.app;
           settings.value = value.settings;
