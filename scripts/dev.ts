@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { connect } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,14 +6,30 @@ import { fileURLToPath } from "node:url";
 type Variant = "bundled" | "slim";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const frontendDirectory = resolve(root, "apps/frontend");
+const desktopDirectory = resolve(root, "apps/desktop");
 const variant = process.argv[2] as Variant | undefined;
 
 if (variant !== "bundled" && variant !== "slim") {
   throw new Error("Usage: dev.ts <bundled|slim>");
 }
 
-function spawnProcess(command: string, args: readonly string[], env = process.env) {
-  return spawn(command, args, { cwd: root, env, stdio: "inherit" });
+function spawnProcess(command: string, args: readonly string[], env = process.env, cwd = root) {
+  return spawn(command, args, { cwd, env, stdio: ["ignore", "inherit", "inherit"] });
+}
+
+function exited(process: ChildProcess): Promise<number> {
+  return new Promise((resolvePromise) => {
+    process.once("exit", (code) => resolvePromise(code ?? 0));
+    process.once("error", () => resolvePromise(1));
+  });
+}
+
+function terminate(process: ChildProcess | undefined): Promise<number> {
+  if (!process || process.exitCode !== null) return Promise.resolve(process?.exitCode ?? 0);
+  const result = exited(process);
+  process.kill();
+  return result;
 }
 
 function viteIsRunning(): Promise<boolean> {
@@ -43,26 +59,38 @@ async function waitForVite(): Promise<void> {
 
 const startedVite = !(await viteIsRunning());
 const vite = startedVite
-  ? spawnProcess("pnpm", ["--filter", "@dsh-desktop/frontend", "run", "dev"], {
-      ...process.env,
-      VITE_DSH_DESKTOP_BRIDGE_URL: "http://127.0.0.1:1421",
-    })
+  ? spawnProcess(
+      resolve(frontendDirectory, "node_modules/.bin/vite"),
+      [],
+      { ...process.env, VITE_DSH_DESKTOP_BRIDGE_URL: "http://127.0.0.1:1421" },
+      frontendDirectory,
+    )
   : undefined;
 
-let desktop: ReturnType<typeof spawnProcess> | undefined;
+let desktop: ChildProcess | undefined;
 let stopping = false;
-function stop(code = 0): void {
+async function stop(code = 0): Promise<void> {
   if (stopping) return;
   stopping = true;
-  desktop?.kill();
-  vite?.kill();
+  await Promise.all([terminate(desktop), terminate(vite)]);
   process.exitCode = code;
 }
 
-vite?.once("exit", (code) => stop(code ?? 1));
-process.once("SIGINT", () => stop());
-process.once("SIGTERM", () => stop());
+vite?.once("exit", (code) => void stop(code ?? 1));
+process.once("SIGINT", () => void stop());
+process.once("SIGTERM", () => void stop());
 
 await waitForVite();
-desktop = spawnProcess("pnpm", ["--filter", "@dsh-desktop/desktop", "run", `dev:${variant}`]);
-desktop.once("exit", (code) => stop(code ?? 0));
+desktop = spawnProcess(
+  "cargo",
+  ["run", "--manifest-path", "Cargo.toml"],
+  {
+    ...process.env,
+    DSH_DESKTOP_DEVELOPMENT: "1",
+    DSH_DESKTOP_VARIANT: variant,
+    DSH_DESKTOP_FRONTEND_URL: "http://127.0.0.1:1420",
+    DSH_DESKTOP_BRIDGE_PORT: "1421",
+  },
+  desktopDirectory,
+);
+await stop(await exited(desktop));
