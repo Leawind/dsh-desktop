@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Delete, Plus } from "@element-plus/icons-vue";
 import { ElIcon, ElInputNumber } from "element-plus";
-import { ref } from "vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 
-import { UiButton, UiInput, UiSelect, UiSettingRow } from "@dsh-desktop/ui";
+import { UiButton, UiInput, UiSelect } from "@dsh-desktop/ui";
 
 import type { WindowStartupAttempt } from "@/types/desktop";
 
@@ -20,10 +20,10 @@ const emit = defineEmits<{
 
 const attempts = defineModel<WindowStartupAttempt[]>("attempts", { required: true });
 const draggingAttemptKey = ref<string | null>(null);
+const draggingAttemptOver = ref<{ key: string; half: "before" | "after" } | null>(null);
 const attemptKeys = new WeakMap<WindowStartupAttempt, string>();
 let nextAttemptKey = 0;
-let draggingPointerId: number | null = null;
-let draggingAttemptMoved = false;
+let draggingAttemptDropCommitted = false;
 
 function attemptKey(attempt: WindowStartupAttempt): string {
   let key = attemptKeys.get(attempt);
@@ -62,41 +62,89 @@ function addAttempt(): void {
   attempts.value.push({ type: "connect-fixed", host: "127.0.0.1", port: 3080 });
 }
 
-function startDraggingAttempt(attempt: WindowStartupAttempt, event: PointerEvent): void {
-  if (!event.isPrimary || event.button !== 0) return;
-  draggingAttemptKey.value = attemptKey(attempt);
-  draggingPointerId = event.pointerId;
-  draggingAttemptMoved = false;
-  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-  event.preventDefault();
+function rowHalf(event: DragEvent): "before" | "after" {
+  const row = event.currentTarget as HTMLElement;
+  const rect = row.getBoundingClientRect();
+  return event.clientY < rect.top + rect.height / 2 ? "before" : "after";
 }
 
-function moveDraggedAttempt(event: PointerEvent): void {
-  if (event.pointerId !== draggingPointerId || !draggingAttemptKey.value) return;
-  const target = document
-    .elementFromPoint(event.clientX, event.clientY)
-    ?.closest<HTMLElement>("[data-startup-attempt-key]");
-  const targetKey = target?.dataset.startupAttemptKey;
-  if (!targetKey || targetKey === draggingAttemptKey.value) return;
-
-  const sourceIndex = attempts.value.findIndex(
-    (attempt) => attemptKey(attempt) === draggingAttemptKey.value,
-  );
-  const targetIndex = attempts.value.findIndex((attempt) => attemptKey(attempt) === targetKey);
-  if (moveItem(attempts.value, sourceIndex, targetIndex)) draggingAttemptMoved = true;
-  event.preventDefault();
+function startDraggingAttempt(attempt: WindowStartupAttempt, event: DragEvent): void {
+  const key = attemptKey(attempt);
+  if (!event.dataTransfer) return;
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", key);
+  draggingAttemptDropCommitted = false;
+  draggingAttemptKey.value = key;
+  draggingAttemptOver.value = null;
 }
 
-function stopDraggingAttempt(event: PointerEvent): void {
-  if (event.pointerId !== draggingPointerId) return;
-  const handle = event.currentTarget as HTMLElement;
-  if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
-  const shouldFlush = draggingAttemptMoved;
-  draggingPointerId = null;
+function commitDraggingAttempt(over: { key: string; half: "before" | "after" }): void {
+  if (draggingAttemptDropCommitted || !draggingAttemptKey.value) return;
+  draggingAttemptDropCommitted = true;
+  const sourceKey = draggingAttemptKey.value;
   draggingAttemptKey.value = null;
-  draggingAttemptMoved = false;
-  if (shouldFlush) emit("select");
+  draggingAttemptOver.value = null;
+
+  const sourceIndex = attempts.value.findIndex((attempt) => attemptKey(attempt) === sourceKey);
+  const targetIndex = attempts.value.findIndex((attempt) => attemptKey(attempt) === over.key);
+  if (sourceIndex < 0 || targetIndex < 0) return;
+
+  const anchorIndex = over.half === "before" ? targetIndex : targetIndex + 1;
+  const insertIndex = sourceIndex < anchorIndex ? anchorIndex - 1 : anchorIndex;
+  if (moveItem(attempts.value, sourceIndex, insertIndex)) emit("select");
 }
+
+function dragOverAttempt(event: DragEvent): void {
+  if (!draggingAttemptKey.value) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  draggingAttemptOver.value = {
+    key: attemptKeyFromElement(event.currentTarget as HTMLElement),
+    half: rowHalf(event),
+  };
+}
+
+function dropAttempt(event: DragEvent): void {
+  if (!draggingAttemptKey.value) return;
+  event.preventDefault();
+  commitDraggingAttempt({
+    key: attemptKeyFromElement(event.currentTarget as HTMLElement),
+    half: rowHalf(event),
+  });
+}
+
+function endDraggingAttempt(): void {
+  if (draggingAttemptOver.value) commitDraggingAttempt(draggingAttemptOver.value);
+  else {
+    draggingAttemptKey.value = null;
+    draggingAttemptOver.value = null;
+  }
+  draggingAttemptDropCommitted = false;
+}
+
+function attemptKeyFromElement(element: HTMLElement): string {
+  return element.dataset.startupAttemptKey ?? "";
+}
+
+function acceptNativeDrag(event: DragEvent): void {
+  if (!draggingAttemptKey.value) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+}
+
+function acceptNativeDrop(event: DragEvent): void {
+  if (draggingAttemptKey.value) event.preventDefault();
+}
+
+onMounted(() => {
+  document.addEventListener("dragover", acceptNativeDrag);
+  document.addEventListener("drop", acceptNativeDrop);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("dragover", acceptNativeDrag);
+  document.removeEventListener("drop", acceptNativeDrop);
+});
 </script>
 
 <template>
@@ -117,18 +165,29 @@ function stopDraggingAttempt(event: PointerEvent): void {
         v-for="(attempt, index) in attempts"
         :key="attemptKey(attempt)"
         class="settings-page__attempt"
-        :class="{ 'settings-page__attempt--dragging': draggingAttemptKey === attemptKey(attempt) }"
+        :class="{
+          'settings-page__attempt--dragging': draggingAttemptKey === attemptKey(attempt),
+          'settings-page__attempt--drop-before':
+            draggingAttemptOver?.key === attemptKey(attempt) &&
+            draggingAttemptOver.half === 'before',
+          'settings-page__attempt--drop-after':
+            draggingAttemptOver?.key === attemptKey(attempt) &&
+            draggingAttemptOver.half === 'after',
+        }"
         :data-startup-attempt-key="attemptKey(attempt)"
+        draggable="true"
+        @dragstart="startDraggingAttempt(attempt, $event)"
+        @dragend="endDraggingAttempt"
+        @dragover="dragOverAttempt"
+        @drop="dropAttempt"
       >
         <button
           class="settings-page__attempt-drag-handle"
           type="button"
           :aria-label="$t('settings.attempt.dragHandle')"
           :title="$t('settings.attempt.dragHandle')"
-          @pointerdown="startDraggingAttempt(attempt, $event)"
-          @pointermove="moveDraggedAttempt"
-          @pointerup="stopDraggingAttempt"
-          @pointercancel="stopDraggingAttempt"
+          tabindex="-1"
+          @mousedown.stop
         >
           <span class="settings-page__attempt-drag-dots" aria-hidden="true">
             <span v-for="dot in 6" :key="dot" />
@@ -229,6 +288,7 @@ function stopDraggingAttempt(event: PointerEvent): void {
 }
 
 .settings-page__attempt {
+  position: relative;
   display: grid;
   grid-template-columns: 1.5rem minmax(0, 1fr) 1.5rem;
   align-items: start;
@@ -241,6 +301,27 @@ function stopDraggingAttempt(event: PointerEvent): void {
 
 .settings-page__attempt--dragging {
   opacity: 0.5;
+}
+
+.settings-page__attempt--drop-before::before,
+.settings-page__attempt--drop-after::after {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  left: 0;
+  height: 0.125rem;
+  border-radius: 999px;
+  background: var(--color-accent);
+  content: "";
+  pointer-events: none;
+}
+
+.settings-page__attempt--drop-before::before {
+  top: -0.3125rem;
+}
+
+.settings-page__attempt--drop-after::after {
+  bottom: -0.3125rem;
 }
 
 .settings-page__attempt-drag-handle {
