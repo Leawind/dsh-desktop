@@ -104,7 +104,7 @@ onMounted(() => {
 
 <style scoped>
 .app-shell {
-  --statusbar-height: 2rem;
+  --statusbar-height: 1.6rem;
 
   display: grid;
   width: 100vw;

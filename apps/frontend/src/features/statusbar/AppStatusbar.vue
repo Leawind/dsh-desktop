@@ -147,7 +147,7 @@ onBeforeUnmount(() =>
 .statusbar {
   display: flex;
   min-width: 0;
-  height: 2rem;
+  height: 100%;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
