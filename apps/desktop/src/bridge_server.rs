@@ -94,29 +94,14 @@ fn respond(
     client_activity: &Mutex<std::collections::HashMap<String, u64>>,
 ) {
     let request_path = path(request.url());
-    let response = if request_path == "/api/session" {
-        let Some(label) = window_label(request.url()) else {
-            return respond_unauthorized(request);
-        };
-        if request.method() != &Method::Get
-            || session_token(request.url()).as_deref() != Some(token)
-            || windows.get(&label).is_none()
-        {
-            json_response(
-                StatusCode(403),
-                json!({ "error": AppError::new("app.error.unauthorized") }),
-            )
-        } else {
-            session_response(frontend, token)
-        }
-    } else if let Some((label, session_token)) = session_path(request_path) {
+    let response = if let Some((label, session_token)) = session_path(request_path) {
         if session_token != token || windows.get(label).is_none() {
             json_response(
                 StatusCode(403),
                 json!({ "error": AppError::new("app.error.unauthorized") }),
             )
         } else {
-            session_response(frontend, token)
+            static_response(frontend, request.url())
         }
     } else if request_path.starts_with("/api/") {
         let Some(label) = window_label(request.url()) else {
@@ -188,24 +173,11 @@ fn unix_time_millis() -> u64 {
 }
 
 fn authorized(request: &tiny_http::Request, token: &str) -> bool {
-    let cookie_authorized = request
-        .headers()
-        .iter()
-        .find(|header| header.field.equiv("Cookie"))
-        .is_some_and(|header| {
-            header
-                .value
-                .as_str()
-                .split(';')
-                .map(str::trim)
-                .any(|cookie| cookie == format!("dsh_desktop_token={token}"))
-        });
-    let header_authorized = request
+    request
         .headers()
         .iter()
         .find(|header| header.field.equiv("X-DSH-Desktop-Token"))
-        .is_some_and(|header| header.value.as_str() == token);
-    cookie_authorized || header_authorized
+        .is_some_and(|header| header.value.as_str() == token)
 }
 
 fn path(url: &str) -> &str {
@@ -217,13 +189,6 @@ fn window_label(url: &str) -> Option<String> {
     url::form_urlencoded::parse(query.as_bytes())
         .find_map(|(name, value)| (name == "window").then(|| value.into_owned()))
         .filter(|label| !label.is_empty())
-}
-
-fn session_token(url: &str) -> Option<String> {
-    url.split_once('?').and_then(|(_, query)| {
-        url::form_urlencoded::parse(query.as_bytes())
-            .find_map(|(name, value)| (name == "token").then(|| value.into_owned()))
-    })
 }
 
 fn session_path(path: &str) -> Option<(&str, &str)> {
@@ -328,23 +293,6 @@ fn static_response(frontend: &Path, url: &str) -> Response<std::io::Cursor<Vec<u
     }
 }
 
-fn session_response(frontend: &Path, token: &str) -> Response<std::io::Cursor<Vec<u8>>> {
-    let index = frontend.join("index.html");
-    match fs::read(&index) {
-        Ok(body) => Response::from_data(body)
-            .with_header(Header::from_bytes("Content-Type", mime(&index)).expect("valid header"))
-            .with_header(
-                Header::from_bytes(
-                    "Set-Cookie",
-                    format!("dsh_desktop_token={token}; Path=/api; HttpOnly; SameSite=Strict"),
-                )
-                .expect("valid cookie header"),
-            ),
-        Err(_) => Response::from_string("DSH Desktop frontend is unavailable")
-            .with_status_code(StatusCode(500)),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -356,14 +304,6 @@ mod tests {
             Some(("dsh-1", "a1b2"))
         );
         assert_eq!(session_path("/session/dsh-1/"), None);
-    }
-
-    #[test]
-    fn extracts_the_bootstrap_token_without_retaining_it() {
-        assert_eq!(
-            session_token("/api/session?window=dsh-1&token=a1b2").as_deref(),
-            Some("a1b2")
-        );
     }
 }
 

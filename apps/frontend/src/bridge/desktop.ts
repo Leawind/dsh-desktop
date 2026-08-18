@@ -37,39 +37,15 @@ function windowLabel(): string {
   return session === "session" ? decodeURIComponent(label ?? "") : "";
 }
 
-let session: Promise<void> | undefined;
-
-function establishSession(): Promise<void> {
-  if (session) return session;
-  const sessionToken = token();
-  if (!sessionToken) return Promise.resolve();
-  const parameters = new URLSearchParams({ token: sessionToken, window: windowLabel() });
-  session = fetch(`/api/session?${parameters}`, { credentials: "same-origin" })
-    .then((response) => {
-      if (!response.ok)
-        throw new Error(`Unable to establish the DSH Desktop session (${response.status})`);
-    })
-    .catch((error: unknown) => {
-      session = undefined;
-      throw error;
-    });
-  return session;
-}
-
 async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   let response: Response;
+  const sessionToken = token();
   try {
-    try {
-      await establishSession();
-    } catch {
-      // The development proxy may not forward Set-Cookie. Keep the local
-      // bootstrap token as a request-header fallback for this page only.
-    }
     response = await fetch(`/api/command?window=${encodeURIComponent(windowLabel())}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(token() ? { "X-DSH-Desktop-Token": token() } : {}),
+        ...(sessionToken ? { "X-DSH-Desktop-Token": sessionToken } : {}),
       },
       body: JSON.stringify({ name, args }),
     });
