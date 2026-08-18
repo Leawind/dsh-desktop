@@ -7,6 +7,12 @@
 - 数据模型发生变化时直接更新当前实现、测试和文档，不添加迁移器、兼容分支、旧字段别名或弃用层。
 - 如果本地存在无法被当前结构读取的开发配置，允许应用回退到当前默认设置。
 
+## 开发环境
+
+- 使用 Node.js 22.19.0 或更高版本、pnpm 11.21.0、Rust stable 和 `rustfmt`。
+- WebUI 构建需要 `make`、C/C++ 编译器和目标平台所需的系统库；Linux CI 的基础依赖为 `build-essential`、`curl`、`wget` 和 `file`。
+- 运行 WebUI 窗口需要系统中存在受支持的浏览器；运行 `slim` 变体还需要可用的 `dsh` 命令。
+
 ## 设计与文档
 
 - `docs/design.md` 描述宏观设计和当前决策，不堆放没有必要的代码类型定义或实现细节。
@@ -36,6 +42,13 @@
 - CI 和开发工作流需要的命令统一定义在根 `package.json`。
 - 前端脚本使用 `frontend:<name>`，Rust 脚本使用 `rust:<name>`；CI 直接执行的聚合脚本不加前缀，例如 `format`、`format-check`、`check`。
 - 完成实现后至少运行 `pnpm check`。涉及窗口、WebView、进程、代理或服务生命周期时，还要进行与风险相称的真实运行验证。
+- `pnpm dev` 同时启动 Vite 和 Rust Host；浏览器通过 Vite 的 `/api` 代理访问 Host，前端修改应通过热更新生效。再次运行时复用已有 Vite 与 Host，由 Host 创建新的浏览器窗口；最后一个窗口关闭后，Host 和该命令启动的 Vite 一起退出。
+- `pnpm build:bundled` 和 `pnpm build:slim` 生成当前平台可独立移动运行的单文件可执行程序，产物位于 Cargo target 目录下的 `release/artifacts/`。
+- `runtime/versions.json` 固定内置运行时版本，`runtime/package-lock.json` 固定生产依赖闭包；修改内置运行时前先运行 `pnpm run runtime:prepare`。
+
+## 前端约定
+
+- 用户可见文本同时提供 `zh-CN` 和 `en-US`；通用 UI 能力放在 `packages/ui`，应用业务逻辑、HTTP bridge 和页面放在 `apps/frontend`。
 
 ## Git 工作流
 
