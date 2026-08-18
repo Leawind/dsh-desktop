@@ -42,7 +42,7 @@
 - CI 和开发工作流需要的命令统一定义在根 `package.json`。
 - 前端脚本使用 `frontend:<name>`，Rust 脚本使用 `rust:<name>`；CI 直接执行的聚合脚本不加前缀，例如 `format`、`format-check`、`check`。
 - 完成实现后至少运行 `pnpm check`。涉及窗口、WebView、进程、代理或服务生命周期时，还要进行与风险相称的真实运行验证。
-- `pnpm dev` 同时启动 Vite 和 Rust Host；浏览器通过 Vite 的 `/api` 代理访问 Host，前端修改应通过热更新生效。再次运行时复用已有 Vite 与 Host，由 Host 创建新的浏览器窗口；最后一个窗口关闭后 Host 仍保留托盘并继续运行，使用托盘“关闭所有”后 Host 和该命令启动的 Vite 一起退出。
+- `pnpm dev` 同时启动 Vite 和 Rust Host；浏览器通过 Vite 的 `/api` 代理访问 Host，前端修改应通过热更新生效。再次运行时复用已有 Vite 与 Host，由 Host 创建新的浏览器窗口；最后一个窗口关闭后，Host 在仍有受管 DSH 服务时保留托盘并继续运行，全部受管服务被回收后 Host 和该命令启动的 Vite 一起退出。
 - `pnpm build:bundled` 和 `pnpm build:slim` 生成当前平台可独立移动运行的单文件可执行程序，产物位于 Cargo target 目录下的 `release/artifacts/`。
 - `runtime/versions.json` 固定内置运行时版本，`runtime/package-lock.json` 固定生产依赖闭包；修改内置运行时前先运行 `pnpm run runtime:prepare`。
 

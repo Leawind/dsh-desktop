@@ -77,7 +77,7 @@ impl AppState {
             })),
             startup_lock: Arc::new(Mutex::new(())),
             runtime_manager,
-            system_color_scheme: Arc::new(RwLock::new(crate::system_appearance::detect())),
+            system_color_scheme: Arc::new(RwLock::new(None)),
             next_window_id: Arc::new(AtomicU64::new(1)),
         }
     }
@@ -132,6 +132,13 @@ impl AppState {
         let mut host = self.host.lock().ok()?;
         host.reap_idle_services(idle_timeout);
         Some(snapshot_locked(&host))
+    }
+
+    pub fn should_exit_after_idle_reap(&self) -> bool {
+        self.host
+            .lock()
+            .map(|host| host.windows.is_empty() && !host.has_managed_processes())
+            .unwrap_or(false)
     }
 
     pub fn shutdown(&self) {
@@ -217,6 +224,12 @@ impl AppState {
 }
 
 impl HostState {
+    pub fn has_managed_processes(&self) -> bool {
+        self.endpoints
+            .values()
+            .any(|endpoint| endpoint.process.is_some())
+    }
+
     pub fn known_endpoint_urls(&self) -> Vec<String> {
         let mut endpoints = self
             .endpoints
@@ -448,5 +461,18 @@ mod tests {
             .expect("endpoint remains registered");
         assert_eq!(endpoint.status, ServiceStatus::Unreachable);
         assert!(endpoint.idle_since.is_none());
+    }
+
+    #[test]
+    fn does_not_count_a_reaped_managed_endpoint_as_a_running_service() {
+        let mut endpoint = EndpointRecord::external(ServiceStatus::Unreachable);
+        endpoint.managed = true;
+        let host = HostState {
+            windows: HashMap::new(),
+            endpoints: HashMap::from([("http://127.0.0.1:3080".to_owned(), endpoint)]),
+            next_connection_order: 1,
+        };
+
+        assert!(!host.has_managed_processes());
     }
 }

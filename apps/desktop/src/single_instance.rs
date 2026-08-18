@@ -1,5 +1,5 @@
-use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::fs::{self, File, OpenOptions};
+use std::io::{BufRead, BufReader, Seek, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -8,8 +8,10 @@ use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, SystemTime};
 
+use fs2::FileExt;
+
 const LOCK_FILE: &str = "host.lock";
-const STARTUP_TIMEOUT: Duration = Duration::from_secs(3);
+const STARTUP_RETRY_TIMEOUT: Duration = Duration::from_millis(300);
 
 pub struct PrimaryInstance {
     pub requests: Receiver<HostRequest>,
@@ -27,12 +29,17 @@ pub enum Claim {
 
 struct Lease {
     path: PathBuf,
+    file: Option<File>,
     running: Arc<AtomicBool>,
 }
 
 impl Drop for Lease {
     fn drop(&mut self) {
         self.running.store(false, Ordering::Release);
+        if let Some(file) = self.file.take() {
+            let _ = file.unlock();
+            drop(file);
+        }
         let _ = fs::remove_file(&self.path);
     }
 }
@@ -40,27 +47,42 @@ impl Drop for Lease {
 pub fn claim(config_directory: &Path) -> std::io::Result<Claim> {
     fs::create_dir_all(config_directory)?;
     let path = config_directory.join(LOCK_FILE);
-    let deadline = std::time::Instant::now() + STARTUP_TIMEOUT;
-    loop {
-        match OpenOptions::new().write(true).create_new(true).open(&path) {
-            Ok(mut file) => return start_primary(path, &mut file),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                if forward_to_primary(&path)? {
-                    return Ok(Claim::Forwarded);
-                }
-                if std::time::Instant::now() >= deadline {
-                    // A Host writes the lock only after its listener is bound, so a
-                    // non-connectable lock beyond the startup grace period is stale.
-                    let _ = fs::remove_file(&path);
-                }
-                thread::sleep(Duration::from_millis(50));
-            }
-            Err(error) => return Err(error),
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&path)?;
+    match file.try_lock_exclusive() {
+        Ok(()) => start_primary(path, file),
+        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+            forward_or_claim(path, file)
         }
+        Err(error) => Err(error),
     }
 }
 
-fn start_primary(path: PathBuf, file: &mut fs::File) -> std::io::Result<Claim> {
+fn forward_or_claim(path: PathBuf, file: File) -> std::io::Result<Claim> {
+    let deadline = std::time::Instant::now() + STARTUP_RETRY_TIMEOUT;
+    loop {
+        if forward_to_primary(&path)? {
+            return Ok(Claim::Forwarded);
+        }
+        match file.try_lock_exclusive() {
+            Ok(()) => return start_primary(path, file),
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+            Err(error) => return Err(error),
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "the existing DSH Desktop Host did not accept a new-window request",
+            ));
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+}
+
+fn start_primary(path: PathBuf, mut file: File) -> std::io::Result<Claim> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     listener.set_nonblocking(true)?;
     let port = listener.local_addr()?.port();
@@ -72,6 +94,8 @@ fn start_primary(path: PathBuf, file: &mut fs::File) -> std::io::Result<Claim> {
             .as_nanos()
             ^ u128::from(std::process::id())
     );
+    file.set_len(0)?;
+    file.rewind()?;
     writeln!(file, "{port} {token}")?;
     file.sync_all()?;
 
@@ -98,7 +122,11 @@ fn start_primary(path: PathBuf, file: &mut fs::File) -> std::io::Result<Claim> {
 
     Ok(Claim::Primary(PrimaryInstance {
         requests: receiver,
-        _lease: Lease { path, running },
+        _lease: Lease {
+            path,
+            file: Some(file),
+            running,
+        },
     }))
 }
 
@@ -160,6 +188,23 @@ mod tests {
 
         drop(primary);
         assert!(!directory.join(LOCK_FILE).exists());
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn immediately_claims_an_unlocked_residual_metadata_file() {
+        let directory = std::env::temp_dir().join(format!(
+            "dsh-desktop-single-instance-residual-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(&directory).expect("create test directory");
+        fs::write(directory.join(LOCK_FILE), "stale metadata").expect("write residual metadata");
+
+        let claim = claim(&directory).expect("claim after residual metadata");
+        assert!(matches!(claim, Claim::Primary(_)));
+
+        drop(claim);
         let _ = fs::remove_dir_all(directory);
     }
 }

@@ -2,6 +2,7 @@ use std::fs;
 use std::io::{Error, ErrorKind, Read};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
 
 use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
@@ -73,6 +74,7 @@ pub struct RuntimeManager {
     variant: DistributionVariant,
     seed_directory: PathBuf,
     install_root: PathBuf,
+    seed_materialization_lock: Arc<Mutex<()>>,
 }
 
 impl DistributionVariant {
@@ -91,6 +93,7 @@ impl RuntimeManager {
             variant: DistributionVariant::current(),
             seed_directory,
             install_root: data_directory.join("runtimes").join("dsh"),
+            seed_materialization_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -104,6 +107,7 @@ impl RuntimeManager {
             variant,
             seed_directory,
             install_root,
+            seed_materialization_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -145,6 +149,7 @@ impl RuntimeManager {
         if self.variant != DistributionVariant::Bundled {
             return Err(AppError::new("service.error.builtInUnavailable"));
         }
+        self.ensure_runtime_seed()?;
         let manifest = self.read_manifest(&self.seed_directory)?;
         if manifest.schema_version != 1 {
             return Err(AppError::new("runtime.error.unsupportedManifest")
@@ -161,6 +166,14 @@ impl RuntimeManager {
         self.validate_installation(&installation, &installed_manifest)?;
 
         self.installed_runtime(installation, installed_manifest)
+    }
+
+    fn ensure_runtime_seed(&self) -> AppResult<()> {
+        let _guard = self
+            .seed_materialization_lock
+            .lock()
+            .map_err(|_| AppError::new("runtime.error.installFailed"))?;
+        crate::embedded_resources::materialize_runtime_seed(&self.seed_directory)
     }
 
     pub fn prepare_update(

@@ -63,6 +63,8 @@ pub fn run() {
         &client_activity,
         &bridge,
     );
+    let appearance_state = state.clone();
+    std::thread::spawn(move || appearance_state.refresh_system_color_scheme());
     let event_loop = EventLoopBuilder::<tray_icon::menu::MenuEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
     tray_icon::menu::MenuEvent::set_event_handler(Some(move |event| {
@@ -105,6 +107,10 @@ pub fn run() {
                 if locale != last_locale {
                     tray.update_locale(locale);
                     last_locale = locale;
+                }
+                if state.should_exit_after_idle_reap() {
+                    webui::clean();
+                    *control_flow = ControlFlow::Exit;
                 }
             }
             _ => {}

@@ -18,7 +18,7 @@ pub struct EmbeddedResources {
 
 pub fn materialize(data_directory: &Path) -> AppResult<EmbeddedResources> {
     let root = data_directory.join("embedded-resources").join(RESOURCE_ID);
-    if !is_complete(&root) {
+    if !is_bootstrap_complete(&root) {
         let staging = data_directory
             .join("embedded-resources")
             .join(format!(".{RESOURCE_ID}.staging-{}", std::process::id()));
@@ -26,7 +26,7 @@ pub fn materialize(data_directory: &Path) -> AppResult<EmbeddedResources> {
             fs::remove_dir_all(&staging).map_err(resource_error)?;
         }
         fs::create_dir_all(&staging).map_err(resource_error)?;
-        let result = write_resources(&staging);
+        let result = write_bootstrap_resources(&staging);
         if let Err(error) = result {
             let _ = fs::remove_dir_all(&staging);
             return Err(error);
@@ -43,16 +43,65 @@ pub fn materialize(data_directory: &Path) -> AppResult<EmbeddedResources> {
     })
 }
 
-fn is_complete(root: &Path) -> bool {
+pub fn materialize_runtime_seed(seed_directory: &Path) -> AppResult<()> {
+    if RUNTIME_SEED_FILES.is_empty() || runtime_seed_is_complete(seed_directory) {
+        return Ok(());
+    }
+    let parent = seed_directory
+        .parent()
+        .ok_or_else(|| AppError::new("runtime.error.installFailed"))?;
+    fs::create_dir_all(parent).map_err(resource_error)?;
+    let staging = parent.join(format!(".bundled.staging-{}", std::process::id()));
+    let previous = parent.join(format!(".bundled.previous-{}", std::process::id()));
+    if staging.exists() {
+        fs::remove_dir_all(&staging).map_err(resource_error)?;
+    }
+    if previous.exists() {
+        fs::remove_dir_all(&previous).map_err(resource_error)?;
+    }
+    fs::create_dir_all(&staging).map_err(resource_error)?;
+    if let Err(error) = write_group(&staging, "", RUNTIME_SEED_FILES) {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(error);
+    }
+    if seed_directory.exists() {
+        fs::rename(seed_directory, &previous).map_err(resource_error)?;
+    }
+    if let Err(error) = fs::rename(&staging, seed_directory) {
+        if previous.exists() {
+            let _ = fs::rename(&previous, seed_directory);
+        }
+        let _ = fs::remove_dir_all(&staging);
+        return Err(resource_error(error));
+    }
+    if previous.exists() {
+        fs::remove_dir_all(previous).map_err(resource_error)?;
+    }
+    Ok(())
+}
+
+fn is_bootstrap_complete(root: &Path) -> bool {
     (FRONTEND_FILES.is_empty() || root.join("frontend/index.html").is_file())
         && root.join("icons/icon.png").is_file()
         && (RUNTIME_SEED_FILES.is_empty() || root.join("runtime/bundled/manifest.json").is_file())
 }
 
-fn write_resources(root: &Path) -> AppResult<()> {
+fn runtime_seed_is_complete(seed_directory: &Path) -> bool {
+    RUNTIME_SEED_FILES
+        .iter()
+        .all(|file| seed_directory.join(file.path).is_file())
+}
+
+fn write_bootstrap_resources(root: &Path) -> AppResult<()> {
     write_group(root, "frontend", FRONTEND_FILES)?;
     write_group(root, "icons", ICON_FILES)?;
-    write_group(root, "runtime/bundled", RUNTIME_SEED_FILES)
+    let manifest = RUNTIME_SEED_FILES
+        .iter()
+        .find(|file| file.path == "manifest.json");
+    if let Some(manifest) = manifest {
+        write_group(root, "runtime/bundled", std::slice::from_ref(manifest))?;
+    }
+    Ok(())
 }
 
 fn write_group(root: &Path, prefix: &str, files: &[EmbeddedFile]) -> AppResult<()> {
@@ -95,6 +144,18 @@ mod tests {
             assert!(resources.frontend_directory.join("index.html").is_file());
         }
         assert!(resources.icon.is_file());
+        if !RUNTIME_SEED_FILES.is_empty() {
+            assert!(
+                resources
+                    .runtime_seed_directory
+                    .join("manifest.json")
+                    .is_file()
+            );
+            assert!(!runtime_seed_is_complete(&resources.runtime_seed_directory));
+            materialize_runtime_seed(&resources.runtime_seed_directory)
+                .expect("materialize deferred runtime seed");
+            assert!(runtime_seed_is_complete(&resources.runtime_seed_directory));
+        }
         let _ = fs::remove_dir_all(directory);
     }
 }
