@@ -28,7 +28,7 @@ function formatPageScaleTooltip(value: number): string {
     role="tabpanel"
     aria-labelledby="settings-tab-interface"
   >
-    <UiSettingRow class="settings-page__language-row" :label="$t('settings.language')">
+    <UiSettingRow :label="$t('settings.language')">
       <UiSelect v-model="locale" variant="pill" :options="localeOptions" @change="emit('select')" />
     </UiSettingRow>
     <UiSettingRow
@@ -68,22 +68,13 @@ function formatPageScaleTooltip(value: number): string {
   gap: var(--space-3);
 }
 
-.settings-page__page-scale-row :deep(.ui-setting-row__text) {
-  padding-right: 0;
+.settings-page__page-scale-row :deep(.ui-setting-row__control) {
+  align-self: stretch;
+  width: 100%;
+  margin-inline-start: 0;
 }
 
 .settings-page__page-scale-control {
   width: 100%;
-}
-
-.settings-page__language-row :deep(.ui-setting-row__control) {
-  align-self: flex-end;
-}
-
-@media (max-width: 30rem) {
-  .settings-page__language-row :deep(.ui-setting-row__control) {
-    width: auto;
-    margin-left: auto;
-  }
 }
 </style>

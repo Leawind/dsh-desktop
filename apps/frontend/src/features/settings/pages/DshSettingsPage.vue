@@ -103,11 +103,6 @@ const idleTimeoutMinutes = defineModel<number>("idleTimeoutMinutes", { required:
 
 .settings-page__wide-control {
   width: 17.5rem;
-}
-
-@media (max-width: 40rem) {
-  .settings-page__wide-control {
-    width: 100%;
-  }
+  max-width: 100%;
 }
 </style>

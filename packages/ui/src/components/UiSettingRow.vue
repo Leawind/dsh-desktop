@@ -22,6 +22,7 @@ defineProps<{
 <style scoped>
 .ui-setting-row {
   display: flex;
+  flex-flow: row wrap;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-4) 0;
@@ -31,10 +32,9 @@ defineProps<{
 .ui-setting-row__text {
   display: flex;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 12rem;
   flex-direction: column;
   gap: var(--space-1);
-  padding-right: 3rem;
 }
 
 .ui-setting-row__label {
@@ -53,22 +53,8 @@ defineProps<{
 
 .ui-setting-row__control {
   min-width: 0;
-  flex: none;
-}
-
-@media (max-width: 30rem) {
-  .ui-setting-row {
-    align-items: stretch;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  .ui-setting-row__text {
-    padding-right: 0;
-  }
-
-  .ui-setting-row__control {
-    width: 100%;
-  }
+  max-width: 100%;
+  flex: 0 0 auto;
+  margin-inline-start: auto;
 }
 </style>
