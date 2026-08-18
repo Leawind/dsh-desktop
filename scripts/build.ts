@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import crossSpawn from "cross-spawn";
 
 type DistributionVariant = "bundled" | "slim";
 
@@ -10,11 +11,14 @@ interface CargoMetadata {
 }
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 function run(command: string, args: readonly string[], env = process.env): Promise<void> {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, args, { cwd: root, env, stdio: "inherit" });
+    const child = crossSpawn(command, args, {
+      cwd: root,
+      env,
+      stdio: "inherit",
+    });
     child.once("error", reject);
     child.once("exit", (code) =>
       code === 0
@@ -56,8 +60,8 @@ async function main(): Promise<void> {
   if (variant !== "bundled" && variant !== "slim") {
     throw new Error("Usage: build.ts <bundled|slim>");
   }
-  if (variant === "bundled") await run(pnpmCommand, ["run", "runtime:prepare"]);
-  await run(pnpmCommand, ["run", "frontend:build"]);
+  if (variant === "bundled") await run("pnpm", ["run", "runtime:prepare"]);
+  await run("pnpm", ["run", "frontend:build"]);
   const env = {
     ...process.env,
     DSH_DESKTOP_VARIANT: variant,
