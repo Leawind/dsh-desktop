@@ -178,8 +178,8 @@ onBeforeUnmount(() => {
         draggable="true"
         @dragstart="startDraggingAttempt(attempt, $event)"
         @dragend="endDraggingAttempt"
-        @dragover="dragOverAttempt"
-        @drop="dropAttempt"
+        @dragover.capture="dragOverAttempt"
+        @drop.capture="dropAttempt"
       >
         <button
           class="settings-page__attempt-drag-handle"
