@@ -90,6 +90,9 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./apps/desktop -> target"

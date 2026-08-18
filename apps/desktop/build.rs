@@ -53,7 +53,6 @@ fn main() {
         println!("cargo:rustc-link-lib=ole32");
         println!("cargo:rustc-link-lib=ws2_32");
         println!("cargo:rustc-link-lib=uuid");
-        println!("cargo:rustc-link-lib=stdc++");
     }
     if cfg!(target_os = "macos") {
         println!("cargo:rustc-link-lib=framework=Cocoa");
