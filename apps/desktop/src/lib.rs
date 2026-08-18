@@ -43,8 +43,8 @@ pub fn run() {
     let frontend = frontend_directory();
     let url = bridge_server::start(state.clone(), window, frontend)
         .expect("failed to start the local DSH Desktop bridge");
-    if !window.show(&url) {
-        eprintln!("WebUI could not launch an installed browser");
+    if !window.show(&url) && !window.show_webview_fallback(&url) {
+        eprintln!("WebUI could not launch an external browser or the native WebView fallback");
         state.shutdown();
         webui::clean();
         return;

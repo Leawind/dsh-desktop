@@ -6,6 +6,7 @@ unsafe extern "C" {
     fn webui_new_window() -> usize;
     fn webui_set_config(option: u32, status: bool);
     fn webui_show_browser(window: usize, content: *const std::ffi::c_char, browser: usize) -> bool;
+    fn webui_show_wv(window: usize, content: *const std::ffi::c_char) -> bool;
     fn webui_set_size(window: usize, width: u32, height: u32);
     fn webui_set_minimum_size(window: usize, width: u32, height: u32);
     fn webui_set_resizable(window: usize, status: bool);
@@ -45,6 +46,16 @@ impl Window {
             // a browser can take several seconds to construct its private profile.
             webui_set_config(0, false);
             webui_show_browser(self.0, url.as_ptr(), ANY_BROWSER)
+        }
+    }
+
+    pub fn show_webview_fallback(self, url: &str) -> bool {
+        let Ok(url) = CString::new(url) else {
+            return false;
+        };
+        unsafe {
+            webui_set_config(0, false);
+            webui_show_wv(self.0, url.as_ptr())
         }
     }
 
