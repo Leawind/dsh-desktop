@@ -13,15 +13,6 @@ import AppStatusbar from "@/features/statusbar/AppStatusbar.vue";
 const { t } = useI18n();
 const desktop = useDesktopApp();
 
-function applyPageScale(pageScalePercent: number): void {
-  void desktopBridge.webview.setZoom(pageScalePercent / 100);
-}
-
-watch(
-  () => desktop.settings.value.pageScalePercent,
-  (pageScalePercent) => applyPageScale(pageScalePercent),
-);
-
 function errorMessage(): string {
   const error = desktop.error.value;
   if (!error) return t("app.error.unknown");
@@ -39,7 +30,6 @@ function statusMessage(): string | null {
 }
 
 onMounted(() => {
-  applyPageScale(desktop.settings.value.pageScalePercent);
   watch(
     desktop.windowTitle,
     (title) => {

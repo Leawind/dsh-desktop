@@ -51,8 +51,6 @@
       "startup": "Startup"
     },
     "language": "Interface language",
-    "pageScale": "Page scale",
-    "pageScaleHint": "Scales the DSH Desktop interface and the embedded DSH page.",
     "executable": "DSH executable",
     "executableHint": "Enter the full path to a custom dsh executable.",
     "npxVersion": "npx DSH version",
@@ -108,7 +106,6 @@
       "relativeDshHome": "The DSH user data directory must be absolute or begin with ~/.",
       "unsupportedSource": "The selected DSH source is unavailable in this distribution variant.",
       "invalidIdleTimeout": "The idle timeout must be between 0 and 10080 minutes.",
-      "invalidPageScale": "The page scale must be a valid number between 50% and 400%.",
       "saveFailed": "The settings could not be saved."
     }
   },

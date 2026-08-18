@@ -51,8 +51,6 @@
       "startup": "启动"
     },
     "language": "界面语言",
-    "pageScale": "缩放比例",
-    "pageScaleHint": "缩放 DSH Desktop 界面和嵌入的 DSH 页面。",
     "executable": "DSH 可执行文件",
     "executableHint": "指定自定义 dsh 可执行文件的完整路径。",
     "npxVersion": "npx DSH 版本",
@@ -108,7 +106,6 @@
       "relativeDshHome": "DSH 用户数据目录必须是绝对路径，或以 ~/ 开头。",
       "unsupportedSource": "当前发行变体不支持所选的 DSH 来源。",
       "invalidIdleTimeout": "空闲回收时间必须位于 0 到 10080 分钟之间。",
-      "invalidPageScale": "缩放比例必须是 50% 到 400% 之间的有效数值。",
       "saveFailed": "无法保存设置。"
     }
   },

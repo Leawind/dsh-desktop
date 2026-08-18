@@ -48,7 +48,6 @@ export function useDesktopApp() {
   });
   const settings = ref<GlobalSettings>({
     locale: null,
-    pageScalePercent: 100,
     dshSource: { type: "system" },
     dshHome: { type: "environment" },
     windowStartupAttempts: [

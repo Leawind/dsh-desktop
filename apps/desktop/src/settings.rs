@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::error::{AppError, AppResult};
 use crate::model::{
     DistributionVariant, DshHome, DshSource, GlobalSettings, GlobalSettingsPatch,
-    MAX_PAGE_SCALE_PERCENT, MIN_PAGE_SCALE_PERCENT, WindowStartupAttempt,
+    WindowStartupAttempt,
 };
 
 const SETTINGS_FILE: &str = "settings.json";
@@ -26,9 +26,6 @@ pub fn validate(
     mut patch: GlobalSettingsPatch,
     variant: DistributionVariant,
 ) -> AppResult<GlobalSettings> {
-    if !(MIN_PAGE_SCALE_PERCENT..=MAX_PAGE_SCALE_PERCENT).contains(&patch.page_scale_percent) {
-        return Err(AppError::new("settings.error.invalidPageScale"));
-    }
     if patch.managed_service_idle_timeout_seconds > 7 * 24 * 60 * 60 {
         return Err(AppError::new("settings.error.invalidIdleTimeout"));
     }
@@ -165,30 +162,6 @@ mod tests {
             ..GlobalSettings::default()
         };
         assert!(validate(settings, DistributionVariant::Slim).is_err());
-    }
-
-    #[test]
-    fn rejects_page_scale_outside_the_supported_range() {
-        let settings = GlobalSettings {
-            page_scale_percent: 49.0,
-            ..GlobalSettings::default()
-        };
-        assert!(validate(settings, DistributionVariant::Slim).is_err());
-
-        let settings = GlobalSettings {
-            page_scale_percent: 401.0,
-            ..GlobalSettings::default()
-        };
-        assert!(validate(settings, DistributionVariant::Slim).is_err());
-    }
-
-    #[test]
-    fn accepts_fractional_page_scale() {
-        let settings = GlobalSettings {
-            page_scale_percent: 172.8,
-            ..GlobalSettings::default()
-        };
-        assert!(validate(settings, DistributionVariant::Slim).is_ok());
     }
 
     #[test]

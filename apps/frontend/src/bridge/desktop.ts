@@ -91,12 +91,6 @@ export const desktopBridge = {
     poll(async () => (await command<BootstrapPayload>("initialize_window")).distribution, listener),
   onBuiltInRuntimeUpdated: (_listener: (urls: readonly string[]) => void): Promise<UnlistenFn> =>
     Promise.resolve(() => undefined),
-  webview: {
-    setZoom: (scaleFactor: number): Promise<void> => {
-      document.documentElement.style.zoom = String(scaleFactor);
-      return Promise.resolve();
-    },
-  },
   window: {
     minimize: (): Promise<void> => command("window_minimize"),
     toggleMaximize: (): Promise<void> => command("window_maximize"),

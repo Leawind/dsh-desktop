@@ -40,7 +40,6 @@ const { t } = useI18n();
 const activeTab = ref<SettingsTab>("interface");
 const {
   locale,
-  pageScalePercent,
   sourceType,
   customExecutable,
   npxVersion,
@@ -202,7 +201,6 @@ onBeforeUnmount(() => {
           <InterfaceSettingsPage
             v-show="activeTab === 'interface'"
             v-model:locale="locale"
-            v-model:page-scale-percent="pageScalePercent"
             :locale-options="localeOptions"
             @select="flushSettings"
           />
