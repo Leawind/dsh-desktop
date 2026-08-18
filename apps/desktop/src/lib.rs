@@ -13,10 +13,12 @@ mod system_appearance;
 mod webui;
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use state::AppState;
+
+const CLIENT_DISCONNECT_TIMEOUT_MILLIS: u64 = 3_000;
 
 pub fn run() {
     direct_network::configure_process();
@@ -46,8 +48,15 @@ pub fn run() {
     let window = webui::Window::create(&icon);
     let frontend = frontend_directory();
     let running = Arc::new(AtomicBool::new(true));
-    let url = bridge_server::start(state.clone(), window, frontend, Arc::clone(&running))
-        .expect("failed to start the local DSH Desktop bridge");
+    let last_client_activity = Arc::new(AtomicU64::new(0));
+    let url = bridge_server::start(
+        state.clone(),
+        window,
+        frontend,
+        Arc::clone(&running),
+        Arc::clone(&last_client_activity),
+    )
+    .expect("failed to start the local DSH Desktop bridge");
     if !window.show(&url) && !window.show_webview_fallback(&url) {
         eprintln!("WebUI could not launch an external browser or the native WebView fallback");
         state.shutdown();
@@ -55,10 +64,25 @@ pub fn run() {
         return;
     }
     while running.load(Ordering::Acquire) {
+        let last_activity = last_client_activity.load(Ordering::Acquire);
+        if last_activity != 0
+            && unix_time_millis().saturating_sub(last_activity) >= CLIENT_DISCONNECT_TIMEOUT_MILLIS
+        {
+            break;
+        }
         std::thread::sleep(Duration::from_millis(250));
     }
     state.shutdown();
     webui::clean();
+}
+
+fn unix_time_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
 }
 
 fn resource_directory() -> std::path::PathBuf {

@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 
 use serde::Deserialize;
@@ -27,6 +27,7 @@ pub fn start(
     window: Window,
     frontend: PathBuf,
     running: Arc<AtomicBool>,
+    last_client_activity: Arc<AtomicU64>,
 ) -> AppResult<String> {
     let server = Server::http("127.0.0.1:0").map_err(|error| {
         AppError::new("app.error.bridgeUnavailable").technical(error.to_string())
@@ -48,7 +49,18 @@ pub fn start(
             let frontend = frontend.clone();
             let token = server_token.clone();
             let running = Arc::clone(&running);
-            thread::spawn(move || respond(request, state, window, &frontend, &token, &running));
+            let last_client_activity = Arc::clone(&last_client_activity);
+            thread::spawn(move || {
+                respond(
+                    request,
+                    state,
+                    window,
+                    &frontend,
+                    &token,
+                    &running,
+                    &last_client_activity,
+                )
+            });
         }
     });
     Ok(format!("http://{address}/?token={token}"))
@@ -61,6 +73,7 @@ fn respond(
     frontend: &Path,
     token: &str,
     running: &AtomicBool,
+    last_client_activity: &AtomicU64,
 ) {
     let response = if request.url().starts_with("/api/") {
         if !authorized(&request, token) {
@@ -74,6 +87,7 @@ fn respond(
                 json!({ "error": AppError::new("app.error.notFound") }),
             )
         } else {
+            last_client_activity.store(unix_time_millis(), Ordering::Release);
             let mut body = String::new();
             let result = std::io::Read::read_to_string(&mut request.as_reader(), &mut body)
                 .map_err(|error| {
@@ -94,6 +108,15 @@ fn respond(
         static_response(frontend, request.url())
     };
     let _ = request.respond(response);
+}
+
+fn unix_time_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
 }
 
 fn authorized(request: &tiny_http::Request, token: &str) -> bool {
