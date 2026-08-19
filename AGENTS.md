@@ -46,6 +46,25 @@
 - `pnpm build:bundled` 和 `pnpm build:slim` 生成当前平台可独立移动运行的单文件可执行程序，产物位于 Cargo target 目录下的 `release/artifacts/`。
 - `runtime/versions.json` 固定内置运行时版本，`runtime/package-lock.json` 固定生产依赖闭包；修改内置运行时前先运行 `pnpm run runtime:prepare`。
 
+### 维护内置 DSH
+
+内置 DSH 使用 npm 中的确切版本，不跟随浮动的版本范围。检查可用更新时运行：
+
+```sh
+pnpm view @deepseek-ai/dsh version
+```
+
+发现新版本后，先阅读上游的发行说明和必要契约变更，并确认目标 Node.js 版本仍受支持。创建更新后按以下顺序实施，并在提交前完成目标平台验证：
+
+1. 将选定的确切版本同时写入 `runtime/versions.json` 的 `dsh` 和 `runtime/package.json` 的 `@deepseek-ai/dsh` 依赖；同步依赖闭包中版本变化的 `allowScripts` 条目。
+2. 在 `runtime` 目录运行 `npm install --package-lock-only --ignore-scripts`，更新 `runtime/package-lock.json`。
+3. 运行 `pnpm run runtime:prepare`。该命令会校验三份运行时定义一致，使用锁定闭包安装依赖，并生成当前平台的内置运行时。
+4. 将 `runtime/compatibility.json` 中当前 `apps/desktop/Cargo.toml` 版本对应的 `dshVersion` 改为同一个确切版本。内置清单必须始终包含当前应用版本。
+5. 验证内置运行时的 `dsh --version`、`dsh web --help` 和隔离 DSH Home 启动；再运行 `pnpm check`。涉及新 DSH 行为时，在 Windows、Linux 和 macOS 的目标平台完成真实 Web UI、服务停止和重启验证。
+6. 若上游契约、验证范围或许可证信息发生变化，同步更新 `docs/dsh-compatibility.md`、生成的第三方声明和相关测试；以独立的 Conventional Commit 提交运行时、lockfile、清单与验证文档。
+
+只有验证通过的确切 DSH 版本才能写入 `runtime/compatibility.json`。远程清单、缓存和内置清单依次提供同一格式的更新目标；发布清单更新后再推送，已安装应用才能取得新的远程目标。
+
 ## 前端约定
 
 - 用户可见文本同时提供 `zh-CN` 和 `en-US`；通用 UI 能力放在 `packages/ui`，应用业务逻辑、HTTP bridge 和页面放在 `apps/frontend`。
