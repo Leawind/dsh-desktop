@@ -1,6 +1,5 @@
 import type {
   AppError,
-  AppUpdateSnapshot,
   BootstrapPayload,
   GlobalSettings,
   GlobalSettingsPatch,
@@ -149,8 +148,6 @@ export const desktopBridge = {
   checkBuiltInRuntimeUpdate: (): Promise<RuntimeUpdateSnapshot> =>
     command("check_built_in_runtime_update"),
   updateBuiltInRuntime: (): Promise<RuntimeUpdateResult> => command("update_built_in_runtime"),
-  checkAppUpdate: (): Promise<AppUpdateSnapshot> => command("check_app_update"),
-  installAppUpdate: (): Promise<string> => command("install_app_update"),
   updateGlobalSettings: (patch: GlobalSettingsPatch): Promise<GlobalSettings> =>
     command("update_global_settings", { patch }),
   onHostSnapshotChanged: (listener: (snapshot: HostSnapshot) => void): Promise<UnlistenFn> =>

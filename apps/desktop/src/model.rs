@@ -37,20 +37,6 @@ pub struct RuntimeUpdateSnapshot {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AppUpdateCandidate {
-    pub version: String,
-    pub notes: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppUpdateSnapshot {
-    pub current_version: String,
-    pub candidate: Option<AppUpdateCandidate>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AppMetadataSnapshot {
     pub name: String,
     pub version: String,

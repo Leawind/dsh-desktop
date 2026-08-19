@@ -308,8 +308,6 @@ fn dispatch(state: &AppState, label: &str, request: CommandRequest) -> AppResult
         "restart_service" => value(commands::restart_service(state, string(&args, "url")?)?),
         "check_built_in_runtime_update" => value(commands::check_built_in_runtime_update(state)?),
         "update_built_in_runtime" => value(commands::update_built_in_runtime(state)?),
-        "check_app_update" => value(commands::check_app_update(state)?),
-        "install_app_update" => value(commands::install_app_update(state)?),
         "update_global_settings" => value(commands::update_global_settings(
             serde_json::from_value(args.get("patch").cloned().unwrap_or(Value::Null)).map_err(
                 |error| AppError::new("app.error.invalidRequest").technical(error.to_string()),

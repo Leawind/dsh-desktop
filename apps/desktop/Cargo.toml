@@ -32,5 +32,4 @@ tao = "0.34"
 tiny_http = "0.12"
 tray-icon = "0.24"
 url = "2"
-zip = { version = "2", default-features = false, features = ["deflate"] }
 png = "0.17"

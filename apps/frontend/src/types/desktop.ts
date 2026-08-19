@@ -108,16 +108,6 @@ export interface RuntimeUpdateResult {
   updatedUrls: readonly string[];
 }
 
-export interface AppUpdateCandidate {
-  version: string;
-  notes: string | null;
-}
-
-export interface AppUpdateSnapshot {
-  currentVersion: string;
-  candidate: AppUpdateCandidate | null;
-}
-
 export interface AppError {
   code: string;
   args?: Record<string, string | number>;
