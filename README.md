@@ -53,8 +53,6 @@ npm install -g @deepseek-ai/dsh
 
 通过 npx 启动时，系统需要安装 Node.js；首次运行会由 npm 下载所选的 DSH 版本。
 
-Release 同时提供 `SHA256SUMS`，可用于校验下载文件的完整性。
-
 ## 界面概览
 
 <div align="center">

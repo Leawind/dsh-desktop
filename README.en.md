@@ -53,8 +53,6 @@ npm install -g @deepseek-ai/dsh
 
 When using npx, Node.js must be installed; the first run will download the selected DSH version via npm.
 
-Each release also includes `SHA256SUMS` for verifying downloaded files.
-
 ## Interface overview
 
 <div align="center">
