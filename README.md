@@ -1,34 +1,86 @@
+| 中文 | [English](README.en.md) |
+| ---- | ----------------------- |
+
 <div align="center">
 
 # DSH Desktop
 
-DSH Desktop 是 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 的跨平台（Windows / Linux / macOS）桌面客户端。
+[DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) 的轻量、跨平台桌面应用。
 
-它会自动启动或连接现有的本地 DSH Web 服务，你可以像使用普通桌面应用一样打开 DSH，而不必手动输入命令。
+直接启动内置 DSH，连接已有服务，或使用系统、自定义路径和 npx 启动 DSH
+
+[![最新发布](https://img.shields.io/github/v/release/Leawind/dsh-desktop?display_name=tag&sort=semver)](https://github.com/Leawind/dsh-desktop/releases)
+![支持的平台](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-4c8bf5)
+[![CI](https://github.com/Leawind/dsh-desktop/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Leawind/dsh-desktop/actions/workflows/ci.yml?query=branch%3Amain)
+[![MIT 许可证](https://img.shields.io/github/license/Leawind/dsh-desktop)](https://github.com/Leawind/dsh-desktop/blob/main/LICENSE)
+
+<img src="docs/images/main.png" alt="DSH Desktop 主工作区" width="80%">
 
 </div>
 
-## 安装
+---
 
-每个平台提供两种可直接运行的可执行文件：
+## 为什么选择这个
 
-- `slim`：体积极小（< 10MB），适合自行安装或启动 DSH 的用户。
-- `bundled`：包含独立的 Node.js、DSH 和 pnpm，直接运行即可启动 DSH；
+- **跨平台**：支持 Windows、Linux 和 macOS，可从 [GitHub Releases] 下载并直接运行
+- **轻量分发**：`slim` 仅约 7-10 MB，适合已有 DSH 环境或只需连接服务的使用方式
+- **自由选择 DSH 来源**：可使用内置运行时、系统 `dsh`、自定义可执行文件、npx，或直接连接已有 DSH 服务
 
-使用 `slim` 时，可以通过 npm 全局安装 DSH：
+## 选择适合你的版本
+
+| 情况                                                      | 选择      | 安装包大小 | 说明                                          |
+| --------------------------------------------------------- | --------- | ---------- | --------------------------------------------- |
+| 希望下载后直接使用，或希望同时拥有内置和外部 DSH 启动方式 | `bundled` | 100-120 MB | 包含完整功能，并额外内置 Node.js、DSH 和 pnpm |
+| 已安装 DSH，且不需要内置 DSH 运行时                       | `slim`    | 7-10 MB    | 保留除内置运行时外的全部桌面管理能力          |
+
+## 安装与首次运行
+
+下载任一变体后，都可以在应用的全局设置中选择以下 DSH 启动方式：
+
+- 使用 `bundled` 附带的内置运行时；
+- 使用系统 `PATH` 中的 `dsh`；
+- 选择自定义 DSH 可执行文件或启动脚本；
+- 通过 npx 启动 `@deepseek-ai/dsh`；
+- 输入已有 DSH Web 服务的地址。
+
+`bundled` 默认使用内置运行时，因此无需预先安装 Node.js、npm、pnpm 或 `dsh`；也可以选择其余任一种方式。`slim` 不提供内置运行时，其余启动和连接方式与 `bundled` 相同。
+
+如果选择系统 DSH，可通过 npm 安装：
 
 ```sh
 npm install -g @deepseek-ai/dsh
 ```
 
-也可以在应用的全局设置中选择“通过 npx 运行 DSH”，填写 `latest` 或一个确切版本。该方式要求系统安装 Node.js；首次启动会由 npm 下载所选 DSH 版本。
+通过 npx 启动时，系统需要安装 Node.js；首次运行会由 npm 下载所选的 DSH 版本。
 
-Deepseek Harness 仍处于开发预览阶段，安装和配置方式以其[官方文档](https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md)为准。
+## 界面概览
 
-## 更新
+<div align="center">
 
-在“关于”页可以手动检查 DSH Desktop 更新。应用只选择与当前 `bundled` 或 `slim` 变体、平台和架构相同的 GitHub Release 文件；安装时会关闭窗口并停止受管 DSH 服务，然后替换当前可执行文件并重启。若当前文件所在目录不可写，请从 Release 页面手动下载并替换文件。
+<img src="docs/images/settings-dsh.png" width="94%">
+
+选择 DSH 来源，并统一配置受管服务使用的 DSH Home。
+
+---
+
+<img src="docs/images/settings-startup.png" width="94%">
+
+定义启动窗口时的行为。
+
+---
+
+<img src="docs/images/settings-runtime.png" width="94%">
+
+查看和管理内置运行时。
+
+---
+
+</div>
+
+DeepSeek Harness 仍处于开发预览阶段，安装和配置方式以其[官方文档](https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md)为准。
 
 > [!IMPORTANT]
 >
 > 本项目由社区开发，并非 DeepSeek 官方项目，也未获得 DeepSeek 的官方认可或背书。
+
+[GitHub Releases]: https://github.com/Leawind/dsh-desktop/releases
