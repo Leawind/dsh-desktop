@@ -5,94 +5,84 @@
 
 # DSH Desktop
 
-A lightweight, cross-platform desktop application for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness).
-
-Launch DSH directly with the built-in runtime, connect to an existing service, or start DSH via system PATH, custom executable, or npx.
+A lightweight cross-platform desktop wrapper for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness), offering a graphical interface and flexible runtime management.
 
 [![Latest Release](https://img.shields.io/github/v/release/Leawind/dsh-desktop?display_name=tag&sort=semver)](https://github.com/Leawind/dsh-desktop/releases)
-![Supported Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-4c8bf5)
+![Platform Support](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-4c8bf5)
 [![CI](https://github.com/Leawind/dsh-desktop/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Leawind/dsh-desktop/actions/workflows/ci.yml?query=branch%3Amain)
 [![MIT License](https://img.shields.io/github/license/Leawind/dsh-desktop)](https://github.com/Leawind/dsh-desktop/blob/main/LICENSE)
 
-<img src="docs/images/main.png" alt="DSH Desktop main workspace" width="80%">
-
+  <img src="docs/images/main.en.png" alt="DSH Desktop main workspace" width="80%">
 </div>
 
----
+## Why This?
 
-## Why this app
+- **Cross‑platform** — Provides installers and portable packages for Windows, Linux, and macOS.
+- **Lightweight distribution** — The `slim` variant is only ~7–10 MB, ideal if you already have a DSH environment or only need to connect to a remote service.
+- **Flexible DSH sources** — Choose from bundled runtime, system `dsh`, custom path, npx launcher, or direct connection to an existing DSH service.
 
-- **Cross‑platform** – Works on Windows, Linux, and macOS with installer and portable releases.
-- **Lightweight distribution** – The `slim` variant is only ~7–10 MB, ideal if you already have a DSH environment or only need to connect to a service.
-- **Flexible DSH sources** – Choose the built‑in runtime, system `dsh`, a custom executable, npx, or directly connect to an existing DSH Web service.
+## Variants
 
-## Which variant fits you
+| Use Case                                                    | Recommended Variant | Size       | Notes                                   |
+| ----------------------------------------------------------- | ------------------- | ---------- | --------------------------------------- |
+| Out‑of‑the‑box, supports both bundled and external DSH      | `bundled`           | 100–120 MB | Includes DSH runtime                    |
+| You already have DSH installed, no need for bundled runtime | `slim`              | 7–10 MB    | All features except the bundled runtime |
 
-| Your situation                                                                 | Choose    | Package size | Notes                                                       |
-| ------------------------------------------------------------------------------ | --------- | ------------ | ----------------------------------------------------------- |
-| Want a ready-to-run app, or need both built‑in and external DSH launch options | `bundled` | 100–120 MB   | Full functionality, includes Node.js, DSH, and pnpm         |
-| Already have DSH installed and don't need the bundled runtime                  | `slim`    | 7–10 MB      | All desktop management features except the built‑in runtime |
+## Installation & First Run
 
-## Installation & first run
+Download the appropriate release file for your platform and variant from [Releases](https://github.com/Leawind/dsh-desktop/releases).
 
-Download the release file matching your platform and variant. Windows provides MSI, macOS provides DMG, and Debian/Ubuntu provides DEB. Portable releases are also available as ZIP on Windows and macOS, or `tar.gz` on Linux. Installers and portable releases are updated by downloading and installing or extracting a newer release file.
+**Portable data directory**: After the first run, the app creates a `data/` folder alongside the executable, storing settings, single‑instance lock, embedded resources, and the bundled runtime. You can move the entire directory to carry this data. Note that the actual DSH Home content, browser cache, and external paths you specify in settings are not migrated along with the directory.
 
-Portable releases are strictly portable: when an executable runs without an installation marker, DSH Desktop keeps its own settings, single-instance lock, embedded resources, and bundled runtimes in a sibling `data/` directory. Move the whole directory to carry that data with it. Installers place an installation marker beside the executable, so installed applications use the platform-standard data directories. This does not migrate DSH Home contents, browser data, or other external paths selected in settings.
+### Linux Runtime Dependencies
 
-### Linux runtime dependencies
+Linux (DEB and portable) requires system GTK 3 and xdotool, plus a supported graphical browser. On Debian/Ubuntu:
 
-Both Linux DEB and portable releases use the system GTK 3 and xdotool libraries and require a supported graphical browser. On Debian/Ubuntu, install the following packages; APT installs the transitive GTK, GDK, GLib, Cairo, X11/Wayland, and related libraries automatically:
-
-```sh
+```bash
 sudo apt install libgtk-3-0 libxdo3
 ```
 
-These are runtime requirements, not development requirements: end users do not need `libgtk-3-dev`, `libxdo-dev`, or `libappindicator3-dev`. Without an available browser, the app attempts to use the system WebView; it cannot display its interface when neither is available.
+APT handles indirect dependencies (GTK, GDK, GLib, Cairo, X11/Wayland) automatically. If no compatible system browser is available, the app will attempt to use the system WebView; if neither works, the UI will not display.
 
-- Use the built‑in runtime (available in `bundled`);
-- Use `dsh` from your system `PATH`;
-- Pick a custom DSH executable or startup script;
-- Launch via npx with `@deepseek-ai/dsh`;
-- Enter the URL of an existing DSH Web service.
+## DSH Launch Methods
 
-`bundled` defaults to the built‑in runtime, so no Node.js, npm, pnpm, or `dsh` is required upfront – but you can switch to any other method. `slim` has no built‑in runtime, but all other launch and connection options work identically.
+You can run DSH in any of the following ways:
 
-If you choose the system DSH, install it via npm:
+- **Bundled runtime** (only in `bundled` variant) — no need for Node.js, npm, or pnpm.
+- **`dsh` from system PATH** — install globally via npm first:
+  ```bash
+  npm i -g @deepseek-ai/dsh
+  ```
+- **Custom executable or script** — manually specify the DSH launcher path.
+- **npx launcher** — requires Node.js; automatically downloads the specified DSH version on first run.
+- **Connect to an existing DSH web service** — enter the service URL directly; no local process is started.
 
-```sh
-npm install -g @deepseek-ai/dsh
-```
+The `bundled` variant uses the bundled runtime by default but supports all other methods as well. The `slim` variant does not include a bundled runtime, but all other methods work.
 
-When using npx, Node.js must be installed; the first run will download the selected DSH version via npm.
-
-## Interface overview
+## UI Overview
 
 <div align="center">
 
-<img src="docs/images/settings-dsh.png" width="94%">
+<img src="docs/images/settings-dsh.en.png" width="94%">
 
-Choose your DSH source and configure the DSH Home directory used by managed services.
+Choose your DSH source and centrally configure the DSH Home path for managed services
 
----
+<br>
+<img src="docs/images/settings-startup.en.png" width="94%">
 
-<img src="docs/images/settings-startup.png" width="94%">
+Define startup behavior
 
-Define what happens when the application starts.
+<br>
+<img src="docs/images/settings-runtime.en.png" width="94%">
 
----
+View and manage the bundled runtime
 
-<img src="docs/images/settings-runtime.png" width="94%">
-
-View and manage the built‑in runtime.
-
----
-
+<br>
 </div>
 
-DeepSeek Harness is still in early preview – refer to its [official documentation](https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md) for installation and configuration details.
+> [!TIP]
+>
+> For detailed installation and configuration of DeepSeek Harness, refer to the [official documentation](https://github.com/deepseek-ai/deepseek-harness/blob/master/README.md).
 
 > [!IMPORTANT]
->
-> This project is community‑developed and is not an official DeepSeek project, nor is it endorsed by DeepSeek.
-
-[GitHub Releases]: https://github.com/Leawind/dsh-desktop/releases
+> This project is community‑developed, not an official DeepSeek project, and is not endorsed by or affiliated with DeepSeek.
