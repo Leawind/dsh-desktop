@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { resolve } from "node:path";
 import {
+  installationMarkerFilename,
   installerFilename,
   msiBuildArguments,
   portableExecutableFilename,
@@ -45,6 +47,8 @@ test("Windows MSI passes each WiX preprocessor variable as an option value", () 
     "Version=0.2.2",
     "-d",
     "Source=C:/build/dsh-desktop.exe",
+    "-d",
+    `MarkerSource=${resolve("installers", installationMarkerFilename)}`,
     "-o",
     "C:/artifacts/dsh-desktop-0.2.2-bundled-windows-x86_64.msi",
   ]);

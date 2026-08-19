@@ -26,6 +26,8 @@ interface DistributionAsset {
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const executableName = process.platform === "win32" ? "dsh-desktop.exe" : "dsh-desktop";
 const packageInstallers = process.env.DSH_DESKTOP_PACKAGE_INSTALLER === "1";
+export const installationMarkerFilename = "dsh-desktop.installed";
+const installationMarker = join(root, "installers", installationMarkerFilename);
 
 function run(command: string, args: readonly string[], env = process.env): Promise<void> {
   return new Promise((resolvePromise, reject) => {
@@ -108,6 +110,8 @@ export function msiBuildArguments(
     `Version=${asset.version}`,
     "-d",
     `Source=${executable}`,
+    "-d",
+    `MarkerSource=${installationMarker}`,
     "-o",
     join(artifacts, installerFilename(asset)),
   ];
@@ -140,6 +144,9 @@ async function packageDeb(
     const binary = join(await createDebDirectory(staging, "usr", "bin"), "dsh-desktop");
     await copyFile(executable, binary);
     await chmod(binary, 0o755);
+    const marker = join(dirname(binary), installationMarkerFilename);
+    await copyFile(installationMarker, marker);
+    await chmod(marker, 0o644);
 
     const icon = join(
       await createDebDirectory(staging, "usr", "share", "icons", "hicolor", "512x512", "apps"),
@@ -212,6 +219,9 @@ async function packageDmg(
     const bundledExecutable = join(macOs, "dsh-desktop");
     await copyFile(executable, bundledExecutable);
     await chmod(bundledExecutable, 0o755);
+    const marker = join(macOs, installationMarkerFilename);
+    await copyFile(installationMarker, marker);
+    await chmod(marker, 0o644);
     await createMacIcon(resources);
     await writeFile(
       join(contents, "Info.plist"),

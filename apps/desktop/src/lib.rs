@@ -10,6 +10,7 @@ mod service;
 mod settings;
 mod single_instance;
 mod state;
+mod storage;
 mod system_appearance;
 mod tray;
 mod webui;
@@ -35,10 +36,14 @@ enum HostEvent {
 }
 
 pub fn run() {
-    let config_dir = dirs::config_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("dsh-desktop");
-    let instance = match single_instance::claim(&config_dir) {
+    let directories = match storage::resolve() {
+        Ok(directories) => directories,
+        Err(error) => {
+            eprintln!("failed to prepare DSH Desktop storage: {error}");
+            return;
+        }
+    };
+    let instance = match single_instance::claim(&directories.config) {
         Ok(single_instance::Claim::Primary(instance)) => instance,
         Ok(single_instance::Claim::Forwarded) => return,
         Err(error) => {
@@ -46,15 +51,33 @@ pub fn run() {
             return;
         }
     };
-    let data_dir = dirs::data_local_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("dsh-desktop");
-    let resources = embedded_resources::materialize(&data_dir)
-        .expect("failed to materialize embedded application resources");
-    let runtime_manager =
-        runtime::RuntimeManager::new(resources.runtime_seed_directory.clone(), data_dir.clone());
-    let settings = settings::load(&config_dir, model::DistributionVariant::current());
-    let state = AppState::new(config_dir, data_dir.clone(), settings, runtime_manager);
+    let resources = match embedded_resources::materialize(&directories.data) {
+        Ok(resources) => resources,
+        Err(error) => {
+            eprintln!("failed to materialize embedded application resources: {error}");
+            return;
+        }
+    };
+    let runtime_manager = runtime::RuntimeManager::new(
+        resources.runtime_seed_directory.clone(),
+        directories.data.clone(),
+    );
+    let settings = match settings::load_or_initialize(
+        &directories.config,
+        model::DistributionVariant::current(),
+    ) {
+        Ok(settings) => settings,
+        Err(error) => {
+            eprintln!("failed to initialize DSH Desktop settings: {error}");
+            return;
+        }
+    };
+    let state = AppState::new(
+        directories.config,
+        directories.data,
+        settings,
+        runtime_manager,
+    );
     let windows = WindowRegistry::default();
     let client_activity = WindowActivityRegistry::default();
     let window_controls = WindowControlRegistry::default();

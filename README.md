@@ -37,6 +37,8 @@
 
 从 Release 下载与平台、变体对应的发行文件。Windows 提供 MSI，macOS 提供 DMG，Debian/Ubuntu 提供 DEB；也可使用便携版，Windows 和 macOS 为 ZIP，Linux 为 `tar.gz`。安装包和便携版都通过下载并安装或解压新发行文件来更新。
 
+便携版是严格便携的：直接运行无安装标记的可执行文件后，DSH Desktop 自己管理的设置、单实例锁、嵌入资源和内置运行时都会保存在同级 `data/` 目录中。移动整个目录即可携带这些数据。安装包会在可执行文件同级写入安装标记，因此使用系统标准的数据目录。DSH Home 的实际内容、浏览器数据以及用户在设置中选择的其他外部路径不由此迁移。
+
 ### Linux 运行时依赖
 
 Linux 的 DEB 与便携版都使用系统 GTK 3 和 xdotool 运行库，并需要一个受支持的图形浏览器。Debian/Ubuntu 安装下列包即可；APT 会自动安装 GTK、GDK、GLib、Cairo、X11/Wayland 等间接依赖：

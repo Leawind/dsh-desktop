@@ -10,7 +10,7 @@ use std::time::{Duration, SystemTime};
 
 use fs2::FileExt;
 
-const LOCK_FILE: &str = "host.lock";
+const LOCK_FILE: &str = "instance.lock";
 const STARTUP_RETRY_TIMEOUT: Duration = Duration::from_millis(300);
 
 pub struct PrimaryInstance {

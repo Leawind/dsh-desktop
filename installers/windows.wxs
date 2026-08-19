@@ -13,6 +13,7 @@
       <Directory Id="INSTALLFOLDER" Name="DSH Desktop">
         <Component Id="MainExecutable" Guid="{8B5F2F0C-0A7A-4D6D-9AD8-9A8D5CF574E4}">
           <File Id="DshDesktopExecutable" Source="$(var.Source)" Name="dsh-desktop.exe" KeyPath="yes" />
+          <File Id="InstallationMarker" Source="$(var.MarkerSource)" Name="dsh-desktop.installed" />
         </Component>
       </Directory>
     </StandardDirectory>

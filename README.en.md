@@ -37,6 +37,8 @@ Launch DSH directly with the built-in runtime, connect to an existing service, o
 
 Download the release file matching your platform and variant. Windows provides MSI, macOS provides DMG, and Debian/Ubuntu provides DEB. Portable releases are also available as ZIP on Windows and macOS, or `tar.gz` on Linux. Installers and portable releases are updated by downloading and installing or extracting a newer release file.
 
+Portable releases are strictly portable: when an executable runs without an installation marker, DSH Desktop keeps its own settings, single-instance lock, embedded resources, and bundled runtimes in a sibling `data/` directory. Move the whole directory to carry that data with it. Installers place an installation marker beside the executable, so installed applications use the platform-standard data directories. This does not migrate DSH Home contents, browser data, or other external paths selected in settings.
+
 ### Linux runtime dependencies
 
 Both Linux DEB and portable releases use the system GTK 3 and xdotool libraries and require a supported graphical browser. On Debian/Ubuntu, install the following packages; APT installs the transitive GTK, GDK, GLib, Cairo, X11/Wayland, and related libraries automatically:

@@ -22,6 +22,19 @@ pub fn load(config_dir: &Path, variant: DistributionVariant) -> GlobalSettings {
     serde_json::from_str(&contents).unwrap_or_else(|_| GlobalSettings::default_for(variant))
 }
 
+pub fn load_or_initialize(
+    config_dir: &Path,
+    variant: DistributionVariant,
+) -> AppResult<GlobalSettings> {
+    let path = settings_path(config_dir);
+    if path.is_file() {
+        return Ok(load(config_dir, variant));
+    }
+    let settings = GlobalSettings::default_for(variant);
+    save(config_dir, &settings)?;
+    Ok(settings)
+}
+
 pub fn validate(
     mut patch: GlobalSettingsPatch,
     variant: DistributionVariant,
@@ -162,6 +175,25 @@ mod tests {
             ..GlobalSettings::default()
         };
         assert!(validate(settings, DistributionVariant::Slim).is_err());
+    }
+
+    #[test]
+    fn initializes_default_settings_when_the_file_is_missing() {
+        let directory = std::env::temp_dir().join(format!(
+            "dsh-desktop-settings-initialize-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&directory);
+
+        let settings = load_or_initialize(&directory, DistributionVariant::Slim)
+            .expect("initialize default settings");
+
+        assert_eq!(
+            settings,
+            GlobalSettings::default_for(DistributionVariant::Slim)
+        );
+        assert!(settings_path(&directory).is_file());
+        let _ = fs::remove_dir_all(directory);
     }
 
     #[test]
