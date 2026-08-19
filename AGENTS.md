@@ -80,7 +80,7 @@ pnpm view @deepseek-ai/dsh version
 
 - 发布版本以 `apps/desktop/Cargo.toml` 的 `[package].version` 为准，发布标签必须为完全匹配的 `v<version>`。
 - Windows MSI 仅接受纯数字且不大于 `65535` 的预发布标识；需要构建 MSI 时，不要使用 `-rc.2` 这类含文本或多段的预发布版本，改用正式版本或类似 `-2` 的单个数字标识。
-- 先运行 `pnpm run release:version -- <version>`，它会更新 Cargo 包版本、`Cargo.lock`，并在 `CHANGELOG.md` 顶部创建对应版本小节。
+- 先运行 `pnpm run release:version -- <version>`，它会更新 Cargo 包版本、`Cargo.lock`，将当前已验证的 DSH 版本写入新版本的 `runtime/compatibility.json` 条目，并在 `CHANGELOG.md` 顶部创建对应版本小节。
 - 在提交前填写该版本的可见更新日志；发布工作流会将其作为 GitHub Release notes，空小节或仅有占位注释均不允许。
 - 提交版本与更新日志文件后，运行 `pnpm check` 和 `pnpm run release:prepare -- v<version> <release-notes-output>` 验证版本、标签和发行说明。
 - 验证通过后，创建指向该提交的附注标签 `v<version>`。仅在用户明确要求时推送提交与标签。

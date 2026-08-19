@@ -163,4 +163,5 @@ jobs:
           body_path: release-metadata/release-notes.md
           files: release-assets/*
           fail_on_unmatched_files: true
+          overwrite_files: true
           prerelease: ${{ contains(github.ref_name, '-') }}
