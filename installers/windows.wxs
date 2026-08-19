@@ -1,0 +1,45 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="DSH Desktop"
+    Manufacturer="Leawind"
+    Version="$(var.Version)"
+    UpgradeCode="{167FD152-74D2-4F64-95A9-D47F022F5CCE}"
+    Language="1033"
+    Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of DSH Desktop is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="DSH Desktop">
+        <Component Id="MainExecutable" Guid="{8B5F2F0C-0A7A-4D6D-9AD8-9A8D5CF574E4}">
+          <File Id="DshDesktopExecutable" Source="$(var.Source)" Name="dsh-desktop.exe" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ProgramMenuDirectory" Name="DSH Desktop">
+        <Component Id="StartMenuShortcut" Guid="{C1CCB391-15EA-47D6-820F-30D1F1AB1C52}">
+          <Shortcut
+            Id="StartMenuShortcut"
+            Name="DSH Desktop"
+            Target="[INSTALLFOLDER]dsh-desktop.exe"
+            WorkingDirectory="INSTALLFOLDER" />
+          <RemoveFolder Id="RemoveProgramMenuDirectory" On="uninstall" />
+          <RegistryValue
+            Root="HKMU"
+            Key="Software\\Leawind\\DSH Desktop"
+            Name="Installed"
+            Type="integer"
+            Value="1"
+            KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="DSH Desktop" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Package>
+</Wix>

@@ -22,7 +22,7 @@ Launch DSH directly with the built-in runtime, connect to an existing service, o
 
 ## Why this app
 
-- **Cross‑platform** – Works on Windows, Linux, and macOS. Download, extract, and run from [GitHub Releases].
+- **Cross‑platform** – Works on Windows, Linux, and macOS with installer and portable releases.
 - **Lightweight distribution** – The `slim` variant is only ~7–10 MB, ideal if you already have a DSH environment or only need to connect to a service.
 - **Flexible DSH sources** – Choose the built‑in runtime, system `dsh`, a custom executable, npx, or directly connect to an existing DSH Web service.
 
@@ -35,7 +35,7 @@ Launch DSH directly with the built-in runtime, connect to an existing service, o
 
 ## Installation & first run
 
-After downloading and extracting the archive for your platform, you can select your DSH launch method in the app’s global settings. Windows and macOS use ZIP archives; Linux uses `tar.gz`.
+Download the release file matching your platform and variant. Windows provides MSI, macOS provides DMG, and Debian/Ubuntu provides DEB. Portable releases are also available as ZIP on Windows and macOS, or `tar.gz` on Linux. Installers and portable releases are updated by downloading and installing or extracting a newer release file.
 
 - Use the built‑in runtime (available in `bundled`);
 - Use `dsh` from your system `PATH`;

@@ -22,7 +22,7 @@
 
 ## 为什么选择这个
 
-- **跨平台**：支持 Windows、Linux 和 macOS，可从 [GitHub Releases] 下载、解压后运行
+- **跨平台**：支持 Windows、Linux 和 macOS，提供安装包和便携版
 - **轻量分发**：`slim` 仅约 7-10 MB，适合已有 DSH 环境或只需连接服务的使用方式
 - **自由选择 DSH 来源**：可使用内置运行时、系统 `dsh`、自定义可执行文件、npx，或直接连接已有 DSH 服务
 
@@ -35,7 +35,7 @@
 
 ## 安装与首次运行
 
-从 Release 下载与平台对应的归档文件并解压后，都可以在应用的全局设置中选择以下 DSH 启动方式：Windows 和 macOS 提供 ZIP，Linux 提供 `tar.gz`。
+从 Release 下载与平台、变体对应的发行文件。Windows 提供 MSI，macOS 提供 DMG，Debian/Ubuntu 提供 DEB；也可使用便携版，Windows 和 macOS 为 ZIP，Linux 为 `tar.gz`。安装包和便携版都通过下载并安装或解压新发行文件来更新。
 
 - 使用 `bundled` 附带的内置运行时；
 - 使用系统 `PATH` 中的 `dsh`；
