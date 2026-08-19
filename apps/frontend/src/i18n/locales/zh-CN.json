@@ -177,6 +177,7 @@
       "unsupportedManifest": "不支持内置运行时清单版本 {schemaVersion}。",
       "integrityFailed": "内置运行时文件 {path} 完整性校验失败。",
       "installFailed": "无法将内置运行时安装到应用数据目录。",
+      "unapprovedBuildScripts": "新版本需要执行尚未验证的依赖构建脚本。",
       "versionMismatch": "内置 DSH 版本不匹配：期望 {expected}，实际为 {actual}。",
       "targetMismatch": "内置运行时目标平台不匹配：期望 {expected}，实际为 {actual}。",
       "compatibilityUnavailable": "无法取得当前应用版本的兼容性清单。",

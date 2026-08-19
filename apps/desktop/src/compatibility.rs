@@ -194,7 +194,7 @@ mod tests {
             .get(env!("CARGO_PKG_VERSION"))
             .expect("app compatibility for the current app version");
         assert!(
-            select_update(app, "0.1.0-rc.6")
+            select_update(app, "0.1.0-rc.7")
                 .expect("select update")
                 .is_none()
         );

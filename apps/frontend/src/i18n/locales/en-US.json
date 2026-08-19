@@ -177,6 +177,7 @@
       "unsupportedManifest": "Built-in runtime manifest version {schemaVersion} is unsupported.",
       "integrityFailed": "Built-in runtime file {path} failed its integrity check.",
       "installFailed": "The built-in runtime could not be installed in the app data directory.",
+      "unapprovedBuildScripts": "The new version requires unverified dependency build scripts.",
       "versionMismatch": "The built-in DSH version does not match: expected {expected}, got {actual}.",
       "targetMismatch": "The built-in runtime target does not match: expected {expected}, got {actual}.",
       "compatibilityUnavailable": "No compatibility manifest is available for this app version.",

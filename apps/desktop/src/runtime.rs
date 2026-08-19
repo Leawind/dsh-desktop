@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{Error, ErrorKind, Read};
 use std::path::{Component, Path, PathBuf};
@@ -39,6 +40,12 @@ struct RuntimeManifest {
 struct RuntimeFile {
     path: String,
     sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RuntimePackageDefinition {
+    #[serde(rename = "allowScripts", default)]
+    allowed_scripts: BTreeMap<String, bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -348,21 +355,21 @@ impl RuntimeManager {
         )?;
         let app = payload.join("app");
         fs::create_dir_all(&app).map_err(runtime_install_error)?;
+        let package_definition = current_runtime_package_definition(current)?;
+        let approved_build_packages = approved_build_packages_from_definition(&package_definition)?;
         fs::write(
             app.join("package.json"),
-            serde_json::to_vec_pretty(&serde_json::json!({
-                "name": "dsh-desktop-runtime",
-                "private": true,
-                "dependencies": {
-                    "@deepseek-ai/dsh": version,
-                    "pnpm": current.pnpm_version,
-                }
-            }))
+            serde_json::to_vec_pretty(&staged_runtime_package(
+                version,
+                &current.pnpm_version,
+                package_definition.allowed_scripts,
+            ))
             .map_err(|error| {
                 AppError::new("runtime.error.installFailed").technical(error.to_string())
             })?,
         )
         .map_err(runtime_install_error)?;
+        write_pnpm_workspace(&app, &approved_build_packages)?;
         run_pnpm_install(current, &app)?;
         verify_locked_integrity(&app, package_integrity)?;
 
@@ -557,7 +564,91 @@ fn run_pnpm_install(current: &InstalledRuntime, app_directory: &Path) -> AppResu
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    Err(AppError::new("runtime.error.installFailed").technical(diagnostics))
+    Err(pnpm_install_error(diagnostics))
+}
+
+fn pnpm_install_error(diagnostics: String) -> AppError {
+    let code = if diagnostics.contains("ERR_PNPM_IGNORED_BUILDS") {
+        "runtime.error.unapprovedBuildScripts"
+    } else {
+        "runtime.error.installFailed"
+    };
+    AppError::new(code).technical(diagnostics)
+}
+
+fn current_runtime_package_definition(
+    current: &InstalledRuntime,
+) -> AppResult<RuntimePackageDefinition> {
+    let app_directory = current
+        .dsh_entrypoint
+        .ancestors()
+        .find(|path| path.file_name().is_some_and(|name| name == "app"))
+        .ok_or_else(|| AppError::new("runtime.error.invalidManifest"))?;
+    let definition = serde_json::from_slice::<RuntimePackageDefinition>(
+        &fs::read(app_directory.join("package.json")).map_err(runtime_install_error)?,
+    )
+    .map_err(|error| AppError::new("runtime.error.invalidManifest").technical(error.to_string()))?;
+    Ok(definition)
+}
+
+fn staged_runtime_package(
+    dsh_version: &str,
+    pnpm_version: &str,
+    allowed_scripts: BTreeMap<String, bool>,
+) -> serde_json::Value {
+    serde_json::json!({
+        "name": "dsh-desktop-runtime",
+        "private": true,
+        "dependencies": {
+            "@deepseek-ai/dsh": dsh_version,
+            "pnpm": pnpm_version,
+        },
+        "allowScripts": allowed_scripts,
+    })
+}
+
+fn approved_build_packages_from_definition(
+    definition: &RuntimePackageDefinition,
+) -> AppResult<Vec<String>> {
+    let packages = definition
+        .allowed_scripts
+        .iter()
+        .filter_map(|(package, allowed)| allowed.then_some(package))
+        .map(|package| {
+            package_name_from_script_policy(package)
+                .ok_or_else(|| AppError::new("runtime.error.invalidManifest"))
+        })
+        .collect::<AppResult<BTreeSet<_>>>()?;
+    if packages.is_empty() {
+        return Err(AppError::new("runtime.error.invalidManifest"));
+    }
+    Ok(packages.into_iter().collect())
+}
+
+fn package_name_from_script_policy(policy: &str) -> Option<String> {
+    let separator = if policy.starts_with('@') {
+        let scope_separator = policy.find('/')?;
+        scope_separator + 1 + policy[scope_separator + 1..].rfind('@')?
+    } else {
+        policy.rfind('@')?
+    };
+    (separator > 0 && separator < policy.len() - 1).then(|| policy[..separator].to_owned())
+}
+
+fn write_pnpm_workspace(app_directory: &Path, approved_build_packages: &[String]) -> AppResult<()> {
+    let contents = pnpm_workspace_contents(approved_build_packages)?;
+    fs::write(app_directory.join("pnpm-workspace.yaml"), contents).map_err(runtime_install_error)
+}
+
+fn pnpm_workspace_contents(approved_build_packages: &[String]) -> AppResult<String> {
+    let mut contents = String::from("allowBuilds:\n");
+    for package in approved_build_packages {
+        let package = serde_json::to_string(package).map_err(|error| {
+            AppError::new("runtime.error.installFailed").technical(error.to_string())
+        })?;
+        contents.push_str(&format!("  {package}: true\n"));
+    }
+    Ok(contents)
 }
 
 fn verify_locked_integrity(app_directory: &Path, expected_integrity: &str) -> AppResult<()> {
@@ -734,5 +825,74 @@ mod tests {
         let runtime = manager.resolve_built_in().expect("install runtime");
         assert_eq!(runtime.dsh_version, "0.1.0");
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn derives_script_build_packages_from_the_embedded_policy() {
+        let definition: RuntimePackageDefinition = serde_json::from_str(
+            r#"{
+                "allowScripts": {
+                    "@deepseek-ai/dsh-subprocess-local@0.1.0-rc.7": true,
+                    "@google/genai@1.52.0": true,
+                    "koffi@3.1.5": true,
+                    "node-pty@1.2.0-beta.15": true,
+                    "protobufjs@7.6.5": false
+                }
+            }"#,
+        )
+        .expect("parse policy");
+
+        assert_eq!(
+            approved_build_packages_from_definition(&definition).expect("derive packages"),
+            [
+                "@deepseek-ai/dsh-subprocess-local",
+                "@google/genai",
+                "koffi",
+                "node-pty",
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_an_empty_script_build_policy() {
+        let definition: RuntimePackageDefinition =
+            serde_json::from_str("{}").expect("parse empty policy");
+
+        assert_eq!(
+            approved_build_packages_from_definition(&definition)
+                .expect_err("empty policy must be rejected")
+                .code,
+            "runtime.error.invalidManifest"
+        );
+    }
+
+    #[test]
+    fn writes_pnpm_build_policy_as_workspace_settings() {
+        assert_eq!(
+            pnpm_workspace_contents(&["@google/genai".to_owned(), "node-pty".to_owned()])
+                .expect("serialize workspace policy"),
+            "allowBuilds:\n  \"@google/genai\": true\n  \"node-pty\": true\n"
+        );
+    }
+
+    #[test]
+    fn preserves_the_script_policy_in_an_updated_runtime() {
+        let definition: RuntimePackageDefinition =
+            serde_json::from_str(r#"{"allowScripts":{"node-pty@1.2.0-beta.15":true}}"#)
+                .expect("parse policy");
+        let manifest = staged_runtime_package("0.1.0-rc.7", "11.7.0", definition.allowed_scripts);
+
+        assert_eq!(
+            manifest["allowScripts"]["node-pty@1.2.0-beta.15"],
+            serde_json::Value::Bool(true)
+        );
+    }
+
+    #[test]
+    fn identifies_blocked_pnpm_build_scripts() {
+        assert_eq!(
+            pnpm_install_error("ERR_PNPM_IGNORED_BUILDS".to_owned()).code,
+            "runtime.error.unapprovedBuildScripts"
+        );
     }
 }
