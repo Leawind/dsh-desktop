@@ -22,7 +22,7 @@ Launch DSH directly with the built-in runtime, connect to an existing service, o
 
 ## Why this app
 
-- **Cross‑platform** – Works on Windows, Linux, and macOS. Download from [GitHub Releases] and run.
+- **Cross‑platform** – Works on Windows, Linux, and macOS. Download, extract, and run from [GitHub Releases].
 - **Lightweight distribution** – The `slim` variant is only ~7–10 MB, ideal if you already have a DSH environment or only need to connect to a service.
 - **Flexible DSH sources** – Choose the built‑in runtime, system `dsh`, a custom executable, npx, or directly connect to an existing DSH Web service.
 
@@ -35,7 +35,7 @@ Launch DSH directly with the built-in runtime, connect to an existing service, o
 
 ## Installation & first run
 
-After downloading either variant, you can select your DSH launch method in the app’s global settings:
+After downloading and extracting the archive for your platform, you can select your DSH launch method in the app’s global settings. Windows and macOS use ZIP archives; Linux uses `tar.gz`.
 
 - Use the built‑in runtime (available in `bundled`);
 - Use `dsh` from your system `PATH`;
@@ -52,6 +52,8 @@ npm install -g @deepseek-ai/dsh
 ```
 
 When using npx, Node.js must be installed; the first run will download the selected DSH version via npm.
+
+Each release also includes `SHA256SUMS` for verifying downloaded files.
 
 ## Interface overview
 

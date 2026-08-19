@@ -124,6 +124,46 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
 
+      - name: Archive release assets
+        if: runner.os == 'Linux'
+        shell: bash
+        working-directory: apps/desktop/target/release/artifacts
+        run: |
+          shopt -s nullglob
+          assets=(dsh-desktop-*)
+          test "${#assets[@]}" -gt 0
+          for asset in "${assets[@]}"; do
+            tar -czf "${asset}.tar.gz" "$asset"
+            rm "$asset"
+          done
+
+      - name: Archive release assets
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: apps/desktop/target/release/artifacts
+        run: |
+          shopt -s nullglob
+          assets=(dsh-desktop-*)
+          test "${#assets[@]}" -gt 0
+          for asset in "${assets[@]}"; do
+            zip -q "${asset}.zip" "$asset"
+            rm "$asset"
+          done
+
+      - name: Archive release assets
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: apps/desktop/target/release/artifacts
+        run: |
+          $assets = Get-ChildItem -File -Filter 'dsh-desktop-*'
+          if ($assets.Count -eq 0) {
+            throw 'No release assets were built.'
+          }
+          foreach ($asset in $assets) {
+            Compress-Archive -LiteralPath $asset.FullName -DestinationPath "$($asset.FullName).zip" -Force
+            Remove-Item -LiteralPath $asset.FullName
+          }
+
       - uses: actions/upload-artifact@v4
         with:
           name: executables-${{ matrix.artifact }}
@@ -157,6 +197,11 @@ jobs:
           pattern: executables-*
           path: release-assets
           merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: release-assets
+        run: |
+          find . -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort | xargs sha256sum > SHA256SUMS
 
       - run: pnpm install --frozen-lockfile
       - uses: softprops/action-gh-release@v2

@@ -22,7 +22,7 @@
 
 ## 为什么选择这个
 
-- **跨平台**：支持 Windows、Linux 和 macOS，可从 [GitHub Releases] 下载并直接运行
+- **跨平台**：支持 Windows、Linux 和 macOS，可从 [GitHub Releases] 下载、解压后运行
 - **轻量分发**：`slim` 仅约 7-10 MB，适合已有 DSH 环境或只需连接服务的使用方式
 - **自由选择 DSH 来源**：可使用内置运行时、系统 `dsh`、自定义可执行文件、npx，或直接连接已有 DSH 服务
 
@@ -35,7 +35,7 @@
 
 ## 安装与首次运行
 
-下载任一变体后，都可以在应用的全局设置中选择以下 DSH 启动方式：
+从 Release 下载与平台对应的归档文件并解压后，都可以在应用的全局设置中选择以下 DSH 启动方式：Windows 和 macOS 提供 ZIP，Linux 提供 `tar.gz`。
 
 - 使用 `bundled` 附带的内置运行时；
 - 使用系统 `PATH` 中的 `dsh`；
@@ -52,6 +52,8 @@ npm install -g @deepseek-ai/dsh
 ```
 
 通过 npx 启动时，系统需要安装 Node.js；首次运行会由 npm 下载所选的 DSH 版本。
+
+Release 同时提供 `SHA256SUMS`，可用于校验下载文件的完整性。
 
 ## 界面概览
 

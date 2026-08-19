@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
@@ -9,6 +9,7 @@ use reqwest::blocking::Client;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use zip::ZipArchive;
 
 use crate::error::{AppError, AppResult};
 use crate::model::{AppUpdateCandidate, AppUpdateSnapshot, DistributionVariant};
@@ -47,6 +48,14 @@ struct UpdateAsset {
     url: String,
     size: u64,
     sha256: String,
+    archive_format: ArchiveFormat,
+    executable_name: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ArchiveFormat {
+    TarGz,
+    Zip,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -81,7 +90,10 @@ pub fn install(data_directory: &Path, variant: DistributionVariant) -> AppResult
 
     let update_directory = update_directory(data_directory);
     fs::create_dir_all(&update_directory).map_err(update_install_error)?;
-    let staged = download_asset(&asset, &update_directory)?;
+    let archive = download_asset(&asset, &update_directory)?;
+    let staged = extract_asset(&asset, &archive, &update_directory);
+    let _ = fs::remove_file(archive);
+    let staged = staged?;
     let helper = copy_update_helper(&target, &update_directory)?;
     let current_directory = std::env::current_dir().map_err(|error| {
         AppError::new("appUpdate.error.installUnavailable").technical(error.to_string())
@@ -177,12 +189,15 @@ fn select_asset(
     if version <= *current {
         return Ok(None);
     }
-    let name = asset_name(variant)?;
+    let asset_names = asset_names(variant)?;
     let asset = release
         .assets
         .iter()
-        .find(|asset| asset.name == name && asset.state == "uploaded")
-        .ok_or_else(|| AppError::new("appUpdate.error.assetUnavailable").arg("asset", name))?;
+        .find(|asset| asset.name == asset_names.archive && asset.state == "uploaded")
+        .ok_or_else(|| {
+            AppError::new("appUpdate.error.assetUnavailable")
+                .arg("asset", asset_names.archive.clone())
+        })?;
     let sha256 = parse_sha256(asset.digest.as_deref())?;
     if asset.size == 0 || asset.browser_download_url.is_empty() {
         return Err(AppError::new("appUpdate.error.invalidRelease"));
@@ -194,6 +209,8 @@ fn select_asset(
         url: asset.browser_download_url.clone(),
         size: asset.size,
         sha256,
+        archive_format: asset_names.format,
+        executable_name: asset_names.executable,
     }))
 }
 
@@ -212,7 +229,13 @@ fn parse_tag_version(tag: &str) -> AppResult<Version> {
     })
 }
 
-fn asset_name(variant: DistributionVariant) -> AppResult<String> {
+struct AssetNames {
+    archive: String,
+    executable: String,
+    format: ArchiveFormat,
+}
+
+fn asset_names(variant: DistributionVariant) -> AppResult<AssetNames> {
     let variant = match variant {
         DistributionVariant::Bundled => "bundled",
         DistributionVariant::Slim => "slim",
@@ -228,12 +251,25 @@ fn asset_name(variant: DistributionVariant) -> AppResult<String> {
         "aarch64" => "aarch64",
         _ => return Err(AppError::new("appUpdate.error.unsupportedTarget")),
     };
-    let extension = (platform == "windows")
+    let executable_extension = (platform == "windows")
         .then_some(".exe")
         .unwrap_or_default();
-    Ok(format!(
-        "dsh-desktop-{variant}-{platform}-{architecture}{extension}"
-    ))
+    let executable =
+        format!("dsh-desktop-{variant}-{platform}-{architecture}{executable_extension}");
+    let format = if matches!(platform, "windows" | "macos") {
+        ArchiveFormat::Zip
+    } else {
+        ArchiveFormat::TarGz
+    };
+    let archive_extension = match format {
+        ArchiveFormat::TarGz => ".tar.gz",
+        ArchiveFormat::Zip => ".zip",
+    };
+    Ok(AssetNames {
+        archive: format!("{executable}{archive_extension}"),
+        executable,
+        format,
+    })
 }
 
 fn parse_sha256(value: Option<&str>) -> AppResult<String> {
@@ -286,6 +322,58 @@ fn download_asset(asset: &UpdateAsset, update_directory: &Path) -> AppResult<Pat
     }
     fs::rename(temporary, &staged).map_err(update_install_error)?;
     Ok(staged)
+}
+
+fn extract_asset(
+    asset: &UpdateAsset,
+    archive: &Path,
+    update_directory: &Path,
+) -> AppResult<PathBuf> {
+    let staged = update_directory.join(update_file_stem(&asset.version));
+    let result = match asset.archive_format {
+        ArchiveFormat::TarGz => extract_tar_gz_asset(archive, &asset.executable_name, &staged),
+        ArchiveFormat::Zip => extract_zip_asset(archive, &asset.executable_name, &staged),
+    };
+    if result.is_err() {
+        let _ = fs::remove_file(&staged);
+    }
+    result.map(|()| staged)
+}
+
+fn extract_tar_gz_asset(archive: &Path, executable_name: &str, staged: &Path) -> AppResult<()> {
+    let file = fs::File::open(archive).map_err(update_install_error)?;
+    let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(file));
+    let entries = archive.entries().map_err(update_install_error)?;
+    for entry in entries {
+        let mut entry = entry.map_err(update_install_error)?;
+        if entry.path().map_err(update_install_error)? != Path::new(executable_name) {
+            continue;
+        }
+        if !entry.header().entry_type().is_file() {
+            return Err(AppError::new("appUpdate.error.installFailed"));
+        }
+        copy_archive_entry(&mut entry, staged)?;
+        return Ok(());
+    }
+    Err(AppError::new("appUpdate.error.installFailed"))
+}
+
+fn extract_zip_asset(archive: &Path, executable_name: &str, staged: &Path) -> AppResult<()> {
+    let file = fs::File::open(archive).map_err(update_install_error)?;
+    let mut archive = ZipArchive::new(file).map_err(update_install_error)?;
+    let mut entry = archive
+        .by_name(executable_name)
+        .map_err(update_install_error)?;
+    if !entry.is_file() {
+        return Err(AppError::new("appUpdate.error.installFailed"));
+    }
+    copy_archive_entry(&mut entry, staged)
+}
+
+fn copy_archive_entry(mut entry: impl Read, staged: &Path) -> AppResult<()> {
+    let mut output = fs::File::create(staged).map_err(update_install_error)?;
+    io::copy(&mut entry, &mut output).map_err(update_install_error)?;
+    output.sync_all().map_err(update_install_error)
 }
 
 fn ensure_target_directory_writable(target: &Path) -> AppResult<()> {
@@ -486,7 +574,9 @@ mod tests {
     #[test]
     fn selects_only_the_current_distribution_asset() {
         let current = Version::parse("0.2.0").expect("version");
-        let name = asset_name(DistributionVariant::Slim).expect("supported target");
+        let name = asset_names(DistributionVariant::Slim)
+            .expect("supported target")
+            .archive;
         let selected = select_asset(
             &release("v0.2.1", asset(&name)),
             DistributionVariant::Slim,
@@ -501,7 +591,9 @@ mod tests {
     #[test]
     fn rejects_an_asset_without_a_sha256_digest() {
         let current = Version::parse("0.2.0").expect("version");
-        let name = asset_name(DistributionVariant::Slim).expect("supported target");
+        let name = asset_names(DistributionVariant::Slim)
+            .expect("supported target")
+            .archive;
         let mut asset = asset(&name);
         asset.digest = None;
         assert_eq!(
@@ -514,6 +606,52 @@ mod tests {
             .code,
             "appUpdate.error.invalidRelease"
         );
+    }
+
+    #[test]
+    fn extracts_the_expected_executable_from_supported_archives() {
+        let directory =
+            std::env::temp_dir().join(format!("dsh-desktop-app-update-{}", unique_suffix()));
+        fs::create_dir_all(&directory).expect("create update directory");
+        let executable_name = "dsh-desktop";
+        let contents = b"new executable";
+
+        let tar_gz = directory.join("update.tar.gz");
+        let encoder = flate2::write::GzEncoder::new(
+            fs::File::create(&tar_gz).expect("create tar archive"),
+            flate2::Compression::default(),
+        );
+        let mut archive = tar::Builder::new(encoder);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o755);
+        header.set_cksum();
+        archive
+            .append_data(&mut header, executable_name, contents.as_slice())
+            .expect("write tar entry");
+        archive
+            .into_inner()
+            .expect("finish tar archive")
+            .finish()
+            .expect("finish gzip archive");
+
+        let tar_staged = directory.join("from-tar");
+        extract_tar_gz_asset(&tar_gz, executable_name, &tar_staged).expect("extract tar archive");
+        assert_eq!(fs::read(tar_staged).expect("read tar result"), contents);
+
+        let zip = directory.join("update.zip");
+        let mut archive = zip::ZipWriter::new(fs::File::create(&zip).expect("create zip archive"));
+        archive
+            .start_file(executable_name, zip::write::SimpleFileOptions::default())
+            .expect("write zip entry");
+        archive.write_all(contents).expect("write zip contents");
+        archive.finish().expect("finish zip archive");
+
+        let zip_staged = directory.join("from-zip");
+        extract_zip_asset(&zip, executable_name, &zip_staged).expect("extract zip archive");
+        assert_eq!(fs::read(zip_staged).expect("read zip result"), contents);
+
+        let _ = fs::remove_dir_all(directory);
     }
 
     #[test]
