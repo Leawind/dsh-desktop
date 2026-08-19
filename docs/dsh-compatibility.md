@@ -2,7 +2,7 @@
 
 ## 目的
 
-本文记录 DSH Desktop 与 DeepSeek Harness（DSH）之间需要保持兼容的行为。DSH 版本进入内置运行时兼容范围前，必须验证本文列出的契约。具体应用版本允许使用的 DSH 和 Node.js 版本由机器可读的兼容性清单决定。
+本文记录 DSH Desktop 与 DeepSeek Harness（DSH）之间需要保持兼容的行为。DSH 版本作为内置运行时更新目标前，必须验证本文列出的契约。具体应用版本的 DSH 更新目标由机器可读的兼容性清单决定。
 
 DSH Desktop 将 DSH Web UI 作为独立网页嵌入，不读取 iframe DOM，也不调用 DSH 内部业务 API。兼容性边界集中在发行包、命令行、进程生命周期、HTTP 服务、iframe、数据目录和插件管理。
 
@@ -89,9 +89,7 @@ DSH Desktop 启动的服务只绑定 `127.0.0.1`。连接类启动尝试和窗�
 | DATA-001 | `DSH_HOME` 指定 DSH 配置、凭据、插件和会话数据根目录 | 让所有 Managed Process 使用用户选择的全局目录 | 数据写入错误位置         | 使用指定 DSH Home 启动并检查写入位置 |
 | DATA-002 | 未设置 `DSH_HOME` 时使用 `~/.dsh`                    | 支持默认的环境继承模式                        | 默认模式写入错误位置     | 清除环境变量后启动并检查写入位置     |
 | DATA-003 | 启动进程的当前目录是默认文件系统位置                 | 为 Managed Process 提供确定的初始目录         | 工作区和工具默认位置异常 | 从指定目录启动并验证初始行为         |
-| DATA-004 | 更新后的版本能够读取当前 DSH Home 中的数据           | DSH 热更新和兼容范围内的 Runtime 回滚         | 会话、配置或凭据不可用   | 使用同一 DSH Home 执行升级与回滚测试 |
-
-`runtime/compatibility.json` 的 `rollbackCompatibleRanges` 仅包含已完成 DATA-004 验证的旧版本范围。DSH Desktop 只有在当前 Runtime 位于该范围内时才会执行自动更新和失败自动回滚。
+| DATA-004 | 更新后的版本能够读取当前 DSH Home 中的数据           | DSH 热更新与更新失败恢复                      | 会话、配置或凭据不可用   | 使用同一 DSH Home 执行升级与恢复测试 |
 
 数据格式兼容性与运行时代码兼容性分别验证。验证更新时使用用户选择的同一个 DSH Home；临时验证目录不替代用户目录。
 
@@ -110,7 +108,7 @@ DSH Desktop 的组件库以兼容 DSH 版本的视觉 token、控件尺寸、间
 5. 验证根页面、DSH 身份标记和服务停止；
 6. 在真实 DSH Desktop iframe 中加载 Web UI；
 7. 选择工作区、配置模型、创建会话并验证流式响应；
-8. 使用同一个 DSH Home 验证插件管理、重启、升级和兼容范围内的回滚；
+8. 使用同一个 DSH Home 验证插件管理、重启、升级和更新失败恢复；
 9. 更新兼容性清单与本文件引用的上游契约；
 10. 保存测试使用的 DSH tag 或 commit，避免以浮动分支作为验证证据。
 

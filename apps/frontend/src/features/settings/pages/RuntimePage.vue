@@ -97,23 +97,10 @@ async function updateRuntime(): Promise<void> {
         </UiButton>
       </div>
     </UiSettingRow>
-    <UiSettingRow
-      v-if="runtimeUpdate?.candidateVersion"
-      :label="$t('runtime.availableVersion')"
-      :hint="
-        runtimeUpdate.automaticRollbackSupported
-          ? $t('runtime.rollbackReady')
-          : $t('runtime.rollbackUnavailable')
-      "
-    >
+    <UiSettingRow v-if="runtimeUpdate?.candidateVersion" :label="$t('runtime.availableVersion')">
       <div class="settings-page__inline-control">
         <UiStatus tone="info">DSH {{ runtimeUpdate.candidateVersion }}</UiStatus>
-        <UiButton
-          variant="primary"
-          size="small"
-          :disabled="updating || !runtimeUpdate.automaticRollbackSupported"
-          @click="updateRuntime"
-        >
+        <UiButton variant="primary" size="small" :disabled="updating" @click="updateRuntime">
           {{ $t("runtime.update") }}
         </UiButton>
       </div>

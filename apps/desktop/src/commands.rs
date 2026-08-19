@@ -365,17 +365,9 @@ fn available_built_in_update(state: &AppState) -> AppResult<RuntimeUpdateSnapsho
         &state.runtime_manager.compatibility_cache_directory(),
         env!("CARGO_PKG_VERSION"),
     )?;
-    let update = crate::compatibility::select_update(
-        &compatibility,
-        &current.dsh_version,
-        &current.node_version,
-    )?;
+    let update = crate::compatibility::select_update(&compatibility, &current.dsh_version)?;
     Ok(RuntimeUpdateSnapshot {
-        current_version: current.dsh_version,
-        candidate_version: update.as_ref().map(|update| update.version.clone()),
-        automatic_rollback_supported: update
-            .as_ref()
-            .is_some_and(|update| update.automatic_rollback_supported),
+        candidate_version: update,
     })
 }
 
@@ -395,9 +387,6 @@ fn apply_built_in_runtime_update(state: &AppState) -> AppResult<RuntimeUpdateRes
     let candidate = update
         .candidate_version
         .ok_or_else(|| AppError::new("runtime.error.alreadyUpToDate"))?;
-    if !update.automatic_rollback_supported {
-        return Err(AppError::new("runtime.error.rollbackNotSupported").arg("version", candidate));
-    }
     let package = crate::compatibility::fetch_dsh_package(&candidate)?;
     crate::compatibility::verify_package_integrity(&package)?;
     let current = state.runtime_manager.resolve_built_in()?;

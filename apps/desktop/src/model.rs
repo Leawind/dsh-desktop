@@ -32,9 +32,7 @@ pub struct DistributionSnapshot {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeUpdateSnapshot {
-    pub current_version: String,
     pub candidate_version: Option<String>,
-    pub automatic_rollback_supported: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

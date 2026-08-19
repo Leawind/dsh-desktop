@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use base64::Engine;
 use reqwest::blocking::Client;
-use semver::{Version, VersionReq};
+use semver::Version;
 use serde::Deserialize;
 use sha2::{Digest, Sha512};
 
@@ -24,37 +24,7 @@ pub struct CompatibilityManifest {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppCompatibility {
-    pub dsh: DshCompatibility,
-    pub node: VersionCompatibility,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DshCompatibility {
-    pub allowed_ranges: Vec<String>,
-    pub recommended: String,
-    #[serde(default)]
-    pub rollback_compatible_ranges: Vec<String>,
-    #[serde(default)]
-    pub blocked: Vec<BlockedVersion>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct BlockedVersion {
-    pub version: String,
-    pub reason: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VersionCompatibility {
-    pub allowed_ranges: Vec<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CompatibleUpdate {
-    pub version: String,
-    pub automatic_rollback_supported: bool,
+    pub dsh_version: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -87,54 +57,16 @@ pub fn load_for_app(cache_directory: &Path, app_version: &str) -> AppResult<AppC
 pub fn select_update(
     compatibility: &AppCompatibility,
     current_dsh_version: &str,
-    node_version: &str,
-) -> AppResult<Option<CompatibleUpdate>> {
+) -> AppResult<Option<String>> {
     let current = parse_version(current_dsh_version, "runtime.error.invalidRuntimeVersion")?;
     let candidate = parse_version(
-        &compatibility.dsh.recommended,
+        &compatibility.dsh_version,
         "runtime.error.invalidCompatibility",
     )?;
-    let node = parse_version(node_version, "runtime.error.invalidRuntimeVersion")?;
-
-    if !matches_any(&candidate, &compatibility.dsh.allowed_ranges)?
-        || !matches_any(&node, &compatibility.node.allowed_ranges)?
-    {
-        return Err(AppError::new("runtime.error.invalidCompatibility"));
-    }
-    if compatibility
-        .dsh
-        .blocked
-        .iter()
-        .any(|blocked| blocked.version == candidate.to_string())
-    {
-        return Err(AppError::new("runtime.error.versionBlocked")
-            .arg("version", candidate.to_string())
-            .technical(
-                compatibility
-                    .dsh
-                    .blocked
-                    .iter()
-                    .find(|blocked| blocked.version == candidate.to_string())
-                    .map(|blocked| blocked.reason.clone())
-                    .unwrap_or_default(),
-            ));
-    }
     if candidate <= current {
         return Ok(None);
     }
-    if !same_automatic_update_line(&current, &candidate) {
-        return Err(AppError::new("runtime.error.updateLineBlocked")
-            .arg("current", current.to_string())
-            .arg("candidate", candidate.to_string()));
-    }
-
-    Ok(Some(CompatibleUpdate {
-        version: candidate.to_string(),
-        automatic_rollback_supported: matches_any(
-            &current,
-            &compatibility.dsh.rollback_compatible_ranges,
-        )?,
-    }))
+    Ok(Some(candidate.to_string()))
 }
 
 pub fn fetch_dsh_package(version: &str) -> AppResult<NpmPackageMetadata> {
@@ -246,23 +178,6 @@ fn parse_version(value: &str, error: &str) -> AppResult<Version> {
     Version::parse(value).map_err(|cause| AppError::new(error).technical(cause.to_string()))
 }
 
-fn matches_any(version: &Version, ranges: &[String]) -> AppResult<bool> {
-    ranges.iter().try_fold(false, |matches, range| {
-        let range = VersionReq::parse(range).map_err(|error| {
-            AppError::new("runtime.error.invalidCompatibility").technical(error.to_string())
-        })?;
-        Ok(matches || range.matches(version))
-    })
-}
-
-fn same_automatic_update_line(current: &Version, candidate: &Version) -> bool {
-    if current.major > 0 {
-        current.major == candidate.major
-    } else {
-        current.major == candidate.major && current.minor == candidate.minor
-    }
-}
-
 fn cache_error(error: std::io::Error) -> AppError {
     AppError::new("runtime.error.compatibilityCacheFailed").technical(error.to_string())
 }
@@ -274,59 +189,26 @@ mod tests {
     #[test]
     fn embedded_manifest_selects_no_update_for_its_baseline() {
         let manifest = embedded_manifest().expect("embedded manifest must parse");
-        let app = manifest.apps.get("0.1.0-rc.1").expect("app compatibility");
+        let app = manifest
+            .apps
+            .get(env!("CARGO_PKG_VERSION"))
+            .expect("app compatibility for the current app version");
         assert!(
-            select_update(app, "0.1.0-rc.6", "24.18.1")
+            select_update(app, "0.1.0-rc.6")
                 .expect("select update")
                 .is_none()
         );
     }
 
     #[test]
-    fn rejects_automatic_update_across_zero_minor_versions() {
+    fn selects_a_newer_verified_version() {
         let compatibility = AppCompatibility {
-            dsh: DshCompatibility {
-                allowed_ranges: vec!["=0.2.0-rc.1".to_owned()],
-                recommended: "0.2.0-rc.1".to_owned(),
-                rollback_compatible_ranges: vec!["=0.1.0-rc.6".to_owned()],
-                blocked: Vec::new(),
-            },
-            node: VersionCompatibility {
-                allowed_ranges: vec![">=24.0.0, <25.0.0".to_owned()],
-            },
+            dsh_version: "0.2.0-rc.1".to_owned(),
         };
         assert_eq!(
-            select_update(&compatibility, "0.1.0-rc.6", "24.18.1")
-                .expect_err("minor update must be blocked")
-                .code,
-            "runtime.error.updateLineBlocked"
+            select_update(&compatibility, "0.1.0-rc.6").expect("select update"),
+            Some("0.2.0-rc.1".to_owned())
         );
-    }
-
-    #[test]
-    fn selects_same_line_update_only_when_the_current_runtime_can_rollback() {
-        let compatibility = AppCompatibility {
-            dsh: DshCompatibility {
-                allowed_ranges: vec![">=0.1.0-rc.6, <=0.1.0-rc.7".to_owned()],
-                recommended: "0.1.0-rc.7".to_owned(),
-                rollback_compatible_ranges: vec!["=0.1.0-rc.6".to_owned()],
-                blocked: Vec::new(),
-            },
-            node: VersionCompatibility {
-                allowed_ranges: vec![">=24.0.0, <25.0.0".to_owned()],
-            },
-        };
-
-        let update = select_update(&compatibility, "0.1.0-rc.6", "24.18.1")
-            .expect("same-line update must be eligible")
-            .expect("recommended version must be newer");
-        assert_eq!(update.version, "0.1.0-rc.7");
-        assert!(update.automatic_rollback_supported);
-
-        let update = select_update(&compatibility, "0.1.0-rc.5", "24.18.1")
-            .expect("compatibility selection must succeed")
-            .expect("recommended version must be newer");
-        assert!(!update.automatic_rollback_supported);
     }
 
     #[test]

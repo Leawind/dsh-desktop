@@ -99,9 +99,7 @@ export interface BootstrapPayload {
 }
 
 export interface RuntimeUpdateSnapshot {
-  currentVersion: string;
   candidateVersion: string | null;
-  automaticRollbackSupported: boolean;
 }
 
 export interface RuntimeUpdateResult {
