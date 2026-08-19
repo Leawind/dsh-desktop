@@ -1,5 +1,5 @@
-| [中文](README.md)| English |
-| ---- | ----------------------- |
+| [中文](README.md) | English |
+| ----------------- | ------- |
 
 <div align="center">
 
@@ -36,6 +36,16 @@ Launch DSH directly with the built-in runtime, connect to an existing service, o
 ## Installation & first run
 
 Download the release file matching your platform and variant. Windows provides MSI, macOS provides DMG, and Debian/Ubuntu provides DEB. Portable releases are also available as ZIP on Windows and macOS, or `tar.gz` on Linux. Installers and portable releases are updated by downloading and installing or extracting a newer release file.
+
+### Linux runtime dependencies
+
+Both Linux DEB and portable releases use the system GTK 3 and xdotool libraries and require a supported graphical browser. On Debian/Ubuntu, install the following packages; APT installs the transitive GTK, GDK, GLib, Cairo, X11/Wayland, and related libraries automatically:
+
+```sh
+sudo apt install libgtk-3-0 libxdo3
+```
+
+These are runtime requirements, not development requirements: end users do not need `libgtk-3-dev`, `libxdo-dev`, or `libappindicator3-dev`. Without an available browser, the app attempts to use the system WebView; it cannot display its interface when neither is available.
 
 - Use the built‑in runtime (available in `bundled`);
 - Use `dsh` from your system `PATH`;

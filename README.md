@@ -37,6 +37,16 @@
 
 从 Release 下载与平台、变体对应的发行文件。Windows 提供 MSI，macOS 提供 DMG，Debian/Ubuntu 提供 DEB；也可使用便携版，Windows 和 macOS 为 ZIP，Linux 为 `tar.gz`。安装包和便携版都通过下载并安装或解压新发行文件来更新。
 
+### Linux 运行时依赖
+
+Linux 的 DEB 与便携版都使用系统 GTK 3 和 xdotool 运行库，并需要一个受支持的图形浏览器。Debian/Ubuntu 安装下列包即可；APT 会自动安装 GTK、GDK、GLib、Cairo、X11/Wayland 等间接依赖：
+
+```sh
+sudo apt install libgtk-3-0 libxdo3
+```
+
+这不是开发环境要求，用户不需要安装 `libgtk-3-dev`、`libxdo-dev` 或 `libappindicator3-dev`。没有可用浏览器时，应用会尝试使用系统 WebView；两者均不可用时无法显示界面。
+
 - 使用 `bundled` 附带的内置运行时；
 - 使用系统 `PATH` 中的 `dsh`；
 - 选择自定义 DSH 可执行文件或启动脚本；
