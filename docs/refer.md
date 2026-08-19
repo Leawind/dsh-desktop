@@ -76,7 +76,7 @@ pnpm dsh web
 - Node.js 22.19.x；
 - Node.js 24 及以上。
 
-当前发布的 `@deepseek-ai/dsh@0.1.0-rc.6` 包自身没有包含 `engines`、`os` 或 `cpu` 字段；Node 版本要求来自仓库根项目声明。[根 package.json](https://github.com/deepseek-ai/deepseek-harness/blob/master/package.json)
+`@deepseek-ai/dsh@0.1.0-rc.7` 包自身没有包含 `engines`、`os` 或 `cpu` 字段；Node 版本要求来自仓库根项目声明。[根 package.json](https://github.com/deepseek-ai/deepseek-harness/blob/master/package.json)
 
 源码运行需要预先构建 TypeScript host 包和 Web 前端；`pnpm dsh` 本身不会自动构建。npm 安装形式直接运行随包发布的构建产物。[CLI 行为参考](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/reference/README.zh.md)
 
