@@ -18,13 +18,7 @@ const EMBEDDED_MANIFEST: &[u8] = include_bytes!("../../../runtime/compatibility.
 #[serde(rename_all = "camelCase")]
 pub struct CompatibilityManifest {
     schema_version: u32,
-    apps: std::collections::BTreeMap<String, AppCompatibility>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppCompatibility {
-    pub dsh_version: String,
+    apps: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -39,7 +33,7 @@ pub struct NpmDistribution {
     pub tarball: String,
 }
 
-pub fn load_for_app(cache_directory: &Path, app_version: &str) -> AppResult<AppCompatibility> {
+pub fn load_for_app(cache_directory: &Path, app_version: &str) -> AppResult<String> {
     for source in [
         remote_manifest(cache_directory),
         cached_manifest(cache_directory),
@@ -55,14 +49,11 @@ pub fn load_for_app(cache_directory: &Path, app_version: &str) -> AppResult<AppC
 }
 
 pub fn select_update(
-    compatibility: &AppCompatibility,
+    candidate_version: &str,
     current_dsh_version: &str,
 ) -> AppResult<Option<String>> {
     let current = parse_version(current_dsh_version, "runtime.error.invalidRuntimeVersion")?;
-    let candidate = parse_version(
-        &compatibility.dsh_version,
-        "runtime.error.invalidCompatibility",
-    )?;
+    let candidate = parse_version(candidate_version, "runtime.error.invalidCompatibility")?;
     if candidate <= current {
         return Ok(None);
     }
@@ -168,7 +159,7 @@ fn parse_manifest(contents: &[u8]) -> AppResult<CompatibilityManifest> {
     let manifest: CompatibilityManifest = serde_json::from_slice(contents).map_err(|error| {
         AppError::new("runtime.error.invalidCompatibility").technical(error.to_string())
     })?;
-    if manifest.schema_version != 1 {
+    if manifest.schema_version != 2 {
         return Err(AppError::new("runtime.error.invalidCompatibility"));
     }
     Ok(manifest)
@@ -202,11 +193,8 @@ mod tests {
 
     #[test]
     fn selects_a_newer_verified_version() {
-        let compatibility = AppCompatibility {
-            dsh_version: "0.2.0-rc.1".to_owned(),
-        };
         assert_eq!(
-            select_update(&compatibility, "0.1.0-rc.6").expect("select update"),
+            select_update("0.2.0-rc.1", "0.1.0-rc.6").expect("select update"),
             Some("0.2.0-rc.1".to_owned())
         );
     }
