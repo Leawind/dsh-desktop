@@ -202,7 +202,7 @@
     "section": "关于",
     "builtInRuntime": "内置 DSH 运行时",
     "appUpdate": "DSH Desktop 更新",
-    "appUpdateHint": "检查并安装与当前发行变体匹配的已签名应用更新。",
+    "appUpdateHint": "从 GitHub Release 检查当前发行变体的更新。安装会关闭窗口并停止受管 DSH 服务。",
     "checkForUpdate": "检查更新",
     "checkingForUpdate": "正在检查",
     "updateAvailable": "可用版本 {version}",
@@ -213,6 +213,19 @@
     "downloadingUpdate": "正在下载更新…",
     "downloadProgress": "正在下载更新：{downloaded} / {total} 字节",
     "updateFailed": "无法完成 DSH Desktop 更新。"
+  },
+  "appUpdate": {
+    "error": {
+      "alreadyUpToDate": "当前 DSH Desktop 已是最新版本。",
+      "releaseUnavailable": "无法获取最新 DSH Desktop Release。",
+      "invalidRelease": "最新 DSH Desktop Release 的更新信息无效。",
+      "assetUnavailable": "最新 Release 不包含当前发行变体的平台文件。",
+      "unsupportedTarget": "当前平台或架构不支持 DSH Desktop 自更新。",
+      "downloadFailed": "下载 DSH Desktop 更新失败。",
+      "integrityFailed": "下载的 DSH Desktop 更新未通过 SHA-256 校验。",
+      "installUnavailable": "当前可执行文件所在目录不可写，无法自动安装更新。",
+      "installFailed": "无法安装 DSH Desktop 更新。"
+    }
   },
   "locale": {
     "zh-CN": "简体中文",

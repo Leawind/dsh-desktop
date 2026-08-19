@@ -202,7 +202,7 @@
     "section": "About",
     "builtInRuntime": "Built-in DSH runtime",
     "appUpdate": "DSH Desktop update",
-    "appUpdateHint": "Checks for and installs a signed app update for this distribution variant.",
+    "appUpdateHint": "Checks GitHub Releases for this distribution variant. Installing closes windows and stops managed DSH services.",
     "checkForUpdate": "Check for updates",
     "checkingForUpdate": "Checking",
     "updateAvailable": "Version {version} available",
@@ -213,6 +213,19 @@
     "downloadingUpdate": "Downloading update…",
     "downloadProgress": "Downloading update: {downloaded} / {total} bytes",
     "updateFailed": "DSH Desktop could not be updated."
+  },
+  "appUpdate": {
+    "error": {
+      "alreadyUpToDate": "DSH Desktop is already up to date.",
+      "releaseUnavailable": "The latest DSH Desktop Release could not be loaded.",
+      "invalidRelease": "The latest DSH Desktop Release has invalid update metadata.",
+      "assetUnavailable": "The latest Release has no file for this distribution variant and platform.",
+      "unsupportedTarget": "Self-updating is unavailable for this platform or architecture.",
+      "downloadFailed": "The DSH Desktop update could not be downloaded.",
+      "integrityFailed": "The downloaded DSH Desktop update failed SHA-256 verification.",
+      "installUnavailable": "The current executable directory is not writable, so the update cannot be installed automatically.",
+      "installFailed": "The DSH Desktop update could not be installed."
+    }
   },
   "locale": {
     "zh-CN": "简体中文",

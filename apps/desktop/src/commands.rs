@@ -346,6 +346,19 @@ pub fn update_built_in_runtime(state: &AppState) -> AppResult<RuntimeUpdateResul
     apply_built_in_runtime_update(state)
 }
 
+pub fn check_app_update(state: &AppState) -> AppResult<crate::model::AppUpdateSnapshot> {
+    crate::app_update::check(state.runtime_manager.distribution_variant())
+}
+
+pub fn install_app_update(state: &AppState) -> AppResult<String> {
+    let version = crate::app_update::install(
+        &state.data_dir,
+        state.runtime_manager.distribution_variant(),
+    )?;
+    state.request_app_update_shutdown();
+    Ok(version)
+}
+
 fn available_built_in_update(state: &AppState) -> AppResult<RuntimeUpdateSnapshot> {
     let current = state.runtime_manager.resolve_built_in()?;
     let compatibility = crate::compatibility::load_for_app(

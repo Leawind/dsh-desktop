@@ -1,3 +1,4 @@
+mod app_update;
 mod bridge_server;
 mod commands;
 mod compatibility;
@@ -52,9 +53,10 @@ pub fn run() {
     let resources = embedded_resources::materialize(&data_dir)
         .expect("failed to materialize embedded application resources");
     let runtime_manager =
-        runtime::RuntimeManager::new(resources.runtime_seed_directory.clone(), data_dir);
+        runtime::RuntimeManager::new(resources.runtime_seed_directory.clone(), data_dir.clone());
     let settings = settings::load(&config_dir, model::DistributionVariant::current());
-    let state = AppState::new(config_dir, settings, runtime_manager);
+    let state = AppState::new(config_dir, data_dir.clone(), settings, runtime_manager);
+    app_update::confirm_applied_update(&data_dir);
     let windows = WindowRegistry::default();
     let client_activity = WindowActivityRegistry::default();
     let window_controls = WindowControlRegistry::default();
@@ -114,6 +116,12 @@ pub fn run() {
             },
             Event::UserEvent(HostEvent::Maintenance) => {}
             Event::MainEventsCleared => {
+                if state.app_update_shutdown_requested() {
+                    bridge.close_windows();
+                    state.shutdown();
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                }
                 while let Ok(single_instance::HostRequest::OpenWindow) =
                     instance.requests.try_recv()
                 {
@@ -137,6 +145,10 @@ pub fn run() {
             _ => {}
         }
     });
+}
+
+pub fn run_update_helper_if_requested() -> bool {
+    app_update::run_helper_if_requested()
 }
 
 fn create_new_window(

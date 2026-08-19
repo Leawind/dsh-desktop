@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdir, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import crossSpawn from "cross-spawn";
@@ -89,11 +89,7 @@ async function main(): Promise<void> {
   );
   const artifacts = join(metadata.target_directory, "release", "artifacts");
   await mkdir(artifacts, { recursive: true });
-  const version = (await readFile(join(root, "apps/desktop/Cargo.toml"), "utf8")).match(
-    /^version\s*=\s*"([^"]+)"$/mu,
-  )?.[1];
-  if (!version) throw new Error("Could not read the desktop package version");
-  const filename = `dsh-desktop-${version}-${variant}-${platform()}-${architecture()}${
+  const filename = `dsh-desktop-${variant}-${platform()}-${architecture()}${
     process.platform === "win32" ? ".exe" : ""
   }`;
   await rm(join(artifacts, filename), { force: true });

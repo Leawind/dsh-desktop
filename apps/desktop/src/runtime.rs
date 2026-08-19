@@ -97,6 +97,10 @@ impl RuntimeManager {
         }
     }
 
+    pub fn distribution_variant(&self) -> DistributionVariant {
+        self.variant
+    }
+
     #[cfg(test)]
     fn for_test(
         variant: DistributionVariant,

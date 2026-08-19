@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -14,12 +14,14 @@ use crate::service::ManagedService;
 #[derive(Clone)]
 pub struct AppState {
     pub config_dir: PathBuf,
+    pub data_dir: PathBuf,
     pub settings: Arc<RwLock<GlobalSettings>>,
     pub host: Arc<Mutex<HostState>>,
     pub startup_lock: Arc<Mutex<()>>,
     pub runtime_manager: RuntimeManager,
     system_color_scheme: Arc<RwLock<Option<SystemColorScheme>>>,
     next_window_id: Arc<AtomicU64>,
+    app_update_shutdown_requested: Arc<AtomicBool>,
 }
 
 pub struct HostState {
@@ -64,11 +66,13 @@ impl EndpointRecord {
 impl AppState {
     pub fn new(
         config_dir: PathBuf,
+        data_dir: PathBuf,
         settings: GlobalSettings,
         runtime_manager: RuntimeManager,
     ) -> Self {
         Self {
             config_dir,
+            data_dir,
             settings: Arc::new(RwLock::new(settings)),
             host: Arc::new(Mutex::new(HostState {
                 windows: HashMap::new(),
@@ -79,6 +83,7 @@ impl AppState {
             runtime_manager,
             system_color_scheme: Arc::new(RwLock::new(None)),
             next_window_id: Arc::new(AtomicU64::new(1)),
+            app_update_shutdown_requested: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -149,6 +154,15 @@ impl AppState {
                 }
             }
         }
+    }
+
+    pub fn request_app_update_shutdown(&self) {
+        self.app_update_shutdown_requested
+            .store(true, Ordering::Release);
+    }
+
+    pub fn app_update_shutdown_requested(&self) -> bool {
+        self.app_update_shutdown_requested.load(Ordering::Acquire)
     }
 
     pub fn system_color_scheme(&self) -> Option<SystemColorScheme> {
