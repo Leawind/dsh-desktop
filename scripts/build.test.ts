@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { installerFilename, portableExecutableFilename, validateMsiVersion } from "./build.js";
+import {
+  installerFilename,
+  msiBuildArguments,
+  portableExecutableFilename,
+  validateMsiVersion,
+} from "./build.js";
 
 const bundledWindows = {
   architecture: "x86_64",
@@ -30,4 +35,17 @@ test("Windows MSI version accepts only a numeric pre-release suffix", () => {
   assert.doesNotThrow(() => validateMsiVersion("0.2.2-2"));
   assert.throws(() => validateMsiVersion("0.2.2-rc.2"));
   assert.throws(() => validateMsiVersion("0.2.2-65536"));
+});
+
+test("Windows MSI passes each WiX preprocessor variable as an option value", () => {
+  assert.deepEqual(msiBuildArguments(bundledWindows, "C:/build/dsh-desktop.exe", "C:/artifacts"), [
+    "build",
+    "installers/windows.wxs",
+    "-d",
+    "Version=0.2.2",
+    "-d",
+    "Source=C:/build/dsh-desktop.exe",
+    "-o",
+    "C:/artifacts/dsh-desktop-0.2.2-bundled-windows-x86_64.msi",
+  ]);
 });

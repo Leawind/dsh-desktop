@@ -95,6 +95,24 @@ export function validateMsiVersion(version: string): void {
   }
 }
 
+export function msiBuildArguments(
+  asset: DistributionAsset,
+  executable: string,
+  artifacts: string,
+): string[] {
+  validateMsiVersion(asset.version);
+  return [
+    "build",
+    "installers/windows.wxs",
+    "-d",
+    `Version=${asset.version}`,
+    "-d",
+    `Source=${executable}`,
+    "-o",
+    join(artifacts, installerFilename(asset)),
+  ];
+}
+
 async function packageDeb(
   asset: DistributionAsset,
   executable: string,
@@ -274,15 +292,7 @@ async function packageMsi(
   executable: string,
   artifacts: string,
 ): Promise<void> {
-  validateMsiVersion(asset.version);
-  await run("wix", [
-    "build",
-    "installers/windows.wxs",
-    `-dVersion=${asset.version}`,
-    `-dSource=${executable}`,
-    "-o",
-    join(artifacts, installerFilename(asset)),
-  ]);
+  await run("wix", msiBuildArguments(asset, executable, artifacts));
 }
 
 async function packageInstaller(
