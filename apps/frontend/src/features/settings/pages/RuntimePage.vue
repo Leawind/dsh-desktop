@@ -5,17 +5,11 @@ import { useI18n } from "vue-i18n";
 import { UiButton, UiSettingRow, UiStatus } from "@dsh-desktop/ui";
 
 import { desktopBridge } from "@/bridge/desktop";
-import type {
-  DistributionSnapshot,
-  DshSource,
-  HostSnapshot,
-  RuntimeUpdateSnapshot,
-} from "@/types/desktop";
+import type { DistributionSnapshot, HostSnapshot, RuntimeUpdateSnapshot } from "@/types/desktop";
 
 const props = defineProps<{
   host: HostSnapshot;
   distribution: DistributionSnapshot;
-  dshSource: DshSource;
   updateBuiltInRuntime: () => Promise<void>;
 }>();
 
@@ -30,9 +24,7 @@ const runtimeUpdate = ref<RuntimeUpdateSnapshot | null>(null);
 const updateError = ref<string | null>(null);
 const checkingForUpdate = ref(false);
 const updating = ref(false);
-const canUpdateBuiltIn = computed(
-  () => props.distribution.variant === "bundled" && props.dshSource.type === "built-in",
-);
+const canUpdateBuiltIn = computed(() => props.distribution.variant === "bundled");
 
 function endpointHint(endpoint: HostSnapshot["endpoints"][number]): string {
   const details = [
@@ -85,11 +77,13 @@ async function updateRuntime(): Promise<void> {
     role="tabpanel"
     aria-labelledby="settings-tab-runtime"
   >
-    <h2 class="settings-page__group-title">{{ $t("runtime.builtInUpdate") }}</h2>
+    <h2 v-if="distribution.builtInRuntime" class="settings-page__group-title">
+      {{ $t("runtime.builtInUpdate") }}
+    </h2>
     <UiSettingRow
       v-if="distribution.builtInRuntime"
       :label="$t('runtime.currentVersion')"
-      :hint="canUpdateBuiltIn ? $t('runtime.updateHint') : $t('runtime.updateSourceHint')"
+      :hint="$t('runtime.updateHint')"
     >
       <div class="settings-page__inline-control">
         <UiStatus tone="info">DSH {{ distribution.builtInRuntime.dshVersion }}</UiStatus>

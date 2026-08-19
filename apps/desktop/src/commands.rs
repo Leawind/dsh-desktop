@@ -347,14 +347,6 @@ pub fn update_built_in_runtime(state: &AppState) -> AppResult<RuntimeUpdateResul
 }
 
 fn available_built_in_update(state: &AppState) -> AppResult<RuntimeUpdateSnapshot> {
-    let settings = state
-        .settings
-        .read()
-        .map_err(|_| AppError::new("app.error.stateUnavailable"))?
-        .clone();
-    if !matches!(settings.dsh_source, crate::model::DshSource::BuiltIn) {
-        return Err(AppError::new("runtime.error.builtInSourceRequired"));
-    }
     let current = state.runtime_manager.resolve_built_in()?;
     let compatibility = crate::compatibility::load_for_app(
         &state.runtime_manager.compatibility_cache_directory(),
