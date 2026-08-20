@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -8,19 +8,27 @@ use crate::model::{
     EndpointOwnership, EndpointSnapshot, GlobalSettings, HostSnapshot, ServiceStatus,
     SystemColorScheme, WindowSnapshot,
 };
+use crate::process_supervisor::ProcessSupervisor;
 use crate::runtime::RuntimeManager;
 use crate::service::ManagedService;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostLifecycle {
+    Running,
+    ShuttingDown,
+}
 
 #[derive(Clone)]
 pub struct AppState {
     pub config_dir: PathBuf,
-    pub data_dir: PathBuf,
     pub settings: Arc<RwLock<GlobalSettings>>,
     pub host: Arc<Mutex<HostState>>,
     pub startup_lock: Arc<Mutex<()>>,
     pub runtime_manager: RuntimeManager,
     system_color_scheme: Arc<RwLock<Option<SystemColorScheme>>>,
     next_window_id: Arc<AtomicU64>,
+    running: Arc<AtomicBool>,
+    process_supervisor: ProcessSupervisor,
 }
 
 pub struct HostState {
@@ -65,13 +73,11 @@ impl EndpointRecord {
 impl AppState {
     pub fn new(
         config_dir: PathBuf,
-        data_dir: PathBuf,
         settings: GlobalSettings,
         runtime_manager: RuntimeManager,
     ) -> Self {
         Self {
             config_dir,
-            data_dir,
             settings: Arc::new(RwLock::new(settings)),
             host: Arc::new(Mutex::new(HostState {
                 windows: HashMap::new(),
@@ -82,7 +88,39 @@ impl AppState {
             runtime_manager,
             system_color_scheme: Arc::new(RwLock::new(None)),
             next_window_id: Arc::new(AtomicU64::new(1)),
+            running: Arc::new(AtomicBool::new(true)),
+            process_supervisor: ProcessSupervisor::default(),
         }
+    }
+
+    pub fn lifecycle(&self) -> HostLifecycle {
+        if self.running.load(Ordering::Acquire) {
+            HostLifecycle::Running
+        } else {
+            HostLifecycle::ShuttingDown
+        }
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.lifecycle() == HostLifecycle::Running
+    }
+
+    pub fn ensure_running(&self) -> crate::error::AppResult<()> {
+        self.is_running()
+            .then_some(())
+            .ok_or_else(|| crate::error::AppError::new("app.error.hostShuttingDown"))
+    }
+
+    pub fn begin_shutdown(&self) -> bool {
+        self.running.swap(false, Ordering::AcqRel)
+    }
+
+    pub fn running_signal(&self) -> &AtomicBool {
+        &self.running
+    }
+
+    pub fn process_supervisor(&self) -> &ProcessSupervisor {
+        &self.process_supervisor
     }
 
     pub fn next_window_label(&self) -> String {
@@ -145,6 +183,7 @@ impl AppState {
     }
 
     pub fn shutdown(&self) {
+        self.begin_shutdown();
         if let Ok(mut host) = self.host.lock() {
             for endpoint in host.endpoints.values_mut() {
                 if let Some(process) = endpoint.process.as_mut() {
@@ -152,6 +191,7 @@ impl AppState {
                 }
             }
         }
+        self.process_supervisor.shutdown();
     }
 
     pub fn system_color_scheme(&self) -> Option<SystemColorScheme> {
@@ -375,7 +415,7 @@ fn refresh_processes(host: &mut HostState) {
         let Some(process) = endpoint.process.as_mut() else {
             continue;
         };
-        match process.child.try_wait() {
+        match process.try_wait() {
             Ok(Some(status)) => {
                 endpoint.logs = process.log_lines();
                 endpoint.status = ServiceStatus::Failed;
@@ -393,6 +433,7 @@ fn refresh_processes(host: &mut HostState) {
             }
             Ok(None) => {}
             Err(error) => {
+                process.stop();
                 endpoint.status = ServiceStatus::Failed;
                 endpoint.last_error = Some(error.to_string());
             }
@@ -477,5 +518,26 @@ mod tests {
         };
 
         assert!(!host.has_managed_processes());
+    }
+
+    #[test]
+    fn shutdown_transitions_the_host_lifecycle_once() {
+        let state = AppState::new(
+            PathBuf::from("config"),
+            GlobalSettings::default(),
+            RuntimeManager::new(PathBuf::from("seed"), PathBuf::from("data")),
+        );
+
+        assert_eq!(state.lifecycle(), HostLifecycle::Running);
+        assert!(state.begin_shutdown());
+        assert_eq!(state.lifecycle(), HostLifecycle::ShuttingDown);
+        assert!(!state.begin_shutdown());
+        assert_eq!(
+            state
+                .ensure_running()
+                .expect_err("shutdown rejects commands")
+                .code,
+            "app.error.hostShuttingDown"
+        );
     }
 }

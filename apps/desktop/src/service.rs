@@ -5,17 +5,16 @@ use std::io::{BufRead, BufReader, Read};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use reqwest::blocking::Client;
 
-#[cfg(unix)]
-use std::os::unix::process::CommandExt;
-
 use crate::error::{AppError, AppResult};
 use crate::model::{DshHome, DshSource};
+use crate::process_supervisor::{ProcessLease, ProcessSupervisor, terminate_child_tree};
 use crate::runtime::{InstalledRuntime, RuntimeManager};
 
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
@@ -33,7 +32,8 @@ pub enum ProbeResult {
 }
 
 pub struct ManagedService {
-    pub child: Child,
+    child: Child,
+    process_lease: ProcessLease,
     pub executable: PathBuf,
     pub runtime_version: String,
     pub logs: Arc<Mutex<VecDeque<String>>>,
@@ -85,7 +85,16 @@ impl ManagedService {
     }
 
     pub fn stop(&mut self) {
-        stop_child_tree(&mut self.child);
+        terminate_child_tree(&mut self.child);
+        self.process_lease.release();
+    }
+
+    pub fn try_wait(&mut self) -> std::io::Result<Option<std::process::ExitStatus>> {
+        let status = self.child.try_wait()?;
+        if status.is_some() {
+            self.process_lease.release();
+        }
+        Ok(status)
     }
 
     pub fn diagnostic(&self) -> String {
@@ -102,6 +111,12 @@ impl ManagedService {
             .lock()
             .map(|lines| lines.iter().cloned().collect())
             .unwrap_or_default()
+    }
+}
+
+impl Drop for ManagedService {
+    fn drop(&mut self) {
+        self.stop();
     }
 }
 
@@ -151,8 +166,9 @@ fn tcp_port_is_reachable(url: &str) -> bool {
 pub fn resolve_runtime(
     source: &DshSource,
     runtime_manager: &RuntimeManager,
+    process_supervisor: &ProcessSupervisor,
 ) -> AppResult<ResolvedDshRuntime> {
-    let runtime_path = effective_path();
+    let runtime_path = effective_path(process_supervisor);
     let (executable, prefix_args, runtime_path, known_version, invalid_error): (
         PathBuf,
         Vec<OsString>,
@@ -161,7 +177,12 @@ pub fn resolve_runtime(
         &str,
     ) = match source {
         DshSource::None => return Err(AppError::new("service.error.sourceDisabled")),
-        DshSource::BuiltIn => return resolve_built_in_runtime(runtime_manager.resolve_built_in()?),
+        DshSource::BuiltIn => {
+            return resolve_built_in_runtime(
+                runtime_manager.resolve_built_in()?,
+                process_supervisor,
+            );
+        }
         DshSource::System => (
             resolve_executable(None, runtime_path.as_deref())?,
             Vec::new(),
@@ -192,6 +213,7 @@ pub fn resolve_runtime(
         &prefix_args,
         runtime_path.as_deref(),
         invalid_error,
+        process_supervisor,
     )?;
     if known_version
         .as_ref()
@@ -201,8 +223,12 @@ pub fn resolve_runtime(
             .arg("expected", known_version)
             .arg("actual", runtime_version));
     }
-    let supports_no_open =
-        detects_no_open_support(&executable, &prefix_args, runtime_path.as_deref());
+    let supports_no_open = detects_no_open_support(
+        &executable,
+        &prefix_args,
+        runtime_path.as_deref(),
+        process_supervisor,
+    );
     Ok(ResolvedDshRuntime {
         executable,
         prefix_args,
@@ -213,13 +239,20 @@ pub fn resolve_runtime(
     })
 }
 
-pub fn resolve_built_in_runtime(runtime: InstalledRuntime) -> AppResult<ResolvedDshRuntime> {
-    let runtime_path = prepend_paths(&runtime.executable_path, effective_path().as_deref());
+pub fn resolve_built_in_runtime(
+    runtime: InstalledRuntime,
+    process_supervisor: &ProcessSupervisor,
+) -> AppResult<ResolvedDshRuntime> {
+    let runtime_path = prepend_paths(
+        &runtime.executable_path,
+        effective_path(process_supervisor).as_deref(),
+    );
     let runtime_version = read_version(
         &runtime.node_executable,
         &[runtime.dsh_entrypoint.clone().into_os_string()],
         runtime_path.as_deref(),
         "service.error.invalidExecutable",
+        process_supervisor,
     )?;
     if runtime_version != runtime.dsh_version {
         return Err(AppError::new("runtime.error.versionMismatch")
@@ -231,6 +264,7 @@ pub fn resolve_built_in_runtime(runtime: InstalledRuntime) -> AppResult<Resolved
         &runtime.node_executable,
         &prefix_args,
         runtime_path.as_deref(),
+        process_supervisor,
     );
     Ok(ResolvedDshRuntime {
         executable: runtime.node_executable,
@@ -242,11 +276,15 @@ pub fn resolve_built_in_runtime(runtime: InstalledRuntime) -> AppResult<Resolved
     })
 }
 
-pub fn verify_web_help(runtime: &ResolvedDshRuntime) -> AppResult<()> {
+pub fn verify_web_help(
+    runtime: &ResolvedDshRuntime,
+    process_supervisor: &ProcessSupervisor,
+) -> AppResult<()> {
     let output = web_help_output(
         &runtime.executable,
         &runtime.prefix_args,
         runtime.runtime_path.as_deref(),
+        process_supervisor,
     )
     .map_err(|error| {
         AppError::new("runtime.error.verificationFailed").technical(error.to_string())
@@ -262,15 +300,28 @@ pub fn start(
     runtime: &ResolvedDshRuntime,
     port: u16,
     dsh_home: DshHome,
+    process_supervisor: &ProcessSupervisor,
+    running: &AtomicBool,
 ) -> AppResult<ManagedService> {
-    start_launch(&ManagedLaunch {
-        runtime: runtime.clone(),
-        port,
-        dsh_home,
-    })
+    start_launch(
+        &ManagedLaunch {
+            runtime: runtime.clone(),
+            port,
+            dsh_home,
+        },
+        process_supervisor,
+        running,
+    )
 }
 
-pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
+pub fn start_launch(
+    launch: &ManagedLaunch,
+    process_supervisor: &ProcessSupervisor,
+    running: &AtomicBool,
+) -> AppResult<ManagedService> {
+    if !running.load(Ordering::Acquire) {
+        return Err(host_shutting_down_error());
+    }
     let runtime = &launch.runtime;
     let port = launch.port;
     let executable = &runtime.executable;
@@ -284,16 +335,21 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
     .stdin(Stdio::null())
     .stdout(Stdio::piped())
     .stderr(Stdio::piped());
-    configure_process_tree(&mut command);
     apply_dsh_home(&mut command, &launch.dsh_home);
     if let Some(runtime_path) = runtime.runtime_path.as_ref() {
         command.env("PATH", runtime_path);
     }
-    let mut child = command.spawn().map_err(|error| {
-        AppError::new("service.error.startFailed")
-            .arg("executable", executable.display().to_string())
-            .technical(error.to_string())
-    })?;
+    let (mut child, mut process_lease) =
+        process_supervisor.spawn(&mut command).map_err(|error| {
+            AppError::new("service.error.startFailed")
+                .arg("executable", executable.display().to_string())
+                .technical(error.to_string())
+        })?;
+    if !running.load(Ordering::Acquire) {
+        terminate_child_tree(&mut child);
+        process_lease.release();
+        return Err(host_shutting_down_error());
+    }
 
     let logs = Arc::new(Mutex::new(VecDeque::new()));
     if let Some(stdout) = child.stdout.take() {
@@ -306,10 +362,16 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
     let url = format!("http://127.0.0.1:{port}");
     let started_at = Instant::now();
     loop {
+        if !running.load(Ordering::Acquire) {
+            terminate_child_tree(&mut child);
+            process_lease.release();
+            return Err(host_shutting_down_error());
+        }
         match probe(&url) {
             ProbeResult::Dsh => break,
             ProbeResult::OtherHttp => {
-                stop_child_tree(&mut child);
+                terminate_child_tree(&mut child);
+                process_lease.release();
                 return Err(AppError::new("service.error.portOccupied").arg("port", port));
             }
             ProbeResult::Unreachable => {}
@@ -317,18 +379,22 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
 
         match child.try_wait() {
             Ok(Some(status)) => {
+                process_lease.release();
                 return Err(AppError::new("service.error.processExited")
                     .arg("status", status.to_string())
                     .technical(recent_logs(&logs)));
             }
             Ok(None) => {}
             Err(error) => {
+                terminate_child_tree(&mut child);
+                process_lease.release();
                 return Err(AppError::new("service.error.startFailed").technical(error.to_string()));
             }
         }
 
         if started_at.elapsed() >= STARTUP_TIMEOUT {
-            stop_child_tree(&mut child);
+            terminate_child_tree(&mut child);
+            process_lease.release();
             return Err(AppError::new("service.error.startTimeout")
                 .arg("port", port)
                 .technical(recent_logs(&logs)));
@@ -338,6 +404,7 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
 
     Ok(ManagedService {
         child,
+        process_lease,
         executable: executable.clone(),
         runtime_version: runtime.runtime_version.clone(),
         logs,
@@ -365,9 +432,10 @@ fn detects_no_open_support(
     executable: &Path,
     prefix_args: &[OsString],
     runtime_path: Option<&OsStr>,
+    process_supervisor: &ProcessSupervisor,
 ) -> bool {
     matches!(
-        web_help_output(executable, prefix_args, runtime_path),
+        web_help_output(executable, prefix_args, runtime_path, process_supervisor),
         Ok(output) if output.status.success() && supports_no_open_flag(&output.stdout)
     )
 }
@@ -376,6 +444,7 @@ fn web_help_output(
     executable: &Path,
     prefix_args: &[OsString],
     runtime_path: Option<&OsStr>,
+    process_supervisor: &ProcessSupervisor,
 ) -> std::io::Result<std::process::Output> {
     let mut command = Command::new(executable);
     command
@@ -386,7 +455,7 @@ fn web_help_output(
     if let Some(runtime_path) = runtime_path {
         command.env("PATH", runtime_path);
     }
-    command.output()
+    process_supervisor.output(&mut command)
 }
 
 fn supports_no_open_flag(help: &[u8]) -> bool {
@@ -427,6 +496,7 @@ fn read_version(
     prefix_args: &[OsString],
     runtime_path: Option<&OsStr>,
     invalid_error: &str,
+    process_supervisor: &ProcessSupervisor,
 ) -> AppResult<String> {
     let mut command = Command::new(executable);
     command
@@ -437,24 +507,13 @@ fn read_version(
     if let Some(runtime_path) = runtime_path {
         command.env("PATH", runtime_path);
     }
-    let output = command
-        .output()
+    let output = process_supervisor
+        .output(&mut command)
         .map_err(|error| AppError::new(invalid_error).technical(error.to_string()))?;
     if !output.status.success() {
         return Err(AppError::new(invalid_error).technical(String::from_utf8_lossy(&output.stderr)));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
-}
-
-fn configure_process_tree(command: &mut Command) {
-    #[cfg(unix)]
-    command.process_group(0);
-
-    #[cfg(windows)]
-    hide_console_window(command);
-
-    #[cfg(not(any(unix, windows)))]
-    let _ = command;
 }
 
 #[cfg(windows)]
@@ -470,34 +529,6 @@ fn hide_console_window(_: &mut Command) {}
 
 fn npx_package_argument(version: &str) -> OsString {
     OsString::from(format!("@deepseek-ai/dsh@{version}"))
-}
-
-fn stop_child_tree(child: &mut Child) {
-    #[cfg(unix)]
-    {
-        // Every managed command starts its own process group. This also terminates the
-        // DSH process that an npx launcher may have created beneath its own process.
-        let process_group = child.id() as i32;
-        unsafe {
-            libc::kill(-process_group, libc::SIGKILL);
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        let pid = child.id().to_string();
-        let mut taskkill = Command::new("taskkill");
-        taskkill
-            .args(["/PID", &pid, "/T", "/F"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
-        hide_console_window(&mut taskkill);
-        let _ = taskkill.status();
-    }
-
-    let _ = child.kill();
-    let _ = child.wait();
 }
 
 fn prepend_paths(paths: &[PathBuf], inherited: Option<&OsStr>) -> Option<OsString> {
@@ -532,36 +563,47 @@ fn find_on_path(command: &str, path: &OsStr) -> Option<PathBuf> {
         .map(|path| path.canonicalize().unwrap_or(path))
 }
 
-fn effective_path() -> Option<OsString> {
-    shell_path().or_else(|| env::var_os("PATH"))
+fn effective_path(process_supervisor: &ProcessSupervisor) -> Option<OsString> {
+    shell_path(process_supervisor).or_else(|| env::var_os("PATH"))
 }
 
 #[cfg(windows)]
-fn shell_path() -> Option<OsString> {
+fn shell_path(_: &ProcessSupervisor) -> Option<OsString> {
     None
 }
 
 #[cfg(unix)]
-fn shell_path() -> Option<OsString> {
+fn shell_path(process_supervisor: &ProcessSupervisor) -> Option<OsString> {
     let shell = env::var_os("SHELL").unwrap_or_else(|| OsString::from("/bin/sh"));
-    let mut child = Command::new(shell)
+    let mut command = Command::new(shell);
+    command
         .args(["-ilc", "printf '\\n__DSH_DESKTOP_PATH__%s\\n' \"$PATH\""])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .ok()?;
+        .stderr(Stdio::null());
+    let (mut child, mut process_lease) = process_supervisor.spawn(&mut command).ok()?;
     let started_at = Instant::now();
     loop {
         match child.try_wait() {
-            Ok(Some(status)) if status.success() => break,
-            Ok(Some(_)) | Err(_) => return None,
+            Ok(Some(status)) if status.success() => {
+                process_lease.release();
+                break;
+            }
+            Ok(Some(_)) => {
+                process_lease.release();
+                return None;
+            }
+            Err(_) => {
+                terminate_child_tree(&mut child);
+                process_lease.release();
+                return None;
+            }
             Ok(None) if started_at.elapsed() < SHELL_PATH_TIMEOUT => {
                 thread::sleep(Duration::from_millis(25));
             }
             Ok(None) => {
-                let _ = child.kill();
-                let _ = child.wait();
+                terminate_child_tree(&mut child);
+                process_lease.release();
                 return None;
             }
         }
@@ -569,6 +611,10 @@ fn shell_path() -> Option<OsString> {
     let mut output = String::new();
     child.stdout.take()?.read_to_string(&mut output).ok()?;
     extract_marked_path(&output).map(OsString::from)
+}
+
+fn host_shutting_down_error() -> AppError {
+    AppError::new("app.error.hostShuttingDown")
 }
 
 fn extract_marked_path(output: &str) -> Option<&str> {

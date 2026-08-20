@@ -5,6 +5,7 @@ mod embedded_resources;
 mod endpoint;
 mod error;
 mod model;
+mod process_supervisor;
 mod runtime;
 mod service;
 mod settings;
@@ -72,12 +73,7 @@ pub fn run() {
             return;
         }
     };
-    let state = AppState::new(
-        directories.config,
-        directories.data,
-        settings,
-        runtime_manager,
-    );
+    let state = AppState::new(directories.config, settings, runtime_manager);
     let windows = WindowRegistry::default();
     let client_activity = WindowActivityRegistry::default();
     let window_controls = WindowControlRegistry::default();
@@ -129,6 +125,7 @@ pub fn run() {
                     create_new_window(&state, &resources.icon, &windows, &client_activity, &bridge)
                 }
                 Some(TrayAction::Quit) => {
+                    state.begin_shutdown();
                     bridge.close_windows();
                     state.shutdown();
                     *control_flow = ControlFlow::Exit;
@@ -154,6 +151,7 @@ pub fn run() {
                     last_locale = locale;
                 }
                 if state.should_exit_after_idle_reap() {
+                    state.shutdown();
                     *control_flow = ControlFlow::Exit;
                 }
             }
@@ -169,6 +167,9 @@ fn create_new_window(
     client_activity: &WindowActivityRegistry,
     bridge: &bridge_server::BridgeServer,
 ) {
+    if !state.is_running() {
+        return;
+    }
     create_window(
         state.next_window_label(),
         state,

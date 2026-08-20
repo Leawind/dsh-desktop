@@ -10,6 +10,7 @@ use crate::settings;
 use crate::state::{AppState, EndpointRecord, snapshot_locked};
 
 pub fn initialize_window(state: &AppState, label: &str) -> AppResult<BootstrapPayload> {
+    state.ensure_running()?;
     let app_metadata = AppMetadataSnapshot {
         name: "DSH Desktop".to_owned(),
         version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -41,6 +42,7 @@ pub fn set_window_target(
     url: String,
     state: &AppState,
 ) -> AppResult<WindowSnapshot> {
+    state.ensure_running()?;
     let url = normalize_dsh_url(&url)?;
     let probe = service::probe(&url);
     let status = match probe {
@@ -71,6 +73,7 @@ pub fn set_window_target(
 }
 
 pub fn start_window(state: &AppState, window_label: &str) -> AppResult<WindowStartupResult> {
+    state.ensure_running()?;
     run_window_startup(state, window_label)
 }
 
@@ -84,6 +87,7 @@ fn run_window_startup(state: &AppState, window_label: &str) -> AppResult<WindowS
         .startup_lock
         .lock()
         .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    state.ensure_running()?;
 
     let mut failures = Vec::new();
     let mut resolved_runtime = None;
@@ -238,8 +242,14 @@ fn start_fixed(
         }
         ProbeResult::Unreachable => {}
     }
-    let runtime = resolve_runtime_once(resolved_runtime, settings, &state.runtime_manager)?;
-    let managed = service::start(&runtime, port, settings.dsh_home.clone())?;
+    let runtime = resolve_runtime_once(resolved_runtime, settings, state)?;
+    let managed = service::start(
+        &runtime,
+        port,
+        settings.dsh_home.clone(),
+        state.process_supervisor(),
+        state.running_signal(),
+    )?;
     register_managed_service(state, window_label, url, managed)
 }
 
@@ -253,13 +263,19 @@ fn start_range(
     resolved_runtime: &mut Option<AppResult<service::ResolvedDshRuntime>>,
 ) -> AppResult<()> {
     validate_start_host(host)?;
-    let runtime = resolve_runtime_once(resolved_runtime, settings, &state.runtime_manager)?;
+    let runtime = resolve_runtime_once(resolved_runtime, settings, state)?;
     for port in start_port..=end_port {
         let url = dsh_url(host, port);
         if service::probe(&url) != ProbeResult::Unreachable {
             continue;
         }
-        let managed = service::start(&runtime, port, settings.dsh_home.clone())?;
+        let managed = service::start(
+            &runtime,
+            port,
+            settings.dsh_home.clone(),
+            state.process_supervisor(),
+            state.running_signal(),
+        )?;
         return register_managed_service(state, window_label, url, managed);
     }
     Err(AppError::new("service.error.noFreePort")
@@ -270,12 +286,13 @@ fn start_range(
 fn resolve_runtime_once<'a>(
     resolved_runtime: &'a mut Option<AppResult<service::ResolvedDshRuntime>>,
     settings: &GlobalSettings,
-    runtime_manager: &crate::runtime::RuntimeManager,
+    state: &AppState,
 ) -> AppResult<&'a service::ResolvedDshRuntime> {
     if resolved_runtime.is_none() {
         *resolved_runtime = Some(service::resolve_runtime(
             &settings.dsh_source,
-            runtime_manager,
+            &state.runtime_manager,
+            state.process_supervisor(),
         ));
     }
     resolved_runtime
@@ -329,20 +346,24 @@ fn register_managed_service(
 }
 
 pub fn stop_service(state: &AppState, url: String) -> AppResult<HostSnapshot> {
+    state.ensure_running()?;
     let url = normalize_dsh_url(&url)?;
     stop_managed(state, &url)
 }
 
 pub fn restart_service(state: &AppState, url: String) -> AppResult<HostSnapshot> {
+    state.ensure_running()?;
     let url = normalize_dsh_url(&url)?;
     restart_managed(state, &url)
 }
 
 pub fn check_built_in_runtime_update(state: &AppState) -> AppResult<RuntimeUpdateSnapshot> {
+    state.ensure_running()?;
     available_built_in_update(state)
 }
 
 pub fn update_built_in_runtime(state: &AppState) -> AppResult<RuntimeUpdateResult> {
+    state.ensure_running()?;
     apply_built_in_runtime_update(state)
 }
 
@@ -370,6 +391,7 @@ fn apply_built_in_runtime_update(state: &AppState) -> AppResult<RuntimeUpdateRes
         .startup_lock
         .lock()
         .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    state.ensure_running()?;
     let update = available_built_in_update(state)?;
     let candidate = update
         .candidate_version
@@ -377,17 +399,32 @@ fn apply_built_in_runtime_update(state: &AppState) -> AppResult<RuntimeUpdateRes
     let package = crate::compatibility::fetch_dsh_package(&candidate)?;
     crate::compatibility::verify_package_integrity(&package)?;
     let current = state.runtime_manager.resolve_built_in()?;
-    let prepared = state
-        .runtime_manager
-        .prepare_update(&candidate, &package.dist.integrity)?;
-    let replacement_runtime = match service::resolve_built_in_runtime(prepared.runtime.clone()) {
+    let prepared = state.runtime_manager.prepare_update(
+        &candidate,
+        &package.dist.integrity,
+        state.process_supervisor(),
+    )?;
+    if let Err(error) = state.ensure_running() {
+        state.runtime_manager.discard_prepared(prepared);
+        return Err(error);
+    }
+    let replacement_runtime = match service::resolve_built_in_runtime(
+        prepared.runtime.clone(),
+        state.process_supervisor(),
+    ) {
         Ok(runtime) => runtime,
         Err(error) => {
             state.runtime_manager.discard_prepared(prepared);
             return Err(error);
         }
     };
-    if let Err(error) = verify_staged_runtime(&replacement_runtime, prepared.verification_home()) {
+    if let Err(error) =
+        verify_staged_runtime(state, &replacement_runtime, prepared.verification_home())
+    {
+        state.runtime_manager.discard_prepared(prepared);
+        return Err(error);
+    }
+    if let Err(error) = state.ensure_running() {
         state.runtime_manager.discard_prepared(prepared);
         return Err(error);
     }
@@ -400,6 +437,9 @@ fn apply_built_in_runtime_update(state: &AppState) -> AppResult<RuntimeUpdateRes
         if let Some(process) = target.process.as_mut() {
             process.stop();
         }
+    }
+    if !state.is_running() {
+        return Err(AppError::new("app.error.hostShuttingDown"));
     }
 
     let new_runtime_id = match state.runtime_manager.commit_prepared(prepared) {
@@ -415,11 +455,14 @@ fn apply_built_in_runtime_update(state: &AppState) -> AppResult<RuntimeUpdateRes
             .launch
             .clone()
             .with_runtime(replacement_runtime.clone());
-        match service::start_launch(&launch) {
+        match service::start_launch(&launch, state.process_supervisor(), state.running_signal()) {
             Ok(process) => started.push((target.url.clone(), process, launch)),
             Err(error) => {
                 for (_, mut process, _) in started {
                     process.stop();
+                }
+                if !state.is_running() {
+                    return Err(error);
                 }
                 return rollback_built_in_update(state, current, targets, error);
             }
@@ -509,15 +552,18 @@ fn rollback_built_in_update(
     targets: Vec<UpdateTarget>,
     update_error: AppError,
 ) -> AppResult<RuntimeUpdateResult> {
+    state.ensure_running()?;
     state
         .runtime_manager
         .set_active_runtime(&previous.runtime_id)?;
-    let previous_runtime = service::resolve_built_in_runtime(previous)?;
+    let previous_runtime = service::resolve_built_in_runtime(previous, state.process_supervisor())?;
     let mut recovered = Vec::new();
     for target in &targets {
         if target.had_running_process {
             match service::start_launch(
                 &target.launch.clone().with_runtime(previous_runtime.clone()),
+                state.process_supervisor(),
+                state.running_signal(),
             ) {
                 Ok(process) => recovered.push((target.url.clone(), process)),
                 Err(error) => {
@@ -557,10 +603,11 @@ fn rollback_built_in_update(
 }
 
 fn verify_staged_runtime(
+    state: &AppState,
     runtime: &service::ResolvedDshRuntime,
     verification_home: std::path::PathBuf,
 ) -> AppResult<()> {
-    service::verify_web_help(runtime)?;
+    service::verify_web_help(runtime, state.process_supervisor())?;
     let listener = std::net::TcpListener::bind((LOCAL_DSH_HOST, 0)).map_err(|error| {
         AppError::new("runtime.error.verificationFailed").technical(error.to_string())
     })?;
@@ -577,6 +624,8 @@ fn verify_staged_runtime(
         crate::model::DshHome::Custom {
             path: verification_home.display().to_string(),
         },
+        state.process_supervisor(),
+        state.running_signal(),
     )?;
     process.stop();
     let _ = std::fs::remove_dir_all(verification_home);
@@ -588,6 +637,7 @@ fn stop_managed(state: &AppState, url: &str) -> AppResult<HostSnapshot> {
         .startup_lock
         .lock()
         .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    state.ensure_running()?;
     let mut process = {
         let mut host = state
             .host
@@ -625,6 +675,7 @@ fn restart_managed(state: &AppState, url: &str) -> AppResult<HostSnapshot> {
         .startup_lock
         .lock()
         .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+    state.ensure_running()?;
     let dsh_home = state
         .settings
         .read()
@@ -660,7 +711,7 @@ fn restart_managed(state: &AppState, url: &str) -> AppResult<HostSnapshot> {
         process.stop();
     }
 
-    match service::start_launch(&launch) {
+    match service::start_launch(&launch, state.process_supervisor(), state.running_signal()) {
         Ok(process) => {
             let runtime_version = process.runtime_version.clone();
             let launch = process.launch.clone();
@@ -704,6 +755,7 @@ pub fn update_global_settings(
     patch: GlobalSettingsPatch,
     state: &AppState,
 ) -> AppResult<GlobalSettings> {
+    state.ensure_running()?;
     let updated_settings = {
         let mut current = state
             .settings

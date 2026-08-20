@@ -7,6 +7,7 @@
       "unknown": "发生了未知错误。",
       "unauthorized": "无法验证 DSH Desktop 本地会话。请重新打开此窗口。",
       "stateUnavailable": "应用状态暂时不可用。",
+      "hostShuttingDown": "DSH Desktop 正在退出，无法执行此操作。",
       "taskFailed": "后台任务执行失败。"
     }
   },

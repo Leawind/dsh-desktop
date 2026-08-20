@@ -11,6 +11,7 @@ use sha2::{Digest, Sha256};
 
 use crate::error::{AppError, AppResult};
 use crate::model::{BundledRuntimeSnapshot, DistributionSnapshot, DistributionVariant};
+use crate::process_supervisor::ProcessSupervisor;
 
 const MANIFEST_FILE: &str = "manifest.json";
 const ACTIVE_RUNTIME_FILE: &str = "active.json";
@@ -191,6 +192,7 @@ impl RuntimeManager {
         &self,
         version: &str,
         package_integrity: &str,
+        process_supervisor: &ProcessSupervisor,
     ) -> AppResult<PreparedRuntime> {
         if self.variant != DistributionVariant::Bundled {
             return Err(AppError::new("service.error.builtInUnavailable"));
@@ -203,7 +205,13 @@ impl RuntimeManager {
             fs::remove_dir_all(&staging).map_err(runtime_install_error)?;
         }
         fs::create_dir_all(&staging).map_err(runtime_install_error)?;
-        let result = self.prepare_update_at(&current, version, package_integrity, &staging);
+        let result = self.prepare_update_at(
+            &current,
+            version,
+            package_integrity,
+            &staging,
+            process_supervisor,
+        );
         if result.is_err() {
             let _ = fs::remove_dir_all(&staging);
         }
@@ -342,6 +350,7 @@ impl RuntimeManager {
         version: &str,
         package_integrity: &str,
         staging: &Path,
+        process_supervisor: &ProcessSupervisor,
     ) -> AppResult<InstalledRuntime> {
         let payload = staging.join(PAYLOAD_DIRECTORY);
         fs::create_dir_all(&payload).map_err(runtime_install_error)?;
@@ -370,7 +379,7 @@ impl RuntimeManager {
         )
         .map_err(runtime_install_error)?;
         write_pnpm_workspace(&app, &approved_build_packages)?;
-        run_pnpm_install(current, &app)?;
+        run_pnpm_install(current, &app, process_supervisor)?;
         verify_locked_integrity(&app, package_integrity)?;
 
         let dsh_entrypoint = "payload/app/node_modules/@deepseek-ai/dsh/lib/bin.js".to_owned();
@@ -539,7 +548,11 @@ fn file_sha256(path: &Path) -> std::io::Result<String> {
     Ok(format!("{:x}", digest.finalize()))
 }
 
-fn run_pnpm_install(current: &InstalledRuntime, app_directory: &Path) -> AppResult<()> {
+fn run_pnpm_install(
+    current: &InstalledRuntime,
+    app_directory: &Path,
+    process_supervisor: &ProcessSupervisor,
+) -> AppResult<()> {
     let mut command = Command::new(&current.node_executable);
     command
         .arg(&current.pnpm_entrypoint)
@@ -553,7 +566,7 @@ fn run_pnpm_install(current: &InstalledRuntime, app_directory: &Path) -> AppResu
     if let Ok(path) = std::env::join_paths(paths) {
         command.env("PATH", path);
     }
-    let output = command.output().map_err(|error| {
+    let output = process_supervisor.output(&mut command).map_err(|error| {
         AppError::new("runtime.error.installFailed").technical(error.to_string())
     })?;
     if output.status.success() {

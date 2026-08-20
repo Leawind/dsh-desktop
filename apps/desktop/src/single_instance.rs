@@ -28,7 +28,6 @@ pub enum Claim {
 }
 
 struct Lease {
-    path: PathBuf,
     file: Option<File>,
     running: Arc<AtomicBool>,
 }
@@ -40,7 +39,6 @@ impl Drop for Lease {
             let _ = file.unlock();
             drop(file);
         }
-        let _ = fs::remove_file(&self.path);
     }
 }
 
@@ -53,7 +51,7 @@ pub fn claim(config_directory: &Path) -> std::io::Result<Claim> {
         .create(true)
         .open(&path)?;
     match file.try_lock_exclusive() {
-        Ok(()) => start_primary(path, file),
+        Ok(()) => start_primary(file),
         Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
             forward_or_claim(path, file)
         }
@@ -68,7 +66,7 @@ fn forward_or_claim(path: PathBuf, file: File) -> std::io::Result<Claim> {
             return Ok(Claim::Forwarded);
         }
         match file.try_lock_exclusive() {
-            Ok(()) => return start_primary(path, file),
+            Ok(()) => return start_primary(file),
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
             Err(error) => return Err(error),
         }
@@ -82,7 +80,7 @@ fn forward_or_claim(path: PathBuf, file: File) -> std::io::Result<Claim> {
     }
 }
 
-fn start_primary(path: PathBuf, mut file: File) -> std::io::Result<Claim> {
+fn start_primary(mut file: File) -> std::io::Result<Claim> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     listener.set_nonblocking(true)?;
     let port = listener.local_addr()?.port();
@@ -123,7 +121,6 @@ fn start_primary(path: PathBuf, mut file: File) -> std::io::Result<Claim> {
     Ok(Claim::Primary(PrimaryInstance {
         requests: receiver,
         _lease: Lease {
-            path,
             file: Some(file),
             running,
         },
@@ -187,7 +184,11 @@ mod tests {
         ));
 
         drop(primary);
-        assert!(!directory.join(LOCK_FILE).exists());
+        assert!(directory.join(LOCK_FILE).exists());
+        assert!(matches!(
+            claim(&directory).expect("claim after primary exits"),
+            Claim::Primary(_)
+        ));
         let _ = fs::remove_dir_all(directory);
     }
 
