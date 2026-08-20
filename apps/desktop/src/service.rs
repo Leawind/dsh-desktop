@@ -46,6 +46,7 @@ pub struct ResolvedDshRuntime {
     prefix_args: Vec<OsString>,
     runtime_path: Option<OsString>,
     runtime_version: String,
+    supports_no_open: bool,
     built_in_runtime_id: Option<String>,
 }
 
@@ -200,11 +201,14 @@ pub fn resolve_runtime(
             .arg("expected", known_version)
             .arg("actual", runtime_version));
     }
+    let supports_no_open =
+        detects_no_open_support(&executable, &prefix_args, runtime_path.as_deref());
     Ok(ResolvedDshRuntime {
         executable,
         prefix_args,
         runtime_path,
         runtime_version,
+        supports_no_open,
         built_in_runtime_id: None,
     })
 }
@@ -222,33 +226,36 @@ pub fn resolve_built_in_runtime(runtime: InstalledRuntime) -> AppResult<Resolved
             .arg("expected", runtime.dsh_version)
             .arg("actual", runtime_version));
     }
+    let prefix_args = vec![runtime.dsh_entrypoint.into_os_string()];
+    let supports_no_open = detects_no_open_support(
+        &runtime.node_executable,
+        &prefix_args,
+        runtime_path.as_deref(),
+    );
     Ok(ResolvedDshRuntime {
         executable: runtime.node_executable,
-        prefix_args: vec![runtime.dsh_entrypoint.into_os_string()],
+        prefix_args,
         runtime_path,
         runtime_version,
+        supports_no_open,
         built_in_runtime_id: Some(runtime.runtime_id),
     })
 }
 
 pub fn verify_web_help(runtime: &ResolvedDshRuntime) -> AppResult<()> {
-    let mut command = Command::new(&runtime.executable);
-    command
-        .args(&runtime.prefix_args)
-        .args(["web", "--help"])
-        .stdin(Stdio::null());
-    hide_console_window(&mut command);
-    if let Some(runtime_path) = runtime.runtime_path.as_ref() {
-        command.env("PATH", runtime_path);
-    }
-    let output = command.output().map_err(|error| {
+    let output = web_help_output(
+        &runtime.executable,
+        &runtime.prefix_args,
+        runtime.runtime_path.as_deref(),
+    )
+    .map_err(|error| {
         AppError::new("runtime.error.verificationFailed").technical(error.to_string())
     })?;
     if output.status.success() {
         return Ok(());
     }
     Err(AppError::new("runtime.error.verificationFailed")
-        .technical(String::from_utf8_lossy(&output.stderr).to_string()))
+        .technical(String::from_utf8_lossy(&output.stderr)))
 }
 
 pub fn start(
@@ -268,12 +275,15 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
     let port = launch.port;
     let executable = &runtime.executable;
     let mut command = Command::new(&executable);
-    command
-        .args(&runtime.prefix_args)
-        .args(["web", "--host", "127.0.0.1", "--port", &port.to_string()])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    add_managed_web_arguments(
+        &mut command,
+        &runtime.prefix_args,
+        port,
+        runtime.supports_no_open,
+    )
+    .stdin(Stdio::null())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
     configure_process_tree(&mut command);
     apply_dsh_home(&mut command, &launch.dsh_home);
     if let Some(runtime_path) = runtime.runtime_path.as_ref() {
@@ -333,6 +343,54 @@ pub fn start_launch(launch: &ManagedLaunch) -> AppResult<ManagedService> {
         logs,
         launch: launch.clone(),
     })
+}
+
+fn add_managed_web_arguments<'a>(
+    command: &'a mut Command,
+    prefix_args: &[OsString],
+    port: u16,
+    supports_no_open: bool,
+) -> &'a mut Command {
+    let command =
+        command
+            .args(prefix_args)
+            .args(["web", "--host", "127.0.0.1", "--port", &port.to_string()]);
+    if supports_no_open {
+        command.arg("--no-open");
+    }
+    command
+}
+
+fn detects_no_open_support(
+    executable: &Path,
+    prefix_args: &[OsString],
+    runtime_path: Option<&OsStr>,
+) -> bool {
+    matches!(
+        web_help_output(executable, prefix_args, runtime_path),
+        Ok(output) if output.status.success() && supports_no_open_flag(&output.stdout)
+    )
+}
+
+fn web_help_output(
+    executable: &Path,
+    prefix_args: &[OsString],
+    runtime_path: Option<&OsStr>,
+) -> std::io::Result<std::process::Output> {
+    let mut command = Command::new(executable);
+    command
+        .args(prefix_args)
+        .args(["web", "--help"])
+        .stdin(Stdio::null());
+    hide_console_window(&mut command);
+    if let Some(runtime_path) = runtime_path {
+        command.env("PATH", runtime_path);
+    }
+    command.output()
+}
+
+fn supports_no_open_flag(help: &[u8]) -> bool {
+    String::from_utf8_lossy(help).contains("--no-open")
 }
 
 fn capture_output(
@@ -541,7 +599,10 @@ mod tests {
 
     use crate::model::DshHome;
 
-    use super::{apply_dsh_home, extract_marked_path, npx_package_argument};
+    use super::{
+        add_managed_web_arguments, apply_dsh_home, extract_marked_path, npx_package_argument,
+        supports_no_open_flag,
+    };
 
     #[test]
     fn extracts_path_after_shell_startup_output() {
@@ -576,5 +637,38 @@ mod tests {
             npx_package_argument("0.1.0-rc.6"),
             "@deepseek-ai/dsh@0.1.0-rc.6"
         );
+    }
+
+    #[test]
+    fn managed_web_processes_disable_dsh_browser_handoff_when_supported() {
+        let mut command = Command::new("dsh");
+        add_managed_web_arguments(&mut command, &[], 3080, true);
+
+        let arguments = command
+            .get_args()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            arguments,
+            ["web", "--host", "127.0.0.1", "--port", "3080", "--no-open"]
+        );
+    }
+
+    #[test]
+    fn managed_web_processes_remain_compatible_with_older_dsh() {
+        let mut command = Command::new("dsh");
+        add_managed_web_arguments(&mut command, &[], 3080, false);
+
+        let arguments = command
+            .get_args()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(arguments, ["web", "--host", "127.0.0.1", "--port", "3080"]);
+    }
+
+    #[test]
+    fn recognizes_the_dsh_no_open_flag_in_web_help() {
+        assert!(supports_no_open_flag(b"Usage: dsh web --no-open"));
+        assert!(!supports_no_open_flag(b"Usage: dsh web"));
     }
 }

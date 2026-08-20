@@ -42,6 +42,7 @@ DSH 版本相对于一个 DSH Desktop 版本具有以下状态之一：
 | CLI-003 | Web profile 接受 `--host 127.0.0.1` 和 `--port <port>`             | 固定端口与端口范围启动尝试                 | 无法在选定端点启动         | 使用固定端口和端口 `0` 分别启动      |
 | CLI-004 | 参数错误和端口冲突以非零退出或启动失败呈现                         | 分类启动失败并继续有序尝试                 | 端口范围策略无法可靠继续   | 使用已占用端口执行启动测试           |
 | CLI-005 | npm `npx` 可以运行 `@deepseek-ai/dsh` 的 `--version` 与 `web` 命令 | `npx` 来源验证版本并启动 Managed Process   | 无法使用 npm 临时运行 DSH  | 使用无全局 `dsh` 的 Node.js 环境启动 |
+| CLI-006 | 支持时，`dsh web --no-open` 禁止将服务 URL 交给系统默认浏览器    | Host 检测参数后保持唯一窗口入口            | 额外浏览器页面在启动时打开 | 检查 `dsh web --help` 并启动受管服务 |
 
 DSH Desktop 启动的服务只绑定 `127.0.0.1`。连接类启动尝试和窗口自定义 URL 可以访问用户明确配置的其他地址，但 Host 不通过 Managed Process 公开局域网服务。
 
