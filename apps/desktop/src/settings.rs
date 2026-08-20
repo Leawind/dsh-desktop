@@ -28,11 +28,26 @@ pub fn load_or_initialize(
 ) -> AppResult<GlobalSettings> {
     let path = settings_path(config_dir);
     if path.is_file() {
-        return Ok(load(config_dir, variant));
+        let mut settings = load(config_dir, variant);
+        if replace_unavailable_built_in_source(&mut settings, variant) {
+            save(config_dir, &settings)?;
+        }
+        return Ok(settings);
     }
     let settings = GlobalSettings::default_for(variant);
     save(config_dir, &settings)?;
     Ok(settings)
+}
+
+fn replace_unavailable_built_in_source(
+    settings: &mut GlobalSettings,
+    variant: DistributionVariant,
+) -> bool {
+    if variant == DistributionVariant::Slim && settings.dsh_source == DshSource::BuiltIn {
+        settings.dsh_source = DshSource::System;
+        return true;
+    }
+    false
 }
 
 pub fn validate(
@@ -193,6 +208,33 @@ mod tests {
             GlobalSettings::default_for(DistributionVariant::Slim)
         );
         assert!(settings_path(&directory).is_file());
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn slim_replaces_a_persisted_built_in_source_with_system() {
+        let directory = std::env::temp_dir().join(format!(
+            "dsh-desktop-settings-source-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&directory);
+        save(
+            &directory,
+            &GlobalSettings {
+                dsh_source: DshSource::BuiltIn,
+                ..GlobalSettings::default()
+            },
+        )
+        .expect("save legacy settings");
+
+        let settings =
+            load_or_initialize(&directory, DistributionVariant::Slim).expect("load slim settings");
+
+        assert_eq!(settings.dsh_source, DshSource::System);
+        assert_eq!(
+            load(&directory, DistributionVariant::Slim).dsh_source,
+            DshSource::System
+        );
         let _ = fs::remove_dir_all(directory);
     }
 
