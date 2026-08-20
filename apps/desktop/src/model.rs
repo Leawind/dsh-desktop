@@ -409,4 +409,117 @@ mod tests {
         );
         assert_eq!(settings.managed_service_idle_timeout_seconds, 120);
     }
+
+    #[test]
+    fn serializes_the_desktop_snapshot_wire_contract() {
+        let payload = BootstrapPayload {
+            app: AppMetadataSnapshot {
+                name: "DSH Desktop".to_owned(),
+                version: "0.2.3".to_owned(),
+                identifier: "io.github.leawind.dsh-desktop".to_owned(),
+            },
+            settings: GlobalSettings {
+                locale: Some(AppLocale::ZhCn),
+                dsh_source: DshSource::Npx {
+                    version: "0.1.0".to_owned(),
+                },
+                dsh_home: DshHome::Custom {
+                    path: "/tmp/dsh".to_owned(),
+                },
+                window_startup_attempts: vec![WindowStartupAttempt::StartRange {
+                    host: "127.0.0.1".to_owned(),
+                    start_port: 3080,
+                    end_port: 3090,
+                }],
+                managed_service_idle_timeout_seconds: 120,
+            },
+            distribution: DistributionSnapshot {
+                variant: DistributionVariant::Bundled,
+                built_in_runtime: Some(BundledRuntimeSnapshot {
+                    runtime_id: "runtime-id".to_owned(),
+                    node_version: "24.18.1".to_owned(),
+                    dsh_version: "0.1.0".to_owned(),
+                    pnpm_version: "11.7.0".to_owned(),
+                    installed: true,
+                }),
+            },
+            window: WindowSnapshot {
+                label: "main".to_owned(),
+                url: "http://127.0.0.1:3080".to_owned(),
+                status: ServiceStatus::Running,
+            },
+            host: HostSnapshot {
+                windows: Vec::new(),
+                endpoints: vec![EndpointSnapshot {
+                    url: "http://127.0.0.1:3080".to_owned(),
+                    status: ServiceStatus::Running,
+                    ownership: EndpointOwnership::Managed,
+                    connected_windows: 1,
+                    pid: Some(42),
+                    runtime_version: Some("0.1.0".to_owned()),
+                    last_error: None,
+                    known: true,
+                    can_stop: true,
+                    can_restart: true,
+                    logs: vec!["started".to_owned()],
+                }],
+            },
+            system_color_scheme: Some(SystemColorScheme::Dark),
+        };
+
+        assert_eq!(
+            serde_json::to_value(payload).expect("serialize desktop snapshot"),
+            serde_json::json!({
+                "app": {
+                    "name": "DSH Desktop",
+                    "version": "0.2.3",
+                    "identifier": "io.github.leawind.dsh-desktop",
+                },
+                "settings": {
+                    "locale": "zh-CN",
+                    "dshSource": { "type": "npx", "version": "0.1.0" },
+                    "dshHome": { "type": "custom", "path": "/tmp/dsh" },
+                    "windowStartupAttempts": [{
+                        "type": "start-range",
+                        "host": "127.0.0.1",
+                        "startPort": 3080,
+                        "endPort": 3090,
+                    }],
+                    "managedServiceIdleTimeoutSeconds": 120,
+                },
+                "distribution": {
+                    "variant": "bundled",
+                    "builtInRuntime": {
+                        "runtimeId": "runtime-id",
+                        "nodeVersion": "24.18.1",
+                        "dshVersion": "0.1.0",
+                        "pnpmVersion": "11.7.0",
+                        "installed": true,
+                    },
+                },
+                "window": {
+                    "label": "main",
+                    "url": "http://127.0.0.1:3080",
+                    "status": "running",
+                },
+                "host": {
+                    "windows": [],
+                    "endpoints": [{
+                        "url": "http://127.0.0.1:3080",
+                        "status": "running",
+                        "ownership": "managed",
+                        "connectedWindows": 1,
+                        "pid": 42,
+                        "runtimeVersion": "0.1.0",
+                        "lastError": null,
+                        "known": true,
+                        "canStop": true,
+                        "canRestart": true,
+                        "logs": ["started"],
+                    }],
+                },
+                "systemColorScheme": "dark",
+            })
+        );
+    }
 }

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { UiSelect, UiSettingRow } from "@dsh-desktop/ui";
+import { ElSelect } from "element-plus";
+
+import { UiSettingRow } from "@dsh-desktop/ui";
 
 import type { AppLocale } from "@/types/desktop";
 
@@ -22,7 +24,14 @@ defineProps<{
     aria-labelledby="settings-tab-interface"
   >
     <UiSettingRow :label="$t('settings.language')">
-      <UiSelect v-model="locale" variant="pill" :options="localeOptions" @change="emit('select')" />
+      <!-- @vue-ignore Element Plus 2.14.4 options typing is incompatible with TypeScript 6. -->
+      <ElSelect
+        v-model="locale"
+        class="dsh-select dsh-select--pill"
+        popper-class="dsh-select-popper"
+        :options="localeOptions"
+        @change="emit('select')"
+      />
     </UiSettingRow>
   </section>
 </template>

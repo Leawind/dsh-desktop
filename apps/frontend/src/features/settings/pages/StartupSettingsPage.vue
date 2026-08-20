@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Delete, Plus } from "@element-plus/icons-vue";
-import { ElIcon, ElInputNumber } from "element-plus";
+import { ElIcon, ElInputNumber, ElSelect } from "element-plus";
 import { onBeforeUnmount, onMounted, ref } from "vue";
 
-import { UiButton, UiInput, UiSelect } from "@dsh-desktop/ui";
+import { UiButton, UiInput } from "@dsh-desktop/ui";
 
 import type { WindowStartupAttempt } from "@/types/desktop";
 
@@ -194,8 +194,11 @@ onBeforeUnmount(() => {
           </span>
         </button>
         <div class="settings-page__attempt-fields">
-          <UiSelect
+          <!-- @vue-ignore Element Plus 2.14.4 options typing is incompatible with TypeScript 6. -->
+          <ElSelect
             :model-value="attempt.type"
+            class="dsh-select"
+            popper-class="dsh-select-popper"
             :options="attemptOptions"
             @update:model-value="changeAttemptType(index, $event)"
             @change="emit('select')"

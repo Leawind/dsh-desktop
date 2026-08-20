@@ -34,6 +34,7 @@ const HOST_MONITOR_INTERVAL: Duration = Duration::from_secs(5);
 
 enum HostEvent {
     Tray(tray_icon::menu::MenuEvent),
+    Shutdown,
     Maintenance,
 }
 
@@ -103,6 +104,12 @@ pub fn run() {
         }
     });
     let event_loop = EventLoopBuilder::<HostEvent>::with_user_event().build();
+    let shutdown_proxy = event_loop.create_proxy();
+    if let Err(error) = ctrlc::set_handler(move || {
+        let _ = shutdown_proxy.send_event(HostEvent::Shutdown);
+    }) {
+        eprintln!("failed to install shutdown signal handler: {error}");
+    }
     let proxy = event_loop.create_proxy();
     tray_icon::menu::MenuEvent::set_event_handler(Some(move |event| {
         let _ = proxy.send_event(HostEvent::Tray(event));
@@ -126,15 +133,16 @@ pub fn run() {
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
         match event {
+            Event::UserEvent(HostEvent::Shutdown) => {
+                shutdown_host(&state, &bridge);
+                *control_flow = ControlFlow::Exit;
+            }
             Event::UserEvent(HostEvent::Tray(event)) => match tray::menu_action(&event) {
                 Some(TrayAction::OpenNewWindow) => {
                     create_new_window(&state, &resources.icon, &windows, &client_activity, &bridge)
                 }
                 Some(TrayAction::Quit) => {
-                    state.begin_shutdown();
-                    bridge.close_windows();
-                    state.shutdown();
-                    bridge.shutdown();
+                    shutdown_host(&state, &bridge);
                     *control_flow = ControlFlow::Exit;
                 }
                 None => {}
@@ -153,14 +161,22 @@ pub fn run() {
                     last_locale = locale;
                 }
                 if state.should_exit_after_idle_reap() {
-                    state.shutdown();
-                    bridge.shutdown();
+                    shutdown_host(&state, &bridge);
                     *control_flow = ControlFlow::Exit;
                 }
             }
             _ => {}
         }
     });
+}
+
+fn shutdown_host(state: &AppState, bridge: &bridge_server::BridgeServer) {
+    if !state.begin_shutdown() {
+        return;
+    }
+    bridge.close_windows();
+    state.shutdown();
+    bridge.shutdown();
 }
 
 fn create_new_window(

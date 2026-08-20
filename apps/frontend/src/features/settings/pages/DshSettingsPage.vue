@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { UiInput, UiSelect, UiSettingRow } from "@dsh-desktop/ui";
+import { ElSelect } from "element-plus";
+
+import { UiInput, UiSettingRow } from "@dsh-desktop/ui";
 
 import type { DshHome, DshSource } from "@/types/desktop";
 
@@ -28,9 +30,11 @@ const idleTimeoutMinutes = defineModel<number>("idleTimeoutMinutes", { required:
     aria-labelledby="settings-tab-dsh"
   >
     <UiSettingRow :label="$t('settings.source.label')" :hint="$t('settings.source.hint')">
-      <UiSelect
+      <!-- @vue-ignore Element Plus 2.14.4 options typing is incompatible with TypeScript 6. -->
+      <ElSelect
         v-model="sourceType"
-        variant="pill"
+        class="dsh-select dsh-select--pill"
+        popper-class="dsh-select-popper"
         :options="props.sourceOptions"
         @change="emit('select')"
       />
@@ -56,9 +60,11 @@ const idleTimeoutMinutes = defineModel<number>("idleTimeoutMinutes", { required:
       </div>
     </UiSettingRow>
     <UiSettingRow :label="$t('settings.home.label')" :hint="$t('settings.home.hint')">
-      <UiSelect
+      <!-- @vue-ignore Element Plus 2.14.4 options typing is incompatible with TypeScript 6. -->
+      <ElSelect
         v-model="homeType"
-        variant="pill"
+        class="dsh-select dsh-select--pill"
+        popper-class="dsh-select-popper"
         :options="props.homeOptions"
         @change="emit('select')"
       />

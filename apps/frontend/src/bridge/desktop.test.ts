@@ -1,8 +1,84 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { BootstrapPayload } from "@/types/desktop";
+
 import { desktopBridge } from "./desktop";
 
 afterEach(() => vi.unstubAllGlobals());
+
+const desktopSnapshot = {
+  app: {
+    name: "DSH Desktop",
+    version: "0.2.3",
+    identifier: "io.github.leawind.dsh-desktop",
+  },
+  settings: {
+    locale: "zh-CN",
+    dshSource: { type: "npx", version: "0.1.0" },
+    dshHome: { type: "custom", path: "/tmp/dsh" },
+    windowStartupAttempts: [
+      { type: "start-range", host: "127.0.0.1", startPort: 3080, endPort: 3090 },
+    ],
+    managedServiceIdleTimeoutSeconds: 120,
+  },
+  distribution: {
+    variant: "bundled",
+    builtInRuntime: {
+      runtimeId: "runtime-id",
+      nodeVersion: "24.18.1",
+      dshVersion: "0.1.0",
+      pnpmVersion: "11.7.0",
+      installed: true,
+    },
+  },
+  window: {
+    label: "main",
+    url: "http://127.0.0.1:3080",
+    status: "running",
+  },
+  host: {
+    windows: [],
+    endpoints: [
+      {
+        url: "http://127.0.0.1:3080",
+        status: "running",
+        ownership: "managed",
+        connectedWindows: 1,
+        pid: 42,
+        runtimeVersion: "0.1.0",
+        lastError: null,
+        known: true,
+        canStop: true,
+        canRestart: true,
+        logs: ["started"],
+      },
+    ],
+  },
+  systemColorScheme: "dark",
+} satisfies BootstrapPayload;
+
+describe("getDesktopSnapshot", () => {
+  it("uses the snapshot command and decodes the shared wire shape", async () => {
+    vi.stubGlobal("window", {
+      location: { search: "?token=token&window=main", pathname: "/" },
+    });
+    const fetch = vi.fn().mockResolvedValue({
+      json: async () => ({ value: desktopSnapshot }),
+      ok: true,
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(desktopBridge.getDesktopSnapshot()).resolves.toEqual(desktopSnapshot);
+    expect(fetch).toHaveBeenCalledWith("/api/command?window=main", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-DSH-Desktop-Token": "token",
+      },
+      body: JSON.stringify({ name: "get_desktop_snapshot", args: undefined }),
+    });
+  });
+});
 
 describe("startWindowHeartbeat", () => {
   it("sends a lightweight heartbeat every 250 milliseconds and stops cleanly", () => {
