@@ -38,7 +38,7 @@ pub fn materialize(data_directory: &Path) -> AppResult<EmbeddedResources> {
     }
     Ok(EmbeddedResources {
         frontend_directory: root.join("frontend"),
-        icon: root.join("icons/icon.png"),
+        icon: root.join("icons/app-icon.png"),
         runtime_seed_directory: root.join("runtime/bundled"),
     })
 }
@@ -82,7 +82,7 @@ pub fn materialize_runtime_seed(seed_directory: &Path) -> AppResult<()> {
 
 fn is_bootstrap_complete(root: &Path) -> bool {
     (FRONTEND_FILES.is_empty() || root.join("frontend/index.html").is_file())
-        && root.join("icons/icon.png").is_file()
+        && root.join("icons/app-icon.png").is_file()
         && (RUNTIME_SEED_FILES.is_empty() || root.join("runtime/bundled/manifest.json").is_file())
 }
 

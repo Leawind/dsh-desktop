@@ -28,6 +28,7 @@ const executableName = process.platform === "win32" ? "dsh-desktop.exe" : "dsh-d
 const packageInstallers = process.env.DSH_DESKTOP_PACKAGE_INSTALLER === "1";
 export const installationMarkerFilename = "dsh-desktop.installed";
 const installationMarker = join(root, "installers", installationMarkerFilename);
+const applicationIcon = join(root, "apps", "frontend", "public", "app-icon.png");
 
 function run(command: string, args: readonly string[], env = process.env): Promise<void> {
   return new Promise((resolvePromise, reject) => {
@@ -152,7 +153,7 @@ async function packageDeb(
       await createDebDirectory(staging, "usr", "share", "icons", "hicolor", "512x512", "apps"),
       "dsh-desktop.png",
     );
-    await copyFile(join(root, "apps", "desktop", "icons", "icon.png"), icon);
+    await copyFile(applicationIcon, icon);
     await chmod(icon, 0o644);
 
     const desktopEntry = join(
@@ -275,7 +276,7 @@ async function packageDmg(
 
 async function createMacIcon(resources: string): Promise<void> {
   const iconset = join(resources, "icon.iconset");
-  const source = join(root, "apps", "desktop", "icons", "icon.png");
+  const source = applicationIcon;
   const sizes = [
     [16, "icon_16x16.png"],
     [32, "icon_16x16@2x.png"],

@@ -62,8 +62,8 @@ fn main() {
 
 fn generate_embedded_assets(manifest_dir: &Path, variant: &str, development: bool) {
     let frontend = manifest_dir.join("../frontend/dist");
-    let icons = manifest_dir.join("icons");
-    let icon = icons.join("icon.png");
+    let icon_root = manifest_dir.join("../frontend/public");
+    let icon = icon_root.join("app-icon.png");
     let runtime = manifest_dir.join("runtime/bundled");
 
     let frontend_files = if development {
@@ -97,7 +97,7 @@ fn generate_embedded_assets(manifest_dir: &Path, variant: &str, development: boo
     emit_asset_group(
         &mut source,
         "ICON_FILES",
-        &icons,
+        &icon_root,
         &icon_files,
         &mut resource_hash,
     );
