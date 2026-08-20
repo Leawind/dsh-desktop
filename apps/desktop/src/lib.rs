@@ -229,11 +229,7 @@ fn reap_closed_windows(
 }
 
 fn saved_locale(state: &AppState) -> Option<model::AppLocale> {
-    state
-        .settings
-        .read()
-        .ok()
-        .and_then(|settings| settings.locale)
+    state.saved_locale()
 }
 
 fn unix_time_millis() -> u64 {

@@ -1,16 +1,18 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::time::{Duration, Instant};
 
+use crate::error::{AppError, AppResult};
 use crate::model::{
-    EndpointOwnership, EndpointSnapshot, GlobalSettings, HostSnapshot, ServiceStatus,
-    SystemColorScheme, WindowSnapshot,
+    DistributionVariant, DshHome, EndpointOwnership, EndpointSnapshot, GlobalSettings,
+    GlobalSettingsPatch, HostSnapshot, ServiceStatus, SystemColorScheme, WindowSnapshot,
 };
 use crate::process_supervisor::ProcessSupervisor;
 use crate::runtime::RuntimeManager;
-use crate::service::ManagedService;
+use crate::service::{ManagedLaunch, ManagedService, ResolvedDshRuntime};
+use crate::settings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostLifecycle {
@@ -20,42 +22,69 @@ pub enum HostLifecycle {
 
 #[derive(Clone)]
 pub struct AppState {
-    pub config_dir: PathBuf,
-    pub settings: Arc<RwLock<GlobalSettings>>,
-    pub host: Arc<Mutex<HostState>>,
-    pub startup_lock: Arc<Mutex<()>>,
-    pub runtime_manager: RuntimeManager,
+    config_dir: PathBuf,
+    settings: Arc<RwLock<GlobalSettings>>,
+    host: Arc<Mutex<HostState>>,
+    startup_lock: Arc<Mutex<()>>,
+    runtime_manager: RuntimeManager,
     system_color_scheme: Arc<RwLock<Option<SystemColorScheme>>>,
     next_window_id: Arc<AtomicU64>,
     running: Arc<AtomicBool>,
     process_supervisor: ProcessSupervisor,
 }
 
-pub struct HostState {
-    pub windows: HashMap<String, WindowRecord>,
-    pub endpoints: HashMap<String, EndpointRecord>,
+struct HostState {
+    windows: HashMap<String, WindowRecord>,
+    endpoints: HashMap<String, EndpointRecord>,
     next_connection_order: u64,
 }
 
-pub struct WindowRecord {
-    pub url: String,
-    pub status: ServiceStatus,
+struct WindowRecord {
+    url: String,
+    status: ServiceStatus,
 }
 
-pub struct EndpointRecord {
-    pub status: ServiceStatus,
-    pub process: Option<ManagedService>,
-    pub runtime_version: Option<String>,
-    pub last_error: Option<String>,
-    pub last_successful_connection: Option<u64>,
-    pub managed: bool,
-    pub launch: Option<crate::service::ManagedLaunch>,
-    pub logs: Vec<String>,
-    pub idle_since: Option<Instant>,
+struct EndpointRecord {
+    status: ServiceStatus,
+    process: Option<ManagedService>,
+    runtime_version: Option<String>,
+    last_error: Option<String>,
+    last_successful_connection: Option<u64>,
+    managed: bool,
+    launch: Option<crate::service::ManagedLaunch>,
+    logs: Vec<String>,
+    idle_since: Option<Instant>,
+}
+
+pub(crate) struct BuiltInRuntimeUpdateTarget {
+    url: String,
+    launch: ManagedLaunch,
+    had_running_process: bool,
+    process: Option<ManagedService>,
+}
+
+impl BuiltInRuntimeUpdateTarget {
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+
+    pub fn had_running_process(&self) -> bool {
+        self.had_running_process
+    }
+
+    pub fn launch_with_runtime(&self, runtime: ResolvedDshRuntime) -> ManagedLaunch {
+        self.launch.clone().with_runtime(runtime)
+    }
+
+    pub fn stop(&mut self) {
+        if let Some(process) = self.process.as_mut() {
+            process.stop();
+        }
+    }
 }
 
 impl EndpointRecord {
-    pub fn external(status: ServiceStatus) -> Self {
+    fn external(status: ServiceStatus) -> Self {
         Self {
             status,
             process: None,
@@ -93,6 +122,12 @@ impl AppState {
         }
     }
 
+    fn host_state(&self) -> AppResult<MutexGuard<'_, HostState>> {
+        self.host
+            .lock()
+            .map_err(|_| AppError::new("app.error.stateUnavailable"))
+    }
+
     pub fn lifecycle(&self) -> HostLifecycle {
         if self.running.load(Ordering::Acquire) {
             HostLifecycle::Running
@@ -121,6 +156,46 @@ impl AppState {
 
     pub fn process_supervisor(&self) -> &ProcessSupervisor {
         &self.process_supervisor
+    }
+
+    pub fn runtime_manager(&self) -> &RuntimeManager {
+        &self.runtime_manager
+    }
+
+    pub fn settings_snapshot(&self) -> AppResult<GlobalSettings> {
+        self.settings
+            .read()
+            .map_err(|_| AppError::new("app.error.stateUnavailable"))
+            .map(|settings| settings.clone())
+    }
+
+    pub fn startup_guard(&self) -> AppResult<MutexGuard<'_, ()>> {
+        self.startup_lock
+            .lock()
+            .map_err(|_| AppError::new("app.error.stateUnavailable"))
+    }
+
+    pub fn saved_locale(&self) -> Option<crate::model::AppLocale> {
+        self.settings
+            .read()
+            .ok()
+            .and_then(|settings| settings.locale)
+    }
+
+    pub fn update_global_settings(&self, patch: GlobalSettingsPatch) -> AppResult<GlobalSettings> {
+        self.ensure_running()?;
+        let updated_settings = {
+            let mut current = self
+                .settings
+                .write()
+                .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+            let candidate = settings::apply_patch(&current, patch, DistributionVariant::current())?;
+            settings::save(&self.config_dir, &candidate)?;
+            *current = candidate.clone();
+            candidate
+        };
+        let _ = self.reap_idle_services();
+        Ok(updated_settings)
     }
 
     pub fn next_window_label(&self) -> String {
@@ -152,9 +227,266 @@ impl AppState {
     }
 
     pub fn snapshot(&self) -> HostSnapshot {
-        let mut host = self.host.lock().expect("host state poisoned");
-        refresh_processes(&mut host);
+        let host = self.host.lock().expect("host state poisoned");
         snapshot_locked(&host)
+    }
+
+    pub fn known_endpoint_urls(&self) -> AppResult<Vec<String>> {
+        Ok(self.host_state()?.known_endpoint_urls())
+    }
+
+    pub fn assign_external_endpoint(
+        &self,
+        window_label: &str,
+        url: &str,
+        status: ServiceStatus,
+        record_connection: bool,
+    ) -> AppResult<WindowSnapshot> {
+        let idle_timeout = self.managed_service_idle_timeout_seconds();
+        let mut host = self.host_state()?;
+        if !host.assign_window(window_label, url, status) {
+            return Err(AppError::new("window.error.notFound"));
+        }
+        let endpoint = host
+            .endpoints
+            .entry(url.to_owned())
+            .or_insert_with(|| EndpointRecord::external(status));
+        endpoint.status = status;
+        if record_connection {
+            host.record_connection(url);
+        }
+        host.reap_idle_services(idle_timeout);
+        host.window_snapshot(window_label)
+            .ok_or_else(|| AppError::new("window.error.notFound"))
+    }
+
+    pub fn mark_window_startup_failed(&self, window_label: &str) -> AppResult<()> {
+        let mut host = self.host_state()?;
+        host.set_window_status(window_label, ServiceStatus::Failed)
+            .then_some(())
+            .ok_or_else(|| AppError::new("window.error.notFound"))
+    }
+
+    pub fn startup_snapshot(
+        &self,
+        window_label: &str,
+    ) -> AppResult<(WindowSnapshot, HostSnapshot)> {
+        let host = self.host_state()?;
+        let window = host
+            .window_snapshot(window_label)
+            .ok_or_else(|| AppError::new("window.error.notFound"))?;
+        Ok((window, snapshot_locked(&host)))
+    }
+
+    pub fn register_managed_service(
+        &self,
+        window_label: &str,
+        url: String,
+        managed: ManagedService,
+    ) -> AppResult<()> {
+        let runtime_version = managed.runtime_version.clone();
+        let launch = managed.launch.clone();
+        let idle_timeout = self.managed_service_idle_timeout_seconds();
+        let mut host = self.host_state()?;
+        if !host.assign_window(window_label, &url, ServiceStatus::Running) {
+            return Err(AppError::new("window.error.notFound"));
+        }
+        host.endpoints.insert(
+            url.clone(),
+            EndpointRecord {
+                status: ServiceStatus::Running,
+                process: Some(managed),
+                runtime_version: Some(runtime_version),
+                last_error: None,
+                last_successful_connection: None,
+                managed: true,
+                launch: Some(launch),
+                logs: Vec::new(),
+                idle_since: None,
+            },
+        );
+        host.record_connection(&url);
+        host.reap_idle_services(idle_timeout);
+        Ok(())
+    }
+
+    pub fn begin_stop_managed(&self, url: &str) -> AppResult<ManagedService> {
+        let mut host = self.host_state()?;
+        let endpoint = host
+            .endpoints
+            .get_mut(url)
+            .filter(|endpoint| endpoint.managed)
+            .ok_or_else(|| AppError::new("service.error.notManaged").arg("url", url))?;
+        let process = endpoint
+            .process
+            .take()
+            .ok_or_else(|| AppError::new("service.error.notRunning").arg("url", url))?;
+        endpoint.status = ServiceStatus::Stopping;
+        host.set_endpoint_window_status(url, ServiceStatus::Stopping);
+        Ok(process)
+    }
+
+    pub fn complete_stop_managed(
+        &self,
+        url: &str,
+        process: &ManagedService,
+    ) -> AppResult<HostSnapshot> {
+        let mut host = self.host_state()?;
+        if let Some(endpoint) = host.endpoints.get_mut(url) {
+            endpoint.logs = process.log_lines();
+            endpoint.status = ServiceStatus::Unreachable;
+            endpoint.last_error = None;
+        }
+        host.set_endpoint_window_status(url, ServiceStatus::Unreachable);
+        Ok(snapshot_locked(&host))
+    }
+
+    pub fn begin_restart_managed(
+        &self,
+        url: &str,
+        dsh_home: DshHome,
+    ) -> AppResult<(Option<ManagedService>, ManagedLaunch)> {
+        let mut host = self.host_state()?;
+        let endpoint = host
+            .endpoints
+            .get_mut(url)
+            .filter(|endpoint| endpoint.managed)
+            .ok_or_else(|| AppError::new("service.error.notManaged").arg("url", url))?;
+        let launch = endpoint
+            .launch
+            .clone()
+            .ok_or_else(|| AppError::new("service.error.restartUnavailable").arg("url", url))?
+            .with_dsh_home(dsh_home);
+        let process = endpoint.process.take();
+        if let Some(process) = process.as_ref() {
+            endpoint.logs = process.log_lines();
+        }
+        endpoint.status = ServiceStatus::Restarting;
+        host.set_endpoint_window_status(url, ServiceStatus::Restarting);
+        Ok((process, launch))
+    }
+
+    pub fn complete_restart_managed(
+        &self,
+        url: &str,
+        process: ManagedService,
+    ) -> AppResult<HostSnapshot> {
+        let runtime_version = process.runtime_version.clone();
+        let launch = process.launch.clone();
+        let mut host = self.host_state()?;
+        if let Some(endpoint) = host.endpoints.get_mut(url) {
+            endpoint.process = Some(process);
+            endpoint.launch = Some(launch);
+            endpoint.runtime_version = Some(runtime_version);
+            endpoint.status = ServiceStatus::Running;
+            endpoint.last_error = None;
+            endpoint.logs.clear();
+            endpoint.idle_since = None;
+        }
+        host.set_endpoint_window_status(url, ServiceStatus::Running);
+        host.record_connection(url);
+        Ok(snapshot_locked(&host))
+    }
+
+    pub fn fail_restart_managed(&self, url: &str, error: &AppError) -> AppResult<()> {
+        let mut host = self.host_state()?;
+        if let Some(endpoint) = host.endpoints.get_mut(url) {
+            endpoint.status = ServiceStatus::Failed;
+            endpoint.last_error = Some(error.code.clone());
+        }
+        host.set_endpoint_window_status(url, ServiceStatus::Failed);
+        Ok(())
+    }
+
+    pub(crate) fn begin_built_in_runtime_update(
+        &self,
+    ) -> AppResult<Vec<BuiltInRuntimeUpdateTarget>> {
+        let mut host = self.host_state()?;
+        let mut targets = Vec::new();
+        let mut updating_urls = Vec::new();
+        for (url, endpoint) in &mut host.endpoints {
+            let Some(launch) = endpoint
+                .launch
+                .clone()
+                .filter(|launch| launch.uses_built_in_runtime())
+            else {
+                continue;
+            };
+            let process = endpoint.process.take();
+            let had_running_process = process.is_some();
+            if had_running_process {
+                endpoint.status = ServiceStatus::Updating;
+                updating_urls.push(url.clone());
+            }
+            targets.push(BuiltInRuntimeUpdateTarget {
+                url: url.clone(),
+                launch,
+                had_running_process,
+                process,
+            });
+        }
+        for url in updating_urls {
+            host.set_endpoint_window_status(&url, ServiceStatus::Updating);
+        }
+        Ok(targets)
+    }
+
+    pub(crate) fn complete_built_in_runtime_update(
+        &self,
+        targets: &[BuiltInRuntimeUpdateTarget],
+        replacement_runtime: &ResolvedDshRuntime,
+        candidate: &str,
+        started: Vec<(String, ManagedService, ManagedLaunch)>,
+    ) -> AppResult<HostSnapshot> {
+        let mut host = self.host_state()?;
+        for target in targets {
+            if let Some(endpoint) = host.endpoints.get_mut(target.url()) {
+                endpoint.launch = Some(target.launch_with_runtime(replacement_runtime.clone()));
+                endpoint.runtime_version = Some(candidate.to_owned());
+                endpoint.last_error = None;
+            }
+        }
+        for (url, process, launch) in started {
+            if let Some(endpoint) = host.endpoints.get_mut(&url) {
+                endpoint.process = Some(process);
+                endpoint.launch = Some(launch);
+                endpoint.status = ServiceStatus::Running;
+                endpoint.idle_since = None;
+            }
+            host.set_endpoint_window_status(&url, ServiceStatus::Running);
+            host.record_connection(&url);
+        }
+        Ok(snapshot_locked(&host))
+    }
+
+    pub(crate) fn complete_built_in_runtime_rollback(
+        &self,
+        targets: &[BuiltInRuntimeUpdateTarget],
+        previous_runtime: &ResolvedDshRuntime,
+        recovered: Vec<(String, ManagedService)>,
+        update_error: &AppError,
+    ) -> AppResult<()> {
+        let mut host = self.host_state()?;
+        for target in targets {
+            if let Some(endpoint) = host.endpoints.get_mut(target.url()) {
+                endpoint.launch = Some(target.launch.clone());
+                endpoint.runtime_version = Some(previous_runtime.version().to_owned());
+                endpoint.last_error = Some(update_error.code.clone());
+                endpoint.status = if target.had_running_process() {
+                    ServiceStatus::Running
+                } else {
+                    ServiceStatus::Unreachable
+                };
+            }
+        }
+        for (url, process) in recovered {
+            if let Some(endpoint) = host.endpoints.get_mut(&url) {
+                endpoint.process = Some(process);
+            }
+            host.set_endpoint_window_status(&url, ServiceStatus::Running);
+            host.record_connection(&url);
+        }
+        Ok(())
     }
 
     pub fn remove_window(&self, label: &str) {
@@ -274,13 +606,13 @@ impl AppState {
 }
 
 impl HostState {
-    pub fn has_managed_processes(&self) -> bool {
+    fn has_managed_processes(&self) -> bool {
         self.endpoints
             .values()
             .any(|endpoint| endpoint.process.is_some())
     }
 
-    pub fn known_endpoint_urls(&self) -> Vec<String> {
+    fn known_endpoint_urls(&self) -> Vec<String> {
         let mut endpoints = self
             .endpoints
             .iter()
@@ -294,7 +626,7 @@ impl HostState {
         endpoints.into_iter().map(|(_, url)| url).collect()
     }
 
-    pub fn record_connection(&mut self, url: &str) {
+    fn record_connection(&mut self, url: &str) {
         let order = self.next_connection_order;
         self.next_connection_order = self.next_connection_order.saturating_add(1);
         if let Some(endpoint) = self.endpoints.get_mut(url) {
@@ -305,7 +637,7 @@ impl HostState {
         }
     }
 
-    pub fn assign_window(&mut self, label: &str, url: &str, status: ServiceStatus) -> bool {
+    fn assign_window(&mut self, label: &str, url: &str, status: ServiceStatus) -> bool {
         let Some(previous_url) = self.windows.get(label).map(|window| window.url.clone()) else {
             return false;
         };
@@ -321,6 +653,20 @@ impl HostState {
         true
     }
 
+    fn set_window_status(&mut self, label: &str, status: ServiceStatus) -> bool {
+        let Some(window) = self.windows.get_mut(label) else {
+            return false;
+        };
+        window.status = status;
+        true
+    }
+
+    fn set_endpoint_window_status(&mut self, url: &str, status: ServiceStatus) {
+        for window in self.windows.values_mut().filter(|window| window.url == url) {
+            window.status = status;
+        }
+    }
+
     fn mark_idle_if_unused(&mut self, url: &str) {
         let used = self.windows.values().any(|window| window.url == url);
         if !used {
@@ -332,11 +678,11 @@ impl HostState {
         }
     }
 
-    pub fn reap_idle_services(&mut self, timeout_seconds: u64) {
+    fn reap_idle_services(&mut self, timeout_seconds: u64) {
         reap_idle_services(self, timeout_seconds);
     }
 
-    pub fn window_snapshot(&self, label: &str) -> Option<WindowSnapshot> {
+    fn window_snapshot(&self, label: &str) -> Option<WindowSnapshot> {
         self.windows.get(label).map(|window| WindowSnapshot {
             label: label.to_owned(),
             url: window.url.clone(),
@@ -345,7 +691,7 @@ impl HostState {
     }
 }
 
-pub fn snapshot_locked(host: &HostState) -> HostSnapshot {
+fn snapshot_locked(host: &HostState) -> HostSnapshot {
     let mut windows = host
         .windows
         .iter()
@@ -512,6 +858,35 @@ mod tests {
             .expect("endpoint remains registered");
         assert_eq!(endpoint.status, ServiceStatus::Unreachable);
         assert!(endpoint.idle_since.is_none());
+    }
+
+    #[test]
+    fn assigning_an_external_endpoint_updates_its_window_and_snapshot_together() {
+        let state = AppState::new(
+            PathBuf::from("config"),
+            GlobalSettings::default(),
+            RuntimeManager::new(PathBuf::from("seed"), PathBuf::from("data")),
+        );
+        state.register_window("main");
+
+        let window = state
+            .assign_external_endpoint(
+                "main",
+                "http://127.0.0.1:3080",
+                ServiceStatus::Running,
+                true,
+            )
+            .expect("registered window accepts an endpoint");
+
+        assert_eq!(window.status, ServiceStatus::Running);
+        let snapshot = state.snapshot();
+        assert_eq!(snapshot.windows.len(), 1);
+        assert_eq!(snapshot.windows[0].label, window.label);
+        assert_eq!(snapshot.windows[0].url, window.url);
+        assert_eq!(snapshot.windows[0].status, window.status);
+        assert_eq!(snapshot.endpoints.len(), 1);
+        assert_eq!(snapshot.endpoints[0].status, ServiceStatus::Running);
+        assert!(snapshot.endpoints[0].known);
     }
 
     #[test]
