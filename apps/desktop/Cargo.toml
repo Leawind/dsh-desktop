@@ -33,3 +33,6 @@ tiny_http = "0.12"
 tray-icon = "0.24"
 url = "2"
 png = "0.17"
+
+[build-dependencies]
+png = "0.17"
