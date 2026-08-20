@@ -19,7 +19,12 @@ pub fn load(config_dir: &Path, variant: DistributionVariant) -> GlobalSettings {
     let Ok(contents) = fs::read_to_string(path) else {
         return GlobalSettings::default_for(variant);
     };
-    serde_json::from_str(&contents).unwrap_or_else(|_| GlobalSettings::default_for(variant))
+    match serde_json::from_str(&contents) {
+        Ok(settings) => {
+            validate(settings, variant).unwrap_or_else(|_| GlobalSettings::default_for(variant))
+        }
+        Err(_) => GlobalSettings::default_for(variant),
+    }
 }
 
 pub fn load_or_initialize(
@@ -28,51 +33,44 @@ pub fn load_or_initialize(
 ) -> AppResult<GlobalSettings> {
     let path = settings_path(config_dir);
     if path.is_file() {
-        let mut settings = load(config_dir, variant);
-        if replace_unavailable_built_in_source(&mut settings, variant) {
-            save(config_dir, &settings)?;
-        }
-        return Ok(settings);
+        return Ok(load(config_dir, variant));
     }
     let settings = GlobalSettings::default_for(variant);
     save(config_dir, &settings)?;
     Ok(settings)
 }
 
-fn replace_unavailable_built_in_source(
-    settings: &mut GlobalSettings,
+pub fn apply_patch(
+    current: &GlobalSettings,
+    patch: GlobalSettingsPatch,
     variant: DistributionVariant,
-) -> bool {
-    if variant == DistributionVariant::Slim && settings.dsh_source == DshSource::BuiltIn {
-        settings.dsh_source = DshSource::System;
-        return true;
-    }
-    false
+) -> AppResult<GlobalSettings> {
+    validate(patch.apply_to(current.clone()), variant)
 }
 
 pub fn validate(
-    mut patch: GlobalSettingsPatch,
+    mut settings: GlobalSettings,
     variant: DistributionVariant,
 ) -> AppResult<GlobalSettings> {
-    if patch.managed_service_idle_timeout_seconds > 7 * 24 * 60 * 60 {
+    if settings.managed_service_idle_timeout_seconds > 7 * 24 * 60 * 60 {
         return Err(AppError::new("settings.error.invalidIdleTimeout"));
     }
-    if patch.dsh_source == DshSource::BuiltIn && variant != DistributionVariant::Bundled {
+    if settings.dsh_source == DshSource::BuiltIn && variant != DistributionVariant::Bundled {
         return Err(AppError::new("settings.error.unsupportedSource"));
     }
-    if let DshSource::Custom { executable } = &mut patch.dsh_source {
+    if let DshSource::Custom { executable } = &mut settings.dsh_source {
         *executable = executable.trim().to_owned();
         if executable.is_empty() {
             return Err(AppError::new("settings.error.emptyExecutable"));
         }
     }
-    if let DshSource::Npx { version } = &mut patch.dsh_source {
+    if let DshSource::Npx { version } = &mut settings.dsh_source {
         *version = version.trim().to_owned();
         if !valid_npx_dsh_version(version) {
             return Err(AppError::new("settings.error.invalidNpxVersion"));
         }
     }
-    if let DshHome::Custom { path } = &mut patch.dsh_home {
+    if let DshHome::Custom { path } = &mut settings.dsh_home {
         *path = path.trim().to_owned();
         if path.is_empty() {
             return Err(AppError::new("settings.error.emptyDshHome"));
@@ -86,7 +84,7 @@ pub fn validate(
         }
     }
 
-    for attempt in &mut patch.window_startup_attempts {
+    for attempt in &mut settings.window_startup_attempts {
         match attempt {
             WindowStartupAttempt::KnownServices => {}
             WindowStartupAttempt::ConnectFixed { host, port }
@@ -108,7 +106,7 @@ pub fn validate(
             }
         }
     }
-    Ok(patch)
+    Ok(settings)
 }
 
 fn valid_npx_dsh_version(version: &str) -> bool {
@@ -212,7 +210,7 @@ mod tests {
     }
 
     #[test]
-    fn slim_replaces_a_persisted_built_in_source_with_system() {
+    fn falls_back_without_rewriting_an_invalid_persisted_settings_file() {
         let directory = std::env::temp_dir().join(format!(
             "dsh-desktop-settings-source-test-{}",
             std::process::id()
@@ -230,12 +228,43 @@ mod tests {
         let settings =
             load_or_initialize(&directory, DistributionVariant::Slim).expect("load slim settings");
 
-        assert_eq!(settings.dsh_source, DshSource::System);
+        assert_eq!(
+            settings,
+            GlobalSettings::default_for(DistributionVariant::Slim)
+        );
         assert_eq!(
             load(&directory, DistributionVariant::Slim).dsh_source,
             DshSource::System
         );
+        let persisted = serde_json::from_str::<GlobalSettings>(
+            &fs::read_to_string(settings_path(&directory)).expect("read persisted settings"),
+        )
+        .expect("read original persisted settings");
+        assert_eq!(persisted.dsh_source, DshSource::BuiltIn);
         let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn merges_a_partial_patch_before_validating_the_complete_settings() {
+        let current = GlobalSettings {
+            dsh_source: DshSource::Npx {
+                version: "0.1.0".to_owned(),
+            },
+            ..GlobalSettings::default()
+        };
+
+        let validated = apply_patch(
+            &current,
+            GlobalSettingsPatch {
+                managed_service_idle_timeout_seconds: Some(300),
+                ..GlobalSettingsPatch::default()
+            },
+            DistributionVariant::Slim,
+        )
+        .expect("validate patch");
+
+        assert_eq!(validated.managed_service_idle_timeout_seconds, 300);
+        assert_eq!(validated.dsh_source, current.dsh_source);
     }
 
     #[test]

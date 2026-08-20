@@ -132,13 +132,15 @@ export function useDesktopApp() {
     }
   }
 
-  async function saveGlobalSettings(patch: GlobalSettingsPatch): Promise<void> {
+  async function saveGlobalSettings(patch: GlobalSettingsPatch): Promise<GlobalSettings> {
     error.value = null;
     try {
       settings.value = await desktopBridge.updateGlobalSettings(patch);
       applyLocale(resolveInitialLocale(settings.value.locale));
+      return settings.value;
     } catch (cause) {
       error.value = cause as AppError;
+      throw cause;
     }
   }
 

@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { applyLocale, resolveInitialLocale } from "@/i18n";
 import type {
   AppLocale,
+  AppError,
   DistributionSnapshot,
   DshHome,
   DshSource,
@@ -12,8 +13,24 @@ import type {
   WindowStartupAttempt,
 } from "@/types/desktop";
 
+type SettingsGroup = "locale" | "source" | "home" | "attempts" | "idleTimeout";
+
 function cloneAttempts(value: readonly WindowStartupAttempt[]): WindowStartupAttempt[] {
   return value.map((attempt) => ({ ...attempt }));
+}
+
+function cloneSettings(value: GlobalSettings): GlobalSettings {
+  return {
+    locale: value.locale,
+    dshSource: { ...value.dshSource },
+    dshHome: { ...value.dshHome },
+    windowStartupAttempts: cloneAttempts(value.windowStartupAttempts),
+    managedServiceIdleTimeoutSeconds: value.managedServiceIdleTimeoutSeconds,
+  };
+}
+
+function equalValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function validPort(port: number): boolean {
@@ -36,7 +53,7 @@ function validAttempt(attempt: WindowStartupAttempt): boolean {
 export function useSettingsDraft(
   settings: MaybeRefOrGetter<GlobalSettings>,
   distribution: MaybeRefOrGetter<DistributionSnapshot>,
-  onSave: (patch: GlobalSettingsPatch) => void,
+  onSave: (patch: GlobalSettingsPatch) => Promise<GlobalSettings>,
 ) {
   const { t } = useI18n();
   const initialSettings = toValue(settings);
@@ -57,8 +74,9 @@ export function useSettingsDraft(
   );
   const idleTimeoutMinutes = ref(initialSettings.managedServiceIdleTimeoutSeconds / 60);
   const error = ref("");
-  let dirty = false;
-  let syncingSettings = false;
+  let baseline = cloneSettings(initialSettings);
+  let activeSave: Promise<void> | null = null;
+  let saveQueued = false;
 
   const localeOptions = computed(() => [
     { value: "zh-CN", label: t("locale.zh-CN") },
@@ -88,95 +106,153 @@ export function useSettingsDraft(
 
   watch(
     () => toValue(settings),
-    (value) => {
-      syncingSettings = true;
-      locale.value = resolveInitialLocale(value.locale);
+    (value) => syncFromSettings(value),
+  );
+
+  function draftLocale(): AppLocale | null {
+    return locale.value === resolveInitialLocale(baseline.locale) ? baseline.locale : locale.value;
+  }
+
+  function draftDshSource(): DshSource {
+    if (sourceType.value === "custom") {
+      return { type: "custom", executable: customExecutable.value };
+    }
+    if (sourceType.value === "npx") {
+      return { type: "npx", version: npxVersion.value };
+    }
+    return { type: sourceType.value };
+  }
+
+  function draftDshHome(): DshHome {
+    return homeType.value === "custom"
+      ? { type: "custom", path: customDshHome.value }
+      : { type: "environment" };
+  }
+
+  function changedGroups(): Set<SettingsGroup> {
+    const changed = new Set<SettingsGroup>();
+    if (draftLocale() !== baseline.locale) changed.add("locale");
+    if (!equalValue(draftDshSource(), baseline.dshSource)) changed.add("source");
+    if (!equalValue(draftDshHome(), baseline.dshHome)) changed.add("home");
+    if (!equalValue(attempts.value, baseline.windowStartupAttempts)) changed.add("attempts");
+    if (Math.round(idleTimeoutMinutes.value * 60) !== baseline.managedServiceIdleTimeoutSeconds) {
+      changed.add("idleTimeout");
+    }
+    return changed;
+  }
+
+  function syncFromSettings(value: GlobalSettings): void {
+    const changed = changedGroups();
+    if (!changed.has("locale")) locale.value = resolveInitialLocale(value.locale);
+    if (!changed.has("source")) {
       sourceType.value = value.dshSource.type;
       customExecutable.value = value.dshSource.type === "custom" ? value.dshSource.executable : "";
       npxVersion.value = value.dshSource.type === "npx" ? value.dshSource.version : "latest";
+    }
+    if (!changed.has("home")) {
       homeType.value = value.dshHome.type;
       customDshHome.value = value.dshHome.type === "custom" ? value.dshHome.path : "";
-      attempts.value = cloneAttempts(value.windowStartupAttempts);
+    }
+    if (!changed.has("attempts")) attempts.value = cloneAttempts(value.windowStartupAttempts);
+    if (!changed.has("idleTimeout")) {
       idleTimeoutMinutes.value = value.managedServiceIdleTimeoutSeconds / 60;
-      syncingSettings = false;
-      dirty = false;
-    },
-  );
-
-  watch(
-    [
-      locale,
-      sourceType,
-      customExecutable,
-      npxVersion,
-      homeType,
-      customDshHome,
-      attempts,
-      idleTimeoutMinutes,
-    ],
-    () => {
-      if (syncingSettings) return;
-      dirty = true;
-    },
-    { deep: true, flush: "sync" },
-  );
+    }
+    baseline = cloneSettings(value);
+    applyLocale(locale.value);
+  }
 
   function buildPatch(): GlobalSettingsPatch | null {
     error.value = "";
-    if (sourceType.value === "built-in" && toValue(distribution).variant !== "bundled") {
-      error.value = t("settings.error.unsupportedSource");
-      return null;
-    }
-    if (sourceType.value === "custom" && !customExecutable.value.trim()) {
-      error.value = t("settings.error.emptyExecutable");
-      return null;
-    }
-    if (sourceType.value === "npx" && !validNpxVersion(npxVersion.value)) {
-      error.value = t("settings.error.invalidNpxVersion");
-      return null;
-    }
-    if (homeType.value === "custom" && !customDshHome.value.trim()) {
-      error.value = t("settings.error.emptyDshHome");
-      return null;
-    }
-    if (!attempts.value.every(validAttempt)) return null;
-    if (
-      !Number.isFinite(idleTimeoutMinutes.value) ||
-      idleTimeoutMinutes.value < 0 ||
-      idleTimeoutMinutes.value > 7 * 24 * 60
-    ) {
-      error.value = t("settings.error.invalidIdleTimeout");
-      return null;
-    }
-    const dshSource: DshSource = (() => {
-      if (sourceType.value === "custom") {
-        return { type: "custom", executable: customExecutable.value.trim() };
+    const changed = changedGroups();
+    if (changed.size === 0) return null;
+    const patch: GlobalSettingsPatch = {};
+
+    if (changed.has("locale")) patch.locale = draftLocale();
+    if (changed.has("source")) {
+      if (sourceType.value === "built-in" && toValue(distribution).variant !== "bundled") {
+        error.value = t("settings.error.unsupportedSource");
+        return null;
       }
-      if (sourceType.value === "npx") {
-        return { type: "npx", version: npxVersion.value.trim() };
+      if (sourceType.value === "custom" && !customExecutable.value.trim()) {
+        error.value = t("settings.error.emptyExecutable");
+        return null;
       }
-      return { type: sourceType.value };
-    })();
-    const dshHome: DshHome =
-      homeType.value === "custom"
-        ? { type: "custom", path: customDshHome.value.trim() }
-        : { type: "environment" };
-    return {
-      locale: locale.value,
-      dshSource,
-      dshHome,
-      windowStartupAttempts: cloneAttempts(attempts.value),
-      managedServiceIdleTimeoutSeconds: Math.round(idleTimeoutMinutes.value * 60),
-    };
+      if (sourceType.value === "npx" && !validNpxVersion(npxVersion.value)) {
+        error.value = t("settings.error.invalidNpxVersion");
+        return null;
+      }
+      const dshSource: DshSource = (() => {
+        if (sourceType.value === "custom") {
+          return { type: "custom", executable: customExecutable.value.trim() };
+        }
+        if (sourceType.value === "npx") {
+          return { type: "npx", version: npxVersion.value.trim() };
+        }
+        return { type: sourceType.value };
+      })();
+      patch.dshSource = dshSource;
+    }
+    if (changed.has("home")) {
+      if (homeType.value === "custom" && !customDshHome.value.trim()) {
+        error.value = t("settings.error.emptyDshHome");
+        return null;
+      }
+      patch.dshHome =
+        homeType.value === "custom"
+          ? { type: "custom", path: customDshHome.value.trim() }
+          : { type: "environment" };
+    }
+    if (changed.has("attempts")) {
+      if (!attempts.value.every(validAttempt)) return null;
+      patch.windowStartupAttempts = cloneAttempts(attempts.value);
+    }
+    if (changed.has("idleTimeout")) {
+      if (
+        !Number.isFinite(idleTimeoutMinutes.value) ||
+        idleTimeoutMinutes.value < 0 ||
+        idleTimeoutMinutes.value > 7 * 24 * 60
+      ) {
+        error.value = t("settings.error.invalidIdleTimeout");
+        return null;
+      }
+      patch.managedServiceIdleTimeoutSeconds = Math.round(idleTimeoutMinutes.value * 60);
+    }
+    return patch;
   }
 
-  function flush(): void {
-    if (!dirty) return;
+  function saveErrorMessage(cause: unknown): string {
+    if (typeof cause === "object" && cause !== null && "code" in cause) {
+      const appError = cause as Partial<AppError>;
+      if (typeof appError.code === "string") return t(appError.code, appError.args ?? {});
+    }
+    return t("app.error.unknown");
+  }
+
+  async function flush(): Promise<void> {
+    if (activeSave) {
+      saveQueued = true;
+      return activeSave;
+    }
     const patch = buildPatch();
     if (!patch) return;
-    applyLocale(locale.value);
-    onSave(patch);
-    dirty = false;
+    if ("locale" in patch) applyLocale(locale.value);
+
+    const save = (async () => {
+      try {
+        syncFromSettings(await onSave(patch));
+        error.value = "";
+      } catch (cause) {
+        error.value = saveErrorMessage(cause);
+      } finally {
+        activeSave = null;
+        if (saveQueued) {
+          saveQueued = false;
+          void flush();
+        }
+      }
+    })();
+    activeSave = save;
+    return save;
   }
 
   return {

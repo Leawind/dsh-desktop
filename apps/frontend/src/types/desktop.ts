@@ -57,11 +57,11 @@ export interface GlobalSettings {
 }
 
 export interface GlobalSettingsPatch {
-  locale: AppLocale | null;
-  dshSource: DshSource;
-  dshHome: DshHome;
-  windowStartupAttempts: WindowStartupAttempt[];
-  managedServiceIdleTimeoutSeconds: number;
+  locale?: AppLocale | null;
+  dshSource?: DshSource;
+  dshHome?: DshHome;
+  windowStartupAttempts?: readonly WindowStartupAttempt[];
+  managedServiceIdleTimeoutSeconds?: number;
 }
 
 export interface WindowSnapshot {

@@ -704,12 +704,20 @@ pub fn update_global_settings(
     patch: GlobalSettingsPatch,
     state: &AppState,
 ) -> AppResult<GlobalSettings> {
-    let settings = settings::validate(patch, crate::model::DistributionVariant::current())?;
-    settings::save(&state.config_dir, &settings)?;
-    *state
-        .settings
-        .write()
-        .map_err(|_| AppError::new("app.error.stateUnavailable"))? = settings.clone();
+    let updated_settings = {
+        let mut current = state
+            .settings
+            .write()
+            .map_err(|_| AppError::new("app.error.stateUnavailable"))?;
+        let candidate = settings::apply_patch(
+            &current,
+            patch,
+            crate::model::DistributionVariant::current(),
+        )?;
+        settings::save(&state.config_dir, &candidate)?;
+        *current = candidate.clone();
+        candidate
+    };
     let _ = state.reap_idle_services();
-    Ok(settings)
+    Ok(updated_settings)
 }

@@ -233,7 +233,77 @@ pub struct WindowStartupResult {
     pub failures: Vec<StartupAttemptFailure>,
 }
 
-pub type GlobalSettingsPatch = GlobalSettings;
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GlobalSettingsPatch {
+    #[serde(default, skip_serializing_if = "LocalePatch::is_unchanged")]
+    pub locale: LocalePatch,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dsh_source: Option<DshSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dsh_home: Option<DshHome>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window_startup_attempts: Option<Vec<WindowStartupAttempt>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub managed_service_idle_timeout_seconds: Option<u64>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum LocalePatch {
+    #[default]
+    Unchanged,
+    Set(Option<AppLocale>),
+}
+
+impl LocalePatch {
+    fn is_unchanged(&self) -> bool {
+        matches!(self, Self::Unchanged)
+    }
+}
+
+impl Serialize for LocalePatch {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Unchanged => serializer.serialize_unit(),
+            Self::Set(locale) => locale.serialize(serializer),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for LocalePatch {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self::Set(Option::<AppLocale>::deserialize(deserializer)?))
+    }
+}
+
+impl GlobalSettingsPatch {
+    pub fn apply_to(self, mut settings: GlobalSettings) -> GlobalSettings {
+        if let LocalePatch::Set(locale) = self.locale {
+            settings.locale = locale;
+        }
+        if let Some(dsh_source) = self.dsh_source {
+            settings.dsh_source = dsh_source;
+        }
+        if let Some(dsh_home) = self.dsh_home {
+            settings.dsh_home = dsh_home;
+        }
+        if let Some(window_startup_attempts) = self.window_startup_attempts {
+            settings.window_startup_attempts = window_startup_attempts;
+        }
+        if let Some(managed_service_idle_timeout_seconds) =
+            self.managed_service_idle_timeout_seconds
+        {
+            settings.managed_service_idle_timeout_seconds = managed_service_idle_timeout_seconds;
+        }
+        settings
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -292,5 +362,51 @@ mod tests {
             serde_json::to_value(&source).expect("serialize npx source"),
             serde_json::json!({ "type": "npx", "version": "0.1.0-rc.6" })
         );
+    }
+
+    #[test]
+    fn applies_only_the_settings_fields_present_in_a_patch() {
+        let patch = serde_json::from_value::<GlobalSettingsPatch>(serde_json::json!({
+            "locale": null,
+            "managedServiceIdleTimeoutSeconds": 120,
+        }))
+        .expect("deserialize settings patch");
+
+        assert_eq!(patch.locale, LocalePatch::Set(None));
+        assert_eq!(patch.dsh_source, None);
+
+        let absent = serde_json::from_value::<GlobalSettingsPatch>(serde_json::json!({}))
+            .expect("deserialize empty settings patch");
+        assert_eq!(absent.locale, LocalePatch::Unchanged);
+
+        assert_eq!(
+            serde_json::to_value(GlobalSettingsPatch::default()).expect("serialize empty patch"),
+            serde_json::json!({})
+        );
+        assert_eq!(
+            serde_json::to_value(GlobalSettingsPatch {
+                locale: LocalePatch::Set(None),
+                ..GlobalSettingsPatch::default()
+            })
+            .expect("serialize locale reset"),
+            serde_json::json!({ "locale": null })
+        );
+
+        let settings = patch.apply_to(GlobalSettings {
+            locale: Some(AppLocale::EnUs),
+            dsh_source: DshSource::Npx {
+                version: "0.1.0".to_owned(),
+            },
+            ..GlobalSettings::default()
+        });
+
+        assert_eq!(settings.locale, None);
+        assert_eq!(
+            settings.dsh_source,
+            DshSource::Npx {
+                version: "0.1.0".to_owned()
+            }
+        );
+        assert_eq!(settings.managed_service_idle_timeout_seconds, 120);
     }
 }

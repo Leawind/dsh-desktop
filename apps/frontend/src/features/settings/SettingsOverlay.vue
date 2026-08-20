@@ -26,11 +26,11 @@ const props = defineProps<{
   host: HostSnapshot;
   distribution: DistributionSnapshot;
   updateBuiltInRuntime: () => Promise<void>;
+  saveSettings: (settings: GlobalSettingsPatch) => Promise<GlobalSettings>;
 }>();
 
 const emit = defineEmits<{
   close: [];
-  saveSettings: [settings: GlobalSettingsPatch];
   stopService: [url: string];
   restartService: [url: string];
 }>();
@@ -55,7 +55,7 @@ const {
 } = useSettingsDraft(
   () => props.settings,
   () => props.distribution,
-  (settings) => emit("saveSettings", settings),
+  props.saveSettings,
 );
 
 function onTabKeydown(event: KeyboardEvent): void {
