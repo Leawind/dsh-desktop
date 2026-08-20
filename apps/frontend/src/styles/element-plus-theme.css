@@ -122,7 +122,19 @@
 }
 
 .dsh-select--pill {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.dsh-select--pill .el-select__selection {
+  flex: 0 1 auto;
+}
+
+.dsh-select--pill .el-select__placeholder {
+  position: static;
+  top: auto;
   width: auto;
+  transform: none;
 }
 
 .dsh-select--pill .el-select__wrapper {
