@@ -1,7 +1,9 @@
 use std::collections::HashSet;
+use std::io::Read;
 use std::process::{Child, Command, Output, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
@@ -38,6 +40,47 @@ impl ProcessSupervisor {
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
         let (child, _lease) = self.spawn(command)?;
         child.wait_with_output()
+    }
+
+    pub fn output_with_timeout(
+        &self,
+        command: &mut Command,
+        timeout: Duration,
+    ) -> std::io::Result<Option<Output>> {
+        command.stdout(Stdio::piped()).stderr(Stdio::piped());
+        let (mut child, mut lease) = self.spawn(command)?;
+        let deadline = Instant::now() + timeout;
+        let status = loop {
+            match child.try_wait() {
+                Ok(Some(status)) => break status,
+                Ok(None) if Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                Ok(None) => {
+                    terminate_child_tree(&mut child);
+                    return Ok(None);
+                }
+                Err(error) => {
+                    terminate_child_tree(&mut child);
+                    return Err(error);
+                }
+            }
+        };
+        lease.release();
+
+        let mut stdout = Vec::new();
+        if let Some(mut output) = child.stdout.take() {
+            output.read_to_end(&mut stdout)?;
+        }
+        let mut stderr = Vec::new();
+        if let Some(mut output) = child.stderr.take() {
+            output.read_to_end(&mut stderr)?;
+        }
+        Ok(Some(Output {
+            status,
+            stdout,
+            stderr,
+        }))
     }
 
     pub fn shutdown(&self) {

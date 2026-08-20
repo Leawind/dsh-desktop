@@ -30,6 +30,7 @@ use window_registry::{WindowActivityRegistry, WindowRegistry};
 const CLIENT_DISCONNECT_TIMEOUT_MILLIS: u64 = 1_000;
 const INITIAL_WINDOW_CONNECTION_TIMEOUT_MILLIS: u64 = 10_000;
 const HOST_MAINTENANCE_INTERVAL: Duration = Duration::from_millis(250);
+const HOST_MONITOR_INTERVAL: Duration = Duration::from_secs(5);
 
 enum HostEvent {
     Tray(tray_icon::menu::MenuEvent),
@@ -93,8 +94,14 @@ pub fn run() {
         &client_activity,
         &bridge,
     );
-    let appearance_state = state.clone();
-    std::thread::spawn(move || appearance_state.refresh_system_color_scheme());
+    let monitor_state = state.clone();
+    std::thread::spawn(move || {
+        while monitor_state.is_running() {
+            monitor_state.refresh_endpoint_health();
+            monitor_state.refresh_system_color_scheme();
+            std::thread::sleep(HOST_MONITOR_INTERVAL);
+        }
+    });
     let event_loop = EventLoopBuilder::<HostEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
     tray_icon::menu::MenuEvent::set_event_handler(Some(move |event| {
@@ -115,7 +122,6 @@ pub fn run() {
     let tray = tray::Tray::create(&resources.icon, saved_locale(&state))
         .expect("failed to create the DSH Desktop tray icon");
     let mut last_locale = saved_locale(&state);
-    let mut next_monitor_refresh = std::time::Instant::now() + Duration::from_secs(5);
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -128,6 +134,7 @@ pub fn run() {
                     state.begin_shutdown();
                     bridge.close_windows();
                     state.shutdown();
+                    bridge.shutdown();
                     *control_flow = ControlFlow::Exit;
                 }
                 None => {}
@@ -140,11 +147,6 @@ pub fn run() {
                     create_new_window(&state, &resources.icon, &windows, &client_activity, &bridge);
                 }
                 reap_closed_windows(&state, &windows, &client_activity, &window_controls);
-                if std::time::Instant::now() >= next_monitor_refresh {
-                    state.refresh_endpoint_health();
-                    state.refresh_system_color_scheme();
-                    next_monitor_refresh = std::time::Instant::now() + Duration::from_secs(5);
-                }
                 let locale = saved_locale(&state);
                 if locale != last_locale {
                     tray.update_locale(locale);
@@ -152,6 +154,7 @@ pub fn run() {
                 }
                 if state.should_exit_after_idle_reap() {
                     state.shutdown();
+                    bridge.shutdown();
                     *control_flow = ControlFlow::Exit;
                 }
             }

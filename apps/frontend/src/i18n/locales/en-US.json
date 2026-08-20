@@ -8,6 +8,7 @@
       "unauthorized": "The local DSH Desktop session could not be verified. Reopen this window.",
       "stateUnavailable": "The application state is temporarily unavailable.",
       "hostShuttingDown": "DSH Desktop is shutting down and cannot complete this action.",
+      "busy": "DSH Desktop is busy. Try again shortly.",
       "taskFailed": "The background task failed."
     }
   },

@@ -1,8 +1,11 @@
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver, SyncSender, TrySendError};
+use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
 use base64::Engine;
 use serde::Deserialize;
@@ -23,10 +26,23 @@ struct CommandRequest {
     args: Value,
 }
 
+const COMMAND_WORKER_COUNT: usize = 4;
+const COMMAND_QUEUE_CAPACITY: usize = 32;
+const COMMAND_WORKER_RECEIVE_TIMEOUT: Duration = Duration::from_millis(100);
+const LISTENER_RECEIVE_TIMEOUT: Duration = Duration::from_millis(250);
+
+struct CommandJob {
+    request: tiny_http::Request,
+    state: Arc<AppState>,
+    label: String,
+}
+
 pub struct BridgeServer {
     base_url: String,
     pub token: String,
     window_controls: WindowControlRegistry,
+    server: Arc<Server>,
+    running: Arc<AtomicBool>,
 }
 
 impl BridgeServer {
@@ -46,9 +62,9 @@ pub fn start(
         .ok()
         .map(|port| format!("127.0.0.1:{port}"))
         .unwrap_or_else(|| "127.0.0.1:0".to_owned());
-    let server = Server::http(&bind_address).map_err(|error| {
+    let server = Arc::new(Server::http(&bind_address).map_err(|error| {
         AppError::new("app.error.bridgeUnavailable").technical(error.to_string())
-    })?;
+    })?);
     let address = server.server_addr();
     let token = format!(
         "{:032x}",
@@ -59,33 +75,43 @@ pub fn start(
             ^ u128::from(std::process::id())
     );
     let state = Arc::new(state);
+    let running = Arc::new(AtomicBool::new(true));
+    let (command_sender, command_receiver) = mpsc::sync_channel(COMMAND_QUEUE_CAPACITY);
+    let command_receiver = Arc::new(Mutex::new(command_receiver));
+    for _ in 0..COMMAND_WORKER_COUNT {
+        spawn_command_worker(Arc::clone(&command_receiver), Arc::clone(&running));
+    }
+
+    let listener_server = Arc::clone(&server);
+    let listener_state = Arc::clone(&state);
+    let listener_running = Arc::clone(&running);
     let server_token = token.clone();
     let server_window_controls = window_controls.clone();
     thread::spawn(move || {
-        for request in server.incoming_requests() {
-            let state = Arc::clone(&state);
-            let frontend = frontend.clone();
-            let token = server_token.clone();
-            let windows = windows.clone();
-            let client_activity = client_activity.clone();
-            let window_controls = server_window_controls.clone();
-            thread::spawn(move || {
-                respond(
+        while listener_running.load(Ordering::Acquire) {
+            match listener_server.recv_timeout(LISTENER_RECEIVE_TIMEOUT) {
+                Ok(Some(request)) => respond(
                     request,
-                    state,
+                    Arc::clone(&listener_state),
                     &frontend,
                     &windows,
-                    &token,
+                    &server_token,
                     &client_activity,
-                    &window_controls,
-                )
-            });
+                    &server_window_controls,
+                    &command_sender,
+                ),
+                Ok(None) => {}
+                Err(_) if !listener_running.load(Ordering::Acquire) => break,
+                Err(_) => {}
+            }
         }
     });
     Ok(BridgeServer {
         base_url: format!("http://{address}"),
         token,
         window_controls,
+        server,
+        running,
     })
 }
 
@@ -94,16 +120,45 @@ impl BridgeServer {
         self.window_controls
             .send_to_all(|stream| write_websocket_text(stream, r#"{"type":"close"}"#));
     }
+
+    pub fn shutdown(&self) {
+        if self.running.swap(false, Ordering::AcqRel) {
+            self.server.unblock();
+        }
+    }
+}
+
+impl Drop for BridgeServer {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
+fn spawn_command_worker(receiver: Arc<Mutex<Receiver<CommandJob>>>, running: Arc<AtomicBool>) {
+    thread::spawn(move || {
+        while running.load(Ordering::Acquire) {
+            let job = match receiver.lock() {
+                Ok(receiver) => receiver.recv_timeout(COMMAND_WORKER_RECEIVE_TIMEOUT),
+                Err(_) => break,
+            };
+            match job {
+                Ok(job) => respond_command(job),
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+        }
+    });
 }
 
 fn respond(
-    mut request: tiny_http::Request,
+    request: tiny_http::Request,
     state: Arc<AppState>,
     frontend: &Path,
     windows: &WindowRegistry,
     token: &str,
     client_activity: &WindowActivityRegistry,
     window_controls: &WindowControlRegistry,
+    command_sender: &SyncSender<CommandJob>,
 ) {
     let request_path = path(request.url());
     if request_path == "/api/window-control" {
@@ -127,7 +182,7 @@ fn respond(
                 StatusCode(403),
                 json!({ "error": AppError::new("app.error.unauthorized") }),
             )
-        } else if request.method() != &Method::Post || request_path != "/api/command" {
+        } else if request.method() != &Method::Post {
             json_response(
                 StatusCode(404),
                 json!({ "error": AppError::new("app.error.notFound") }),
@@ -136,27 +191,50 @@ fn respond(
             if windows.get(&label).is_none() {
                 return respond_not_found(request);
             }
-            client_activity.record_seen(&label, unix_time_millis());
-            let mut body = String::new();
-            let result = std::io::Read::read_to_string(&mut request.as_reader(), &mut body)
-                .map_err(|error| {
-                    AppError::new("app.error.invalidRequest").technical(error.to_string())
-                })
-                .and_then(|_| {
-                    serde_json::from_str(&body).map_err(|error| {
-                        AppError::new("app.error.invalidRequest").technical(error.to_string())
-                    })
-                })
-                .and_then(|request: CommandRequest| dispatch(&state, &label, request));
-            match result {
-                Ok(value) => json_response(StatusCode(200), json!({ "value": value })),
-                Err(error) => json_response(StatusCode(400), json!({ "error": error })),
+            if request_path == "/api/heartbeat" {
+                client_activity.record_seen(&label, unix_time_millis());
+                json_response(StatusCode(200), json!({ "value": null }))
+            } else if request_path == "/api/command" {
+                client_activity.record_seen(&label, unix_time_millis());
+                match command_sender.try_send(CommandJob {
+                    request,
+                    state,
+                    label,
+                }) {
+                    Ok(()) => return,
+                    Err(TrySendError::Full(job)) => return respond_busy(job.request),
+                    Err(TrySendError::Disconnected(job)) => {
+                        return respond_shutting_down(job.request);
+                    }
+                }
+            } else {
+                json_response(
+                    StatusCode(404),
+                    json!({ "error": AppError::new("app.error.notFound") }),
+                )
             }
         }
     } else {
         static_response(frontend, request.url())
     };
     let _ = request.respond(response);
+}
+
+fn respond_command(mut job: CommandJob) {
+    let mut body = String::new();
+    let result = std::io::Read::read_to_string(&mut job.request.as_reader(), &mut body)
+        .map_err(|error| AppError::new("app.error.invalidRequest").technical(error.to_string()))
+        .and_then(|_| {
+            serde_json::from_str(&body).map_err(|error| {
+                AppError::new("app.error.invalidRequest").technical(error.to_string())
+            })
+        })
+        .and_then(|request: CommandRequest| dispatch(&job.state, &job.label, request));
+    let response = match result {
+        Ok(value) => json_response(StatusCode(200), json!({ "value": value })),
+        Err(error) => json_response(StatusCode(400), json!({ "error": error })),
+    };
+    let _ = job.request.respond(response);
 }
 
 fn respond_window_control(
@@ -201,6 +279,20 @@ fn respond_not_found(request: tiny_http::Request) {
     let _ = request.respond(json_response(
         StatusCode(404),
         json!({ "error": AppError::new("app.error.notFound") }),
+    ));
+}
+
+fn respond_busy(request: tiny_http::Request) {
+    let _ = request.respond(json_response(
+        StatusCode(503),
+        json!({ "error": AppError::new("app.error.busy") }),
+    ));
+}
+
+fn respond_shutting_down(request: tiny_http::Request) {
+    let _ = request.respond(json_response(
+        StatusCode(503),
+        json!({ "error": AppError::new("app.error.hostShuttingDown") }),
     ));
 }
 
@@ -293,11 +385,11 @@ fn session_path(path: &str) -> Option<(&str, &str)> {
 }
 
 fn dispatch(state: &AppState, label: &str, request: CommandRequest) -> AppResult<Value> {
+    state.ensure_running()?;
     let args = request.args;
     match request.name.as_str() {
-        "heartbeat" => value(()),
         "initialize_window" => value(commands::initialize_window(state, label)?),
-        "get_host_snapshot" => value(commands::get_host_snapshot(state)),
+        "get_desktop_snapshot" => value(commands::get_desktop_snapshot(state, label)?),
         "set_window_target" => value(commands::set_window_target(
             label,
             string(&args, "url")?,

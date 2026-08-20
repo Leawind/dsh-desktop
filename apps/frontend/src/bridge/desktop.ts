@@ -67,7 +67,11 @@ async function command<T>(name: string, args?: Record<string, unknown>): Promise
 
 function poll<T>(load: () => Promise<T>, listener: (value: T) => void): Promise<UnlistenFn> {
   let previous = "";
+  let stopped = false;
+  let inFlight = false;
   const update = async () => {
+    if (stopped || inFlight) return;
+    inFlight = true;
     try {
       const value = await load();
       const next = JSON.stringify(value);
@@ -77,16 +81,41 @@ function poll<T>(load: () => Promise<T>, listener: (value: T) => void): Promise<
       }
     } catch {
       // Commands surface errors to their caller; background refresh can retry.
+    } finally {
+      inFlight = false;
     }
   };
   void update();
   const timer = window.setInterval(() => void update(), 2_000);
-  return Promise.resolve(() => window.clearInterval(timer));
+  return Promise.resolve(() => {
+    stopped = true;
+    window.clearInterval(timer);
+  });
+}
+
+async function heartbeatRequest(): Promise<void> {
+  let response: Response;
+  const sessionToken = token();
+  try {
+    response = await fetch(`/api/heartbeat?window=${encodeURIComponent(windowLabel())}`, {
+      method: "POST",
+      headers: sessionToken ? { "X-DSH-Desktop-Token": sessionToken } : {},
+    });
+  } catch (error) {
+    throw normalizeError(error);
+  }
+  let payload: { error?: AppError };
+  try {
+    payload = (await response.json()) as { error?: AppError };
+  } catch (error) {
+    throw normalizeError(error);
+  }
+  if (!response.ok || payload.error) throw normalizeError(payload.error);
 }
 
 function heartbeat(): UnlistenFn {
   const timer = window.setInterval(
-    () => void command<void>("heartbeat").catch(() => {}),
+    () => void heartbeatRequest().catch(() => {}),
     heartbeatIntervalMillis,
   );
   return () => window.clearInterval(timer);
@@ -140,7 +169,7 @@ export const desktopBridge = {
   startWindowHeartbeat: (): UnlistenFn => heartbeat(),
   startWindowControl: (): UnlistenFn => control(),
   initializeWindow: (): Promise<BootstrapPayload> => command("initialize_window"),
-  getHostSnapshot: (): Promise<HostSnapshot> => command("get_host_snapshot"),
+  getDesktopSnapshot: (): Promise<BootstrapPayload> => command("get_desktop_snapshot"),
   startWindow: (): Promise<WindowStartupResult> => command("start_window"),
   setWindowTarget: (url: string): Promise<WindowSnapshot> => command("set_window_target", { url }),
   stopService: (url: string): Promise<HostSnapshot> => command("stop_service", { url }),
@@ -150,8 +179,6 @@ export const desktopBridge = {
   updateBuiltInRuntime: (): Promise<RuntimeUpdateResult> => command("update_built_in_runtime"),
   updateGlobalSettings: (patch: GlobalSettingsPatch): Promise<GlobalSettings> =>
     command("update_global_settings", { patch }),
-  onHostSnapshotChanged: (listener: (snapshot: HostSnapshot) => void): Promise<UnlistenFn> =>
-    poll(() => command<HostSnapshot>("get_host_snapshot"), listener),
-  onBootstrapChanged: (listener: (payload: BootstrapPayload) => void): Promise<UnlistenFn> =>
-    poll(() => command<BootstrapPayload>("initialize_window"), listener),
+  onDesktopSnapshotChanged: (listener: (payload: BootstrapPayload) => void): Promise<UnlistenFn> =>
+    poll(() => command<BootstrapPayload>("get_desktop_snapshot"), listener),
 };

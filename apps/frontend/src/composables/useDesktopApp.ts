@@ -5,6 +5,7 @@ import { applyLocale, resolveInitialLocale } from "@/i18n";
 import type {
   AppMetadataSnapshot,
   AppError,
+  BootstrapPayload,
   DistributionSnapshot,
   GlobalSettings,
   GlobalSettingsPatch,
@@ -62,28 +63,12 @@ export function useDesktopApp() {
   async function initialize(): Promise<void> {
     try {
       const payload = await desktopBridge.initializeWindow();
-      appMetadata.value = payload.app;
-      settings.value = payload.settings;
-      distribution.value = payload.distribution;
-      currentWindow.value = payload.window;
-      host.value = payload.host;
-      systemColorScheme.value = payload.systemColorScheme;
-      applyLocale(resolveInitialLocale(payload.settings.locale));
+      applyDesktopSnapshot(payload);
 
       unlisteners.push(
         desktopBridge.startWindowHeartbeat(),
         desktopBridge.startWindowControl(),
-        await desktopBridge.onBootstrapChanged((value) => {
-          appMetadata.value = value.app;
-          settings.value = value.settings;
-          distribution.value = value.distribution;
-          systemColorScheme.value = value.systemColorScheme;
-          applyLocale(resolveInitialLocale(value.settings.locale));
-        }),
-        await desktopBridge.onHostSnapshotChanged((value) => {
-          host.value = value;
-          syncWindowFromHost();
-        }),
+        await desktopBridge.onDesktopSnapshotChanged(applyDesktopSnapshot),
       );
 
       startupStatus.value = "starting";
@@ -99,7 +84,6 @@ export function useDesktopApp() {
     try {
       currentWindow.value = await desktopBridge.setWindowTarget(url);
       frameRevision.value += 1;
-      host.value = await desktopBridge.getHostSnapshot();
       startupStatus.value = currentWindow.value.status;
       if (currentWindow.value.status !== "running") {
         error.value = { code: "service.error.unreachable", args: { url } };
@@ -179,6 +163,20 @@ export function useDesktopApp() {
       error.value = cause as AppError;
       throw cause;
     }
+  }
+
+  function applyDesktopSnapshot(payload: BootstrapPayload): void {
+    appMetadata.value = payload.app;
+    settings.value = payload.settings;
+    distribution.value = payload.distribution;
+    host.value = payload.host;
+    systemColorScheme.value = payload.systemColorScheme;
+    if (currentWindow.value) {
+      syncWindowFromHost();
+    } else {
+      currentWindow.value = payload.window;
+    }
+    applyLocale(resolveInitialLocale(payload.settings.locale));
   }
 
   function syncWindowFromHost(): void {

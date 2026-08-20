@@ -144,6 +144,13 @@ impl AppState {
         }
     }
 
+    pub fn window_snapshot(&self, label: &str) -> Option<WindowSnapshot> {
+        self.host
+            .lock()
+            .ok()
+            .and_then(|host| host.window_snapshot(label))
+    }
+
     pub fn snapshot(&self) -> HostSnapshot {
         let mut host = self.host.lock().expect("host state poisoned");
         refresh_processes(&mut host);
@@ -202,7 +209,7 @@ impl AppState {
     }
 
     pub fn refresh_system_color_scheme(&self) {
-        let Some(scheme) = crate::system_appearance::detect() else {
+        let Some(scheme) = crate::system_appearance::detect(self.process_supervisor()) else {
             return;
         };
         if let Ok(mut current) = self.system_color_scheme.write() {

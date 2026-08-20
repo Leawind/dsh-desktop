@@ -26,17 +26,59 @@ describe("startWindowHeartbeat", () => {
     const stop = desktopBridge.startWindowHeartbeat();
     callback?.();
 
-    expect(fetch).toHaveBeenCalledWith("/api/command?window=main", {
+    expect(fetch).toHaveBeenCalledWith("/api/heartbeat?window=main", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         "X-DSH-Desktop-Token": "token",
       },
-      body: JSON.stringify({ name: "heartbeat" }),
     });
 
     stop();
     expect(clearInterval).toHaveBeenCalledWith(1);
+  });
+});
+
+describe("onDesktopSnapshotChanged", () => {
+  it("does not overlap a slow snapshot request", async () => {
+    let callback: (() => void) | undefined;
+    let resolveFirst: ((value: { json: () => Promise<object>; ok: boolean }) => void) | undefined;
+    vi.stubGlobal("window", {
+      location: { search: "?token=token&window=main", pathname: "/" },
+      setInterval: vi.fn((next: () => void) => {
+        callback = next;
+        return 1;
+      }),
+      clearInterval: vi.fn(),
+    });
+    const response = {
+      json: async () => ({ value: { host: { endpoints: [], windows: [] } } }),
+      ok: true,
+    };
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ json: () => Promise<object>; ok: boolean }>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValue(response);
+    vi.stubGlobal("fetch", fetch);
+
+    const stop = await desktopBridge.onDesktopSnapshotChanged(() => {});
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    callback?.();
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    resolveFirst?.(response);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    callback?.();
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    stop();
   });
 });
 

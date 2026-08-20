@@ -11,12 +11,20 @@ use crate::state::{AppState, EndpointRecord, snapshot_locked};
 
 pub fn initialize_window(state: &AppState, label: &str) -> AppResult<BootstrapPayload> {
     state.ensure_running()?;
+    state.register_window(label);
+    get_desktop_snapshot(state, label)
+}
+
+pub fn get_desktop_snapshot(state: &AppState, label: &str) -> AppResult<BootstrapPayload> {
+    state.ensure_running()?;
     let app_metadata = AppMetadataSnapshot {
         name: "DSH Desktop".to_owned(),
         version: env!("CARGO_PKG_VERSION").to_owned(),
         identifier: "io.github.leawind.dsh-desktop".to_owned(),
     };
-    let window = state.register_window(label);
+    let window = state
+        .window_snapshot(label)
+        .ok_or_else(|| AppError::new("window.error.notFound"))?;
     let settings = state
         .settings
         .read()
@@ -31,10 +39,6 @@ pub fn initialize_window(state: &AppState, label: &str) -> AppResult<BootstrapPa
         host,
         system_color_scheme: state.system_color_scheme(),
     })
-}
-
-pub fn get_host_snapshot(state: &AppState) -> HostSnapshot {
-    state.snapshot()
 }
 
 pub fn set_window_target(

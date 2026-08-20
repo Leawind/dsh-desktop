@@ -1,12 +1,17 @@
 use crate::model::SystemColorScheme;
+use crate::process_supervisor::ProcessSupervisor;
 
 #[cfg(target_os = "linux")]
-pub fn detect() -> Option<SystemColorScheme> {
-    let color_scheme = portal_color_scheme()
-        .or_else(|| gsettings("color-scheme").and_then(|value| parse_gnome_color_scheme(&value)));
+const SYSTEM_APPEARANCE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
+#[cfg(target_os = "linux")]
+pub fn detect(supervisor: &ProcessSupervisor) -> Option<SystemColorScheme> {
+    let color_scheme = portal_color_scheme(supervisor).or_else(|| {
+        gsettings(supervisor, "color-scheme").and_then(|value| parse_gnome_color_scheme(&value))
+    });
 
     color_scheme.or_else(|| {
-        gsettings("gtk-theme")
+        gsettings(supervisor, "gtk-theme")
             .or_else(|| std::env::var("GTK_THEME").ok())
             .filter(|theme| theme.to_ascii_lowercase().contains("dark"))
             .map(|_| SystemColorScheme::Dark)
@@ -14,39 +19,48 @@ pub fn detect() -> Option<SystemColorScheme> {
 }
 
 #[cfg(target_os = "linux")]
-fn portal_color_scheme() -> Option<SystemColorScheme> {
-    std::process::Command::new("gdbus")
-        .args([
-            "call",
-            "--session",
-            "--dest",
-            "org.freedesktop.portal.Desktop",
-            "--object-path",
-            "/org/freedesktop/portal/desktop",
-            "--method",
-            "org.freedesktop.portal.Settings.Read",
-            "org.freedesktop.appearance",
-            "color-scheme",
-        ])
-        .output()
-        .ok()
+fn portal_color_scheme(supervisor: &ProcessSupervisor) -> Option<SystemColorScheme> {
+    let mut command = std::process::Command::new("gdbus");
+    command.args([
+        "call",
+        "--session",
+        "--dest",
+        "org.freedesktop.portal.Desktop",
+        "--object-path",
+        "/org/freedesktop/portal/desktop",
+        "--method",
+        "org.freedesktop.portal.Settings.Read",
+        "org.freedesktop.appearance",
+        "color-scheme",
+    ]);
+    command_output(supervisor, &mut command)
         .filter(|output| output.status.success())
         .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
         .and_then(|value| parse_portal_color_scheme(&value))
 }
 
 #[cfg(target_os = "linux")]
-fn gsettings(key: &str) -> Option<String> {
-    std::process::Command::new("gsettings")
-        .args(["get", "org.gnome.desktop.interface", key])
-        .output()
-        .ok()
+fn gsettings(supervisor: &ProcessSupervisor, key: &str) -> Option<String> {
+    let mut command = std::process::Command::new("gsettings");
+    command.args(["get", "org.gnome.desktop.interface", key]);
+    command_output(supervisor, &mut command)
         .filter(|output| output.status.success())
         .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+#[cfg(target_os = "linux")]
+fn command_output(
+    supervisor: &ProcessSupervisor,
+    command: &mut std::process::Command,
+) -> Option<std::process::Output> {
+    supervisor
+        .output_with_timeout(command, SYSTEM_APPEARANCE_TIMEOUT)
+        .ok()
+        .flatten()
+}
+
 #[cfg(not(target_os = "linux"))]
-pub fn detect() -> Option<SystemColorScheme> {
+pub fn detect(_supervisor: &ProcessSupervisor) -> Option<SystemColorScheme> {
     None
 }
 
