@@ -23,6 +23,10 @@ const SHELL_PATH_TIMEOUT: Duration = Duration::from_secs(3);
 const MAX_LOG_LINES: usize = 400;
 const MAX_PROBE_BODY_BYTES: u64 = 1024 * 1024;
 const PATH_MARKER: &str = "__DSH_DESKTOP_PATH__";
+const DSH_IDENTITY_TITLE: &str = "<title>DeepSeek Harness</title>";
+const DSH_AUTH_CHALLENGE: &str = "dsh web authentication required";
+const LAUNCH_URL_LINE_PREFIX: &str = "dsh web: ";
+const LAUNCH_URL_GRACE: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProbeResult {
@@ -31,12 +35,32 @@ pub enum ProbeResult {
     OtherHttp,
 }
 
+#[derive(Default)]
+struct LaunchUrl {
+    seen: bool,
+    token: Option<String>,
+}
+
+fn parse_launch_url_line(line: &str) -> Option<LaunchUrl> {
+    let url_text = line.strip_prefix(LAUNCH_URL_LINE_PREFIX)?.trim();
+    let url_text = url_text.split_whitespace().next()?;
+    let url = url::Url::parse(url_text).ok()?;
+    Some(LaunchUrl {
+        seen: true,
+        token: url
+            .query_pairs()
+            .find(|(key, _)| key == "token")
+            .map(|(_, value)| value.into_owned()),
+    })
+}
+
 pub struct ManagedService {
     child: Child,
     process_lease: ProcessLease,
     pub executable: PathBuf,
     pub runtime_version: String,
     pub logs: Arc<Mutex<VecDeque<String>>>,
+    launch_url: Arc<Mutex<LaunchUrl>>,
     pub launch: ManagedLaunch,
 }
 
@@ -112,6 +136,15 @@ impl ManagedService {
             .map(|lines| lines.iter().cloned().collect())
             .unwrap_or_default()
     }
+
+    /// Launch token printed by `dsh web` once the Web UI is ready.
+    ///
+    /// Newer DSH versions guard the Web UI with browser token
+    /// authentication; the token is only distributed through this stdout
+    /// URL line and is required to authenticate the first frame load.
+    pub fn launch_token(&self) -> Option<String> {
+        self.launch_url.lock().ok()?.token.clone()
+    }
 }
 
 impl Drop for ManagedService {
@@ -130,7 +163,10 @@ pub fn probe(url: &str) -> ProbeResult {
         Err(_) if tcp_port_is_reachable(url) => return ProbeResult::OtherHttp,
         Err(_) => return ProbeResult::Unreachable,
     };
-    if !response.status().is_success() {
+    let status = response.status();
+    // Newer DSH versions answer anonymous probes with 401 and a stable
+    // challenge text instead of serving the identity page.
+    if !(status.is_success() || status.as_u16() == 401) {
         return ProbeResult::OtherHttp;
     }
     let mut body = String::new();
@@ -141,7 +177,11 @@ pub fn probe(url: &str) -> ProbeResult {
     {
         return ProbeResult::OtherHttp;
     }
-    if body.contains("<title>DeepSeek Harness</title>") {
+    classify_probe_response(status.as_u16(), &body)
+}
+
+fn classify_probe_response(status: u16, body: &str) -> ProbeResult {
+    if body.contains(DSH_IDENTITY_TITLE) || (status == 401 && body.contains(DSH_AUTH_CHALLENGE)) {
         ProbeResult::Dsh
     } else {
         ProbeResult::OtherHttp
@@ -352,15 +392,22 @@ pub fn start_launch(
     }
 
     let logs = Arc::new(Mutex::new(VecDeque::new()));
+    let launch_url = Arc::new(Mutex::new(LaunchUrl::default()));
     if let Some(stdout) = child.stdout.take() {
-        capture_output(stdout, "stdout", Arc::clone(&logs));
+        capture_output(
+            stdout,
+            "stdout",
+            Arc::clone(&logs),
+            Some(Arc::clone(&launch_url)),
+        );
     }
     if let Some(stderr) = child.stderr.take() {
-        capture_output(stderr, "stderr", Arc::clone(&logs));
+        capture_output(stderr, "stderr", Arc::clone(&logs), None);
     }
 
     let url = format!("http://127.0.0.1:{port}");
     let started_at = Instant::now();
+    let mut ready_at: Option<Instant> = None;
     loop {
         if !running.load(Ordering::Acquire) {
             terminate_child_tree(&mut child);
@@ -368,13 +415,25 @@ pub fn start_launch(
             return Err(host_shutting_down_error());
         }
         match probe(&url) {
-            ProbeResult::Dsh => break,
+            ProbeResult::Dsh => {
+                // Wait briefly for the launch URL line so the first frame
+                // load can already carry the authentication token. Older
+                // DSH versions never print a token and are covered by the
+                // grace period.
+                let line_seen = launch_url.lock().map(|launch| launch.seen).unwrap_or(false);
+                let waited = ready_at.get_or_insert_with(Instant::now).elapsed();
+                if line_seen || waited >= LAUNCH_URL_GRACE {
+                    break;
+                }
+            }
             ProbeResult::OtherHttp => {
                 terminate_child_tree(&mut child);
                 process_lease.release();
                 return Err(AppError::new("service.error.portOccupied").arg("port", port));
             }
-            ProbeResult::Unreachable => {}
+            ProbeResult::Unreachable => {
+                ready_at = None;
+            }
         }
 
         match child.try_wait() {
@@ -408,6 +467,7 @@ pub fn start_launch(
         executable: executable.clone(),
         runtime_version: runtime.runtime_version.clone(),
         logs,
+        launch_url,
         launch: launch.clone(),
     })
 }
@@ -466,9 +526,17 @@ fn capture_output(
     output: impl std::io::Read + Send + 'static,
     stream: &'static str,
     logs: Arc<Mutex<VecDeque<String>>>,
+    launch_url: Option<Arc<Mutex<LaunchUrl>>>,
 ) {
     thread::spawn(move || {
         for line in BufReader::new(output).lines().map_while(Result::ok) {
+            if let Some(launch_url) = launch_url.as_ref() {
+                if let Some(launch) = parse_launch_url_line(&line) {
+                    if let Ok(mut slot) = launch_url.lock() {
+                        *slot = launch;
+                    }
+                }
+            }
             if let Ok(mut lines) = logs.lock() {
                 lines.push_back(format!("[{stream}] {line}"));
                 while lines.len() > MAX_LOG_LINES {
@@ -646,9 +714,72 @@ mod tests {
     use crate::model::DshHome;
 
     use super::{
-        add_managed_web_arguments, apply_dsh_home, extract_marked_path, npx_package_argument,
-        supports_no_open_flag,
+        ProbeResult, add_managed_web_arguments, apply_dsh_home, classify_probe_response,
+        extract_marked_path, npx_package_argument, parse_launch_url_line, supports_no_open_flag,
     };
+
+    #[test]
+    fn classifies_the_legacy_identity_page_as_dsh() {
+        assert_eq!(
+            classify_probe_response(
+                200,
+                "<html><head><title>DeepSeek Harness</title></head></html>",
+            ),
+            ProbeResult::Dsh
+        );
+    }
+
+    #[test]
+    fn classifies_the_authentication_challenge_as_dsh() {
+        assert_eq!(
+            classify_probe_response(
+                401,
+                "dsh web authentication required; reopen the URL printed by dsh web.\n",
+            ),
+            ProbeResult::Dsh
+        );
+    }
+
+    #[test]
+    fn classifies_foreign_http_responses_as_other_http() {
+        assert_eq!(
+            classify_probe_response(200, "<html><head><title>Router</title></head></html>"),
+            ProbeResult::OtherHttp
+        );
+        assert_eq!(
+            classify_probe_response(401, "unauthorized"),
+            ProbeResult::OtherHttp
+        );
+        assert_eq!(classify_probe_response(403, ""), ProbeResult::OtherHttp);
+        assert_eq!(
+            classify_probe_response(503, "dsh web authentication required"),
+            ProbeResult::OtherHttp
+        );
+    }
+
+    #[test]
+    fn extracts_the_launch_token_from_the_url_line() {
+        let launch = parse_launch_url_line(
+            "dsh web: http://127.0.0.1:3080/?token=abc123 (LAN: http://192.168.0.2:3080/?token=abc123)",
+        )
+        .expect("recognizes the launch url line");
+        assert!(launch.seen);
+        assert_eq!(launch.token.as_deref(), Some("abc123"));
+    }
+
+    #[test]
+    fn recognizes_a_launch_url_line_without_a_token() {
+        let launch = parse_launch_url_line("dsh web: http://127.0.0.1:3080/")
+            .expect("recognizes the launch url line");
+        assert!(launch.seen);
+        assert_eq!(launch.token, None);
+    }
+
+    #[test]
+    fn ignores_lines_that_are_not_the_launch_url() {
+        assert!(parse_launch_url_line("dsh: starting profile web").is_none());
+        assert!(parse_launch_url_line("[stderr] dsh web: not a real url").is_none());
+    }
 
     #[test]
     fn extracts_path_after_shell_startup_output() {

@@ -156,6 +156,7 @@ pub enum ServiceStatus {
 pub struct WindowSnapshot {
     pub label: String,
     pub url: String,
+    pub frame_url: String,
     pub status: ServiceStatus,
 }
 
@@ -426,6 +427,7 @@ mod tests {
             window: WindowSnapshot {
                 label: "main".to_owned(),
                 url: "http://127.0.0.1:3080".to_owned(),
+                frame_url: "http://127.0.0.1:3080/?token=launch-token".to_owned(),
                 status: ServiceStatus::Running,
             },
             host: HostSnapshot {
@@ -479,6 +481,7 @@ mod tests {
                 "window": {
                     "label": "main",
                     "url": "http://127.0.0.1:3080",
+                    "frameUrl": "http://127.0.0.1:3080/?token=launch-token",
                     "status": "running",
                 },
                 "host": {

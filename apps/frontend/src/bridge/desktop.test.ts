@@ -34,6 +34,7 @@ const desktopSnapshot = {
   window: {
     label: "main",
     url: "http://127.0.0.1:3080",
+    frameUrl: "http://127.0.0.1:3080/?token=launch-token",
     status: "running",
   },
   host: {

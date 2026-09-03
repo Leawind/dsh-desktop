@@ -20,7 +20,7 @@ import type {
 const emptyHost: HostSnapshot = { windows: [], endpoints: [] };
 
 export function resolveFrameUrl(window: WindowSnapshot | null, status: ServiceStatus): string {
-  return status === "running" && window ? window.url : "about:blank";
+  return status === "running" && window ? window.frameUrl : "about:blank";
 }
 
 export function resolveRefreshAction(status: ServiceStatus): "refresh" | "retry" | null {

@@ -189,8 +189,19 @@ Endpoint Registry 只在当前 Host 进程生命周期内存在，不持久化�
 
 1. DSH 子进程仍在运行；
 2. DSH 按设定的回环地址和端口监听；
-3. HTTP 页面能够访问；
-4. 启动过程未超过超时时间。
+3. HTTP 响应携带可识别的 DSH 身份标记（成功页面或认证质询）；
+4. 启动过程未超过超时时间；
+5. `dsh web` 的 stdout URL 行已经出现，或在短暂宽限后跳过。
+
+### 浏览器认证适配
+
+自 DSH 0.1.2 起，Web UI 使用浏览器 token 认证：进程在 stdout 的 `dsh web: <URL>` 行中分发一次性 launch token，token 只能用于访问根路径并换取 `HttpOnly; SameSite=Strict` 的会话 cookie，所有 API、事件流和 WebSocket 都要求该 cookie。Desktop 尊重该设计并做最小适配：
+
+- Managed Process 捕获 stdout URL 行并保存当次进程的 launch token；
+- 就绪探测把匿名根请求的 401 认证质询文本识别为 DSH 身份；
+- 窗口快照提供附加 `?token=` 的 frame URL，iframe 首次导航即完成认证，之后由会话 cookie 维持登录状态；
+- 顶层页面与受管服务都由 `127.0.0.1` 提供，same-site 判定不含端口，Strict cookie 在 iframe 内正常携带；开发模式使用 Vite 的 `127.0.0.1` 地址；
+- 未打印 token 的旧版本 DSH 退化为使用原始地址的 frame URL。
 
 ### 网络与代理策略
 
@@ -548,7 +559,7 @@ DSH Desktop 使用的上游行为、破坏影响和验证方式集中记录在 [
 - `dsh web --help` 成功；
 - `dsh web --port 0` 成功；
 - 能够识别启动 URL；
-- Web 首页返回成功响应；
+- Web 首页返回成功响应或认证质询；
 - DSH Web UI 能在系统 WebView 的 iframe 中加载；
 - 浏览器与 DSH 的基本通信正常；
 - 能够选择工作区并创建会话；

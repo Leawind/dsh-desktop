@@ -198,6 +198,7 @@ impl AppState {
         WindowSnapshot {
             label: label.to_owned(),
             url: window.url.clone(),
+            frame_url: window.url.clone(),
             status: window.status,
         }
     }
@@ -653,8 +654,20 @@ impl HostState {
         self.windows.get(label).map(|window| WindowSnapshot {
             label: label.to_owned(),
             url: window.url.clone(),
+            frame_url: self.authenticated_url(&window.url),
             status: window.status,
         })
+    }
+
+    /// URL the window iframe should load. Newer DSH versions require the
+    /// per-process launch token to authenticate the first page load.
+    fn authenticated_url(&self, url: &str) -> String {
+        self.endpoints
+            .get(url)
+            .and_then(|endpoint| endpoint.process.as_ref())
+            .and_then(ManagedService::launch_token)
+            .map(|token| format!("{url}/?token={token}"))
+            .unwrap_or_else(|| url.to_owned())
     }
 }
 
@@ -665,6 +678,7 @@ fn snapshot_locked(host: &HostState) -> HostSnapshot {
         .map(|(label, window)| WindowSnapshot {
             label: label.clone(),
             url: window.url.clone(),
+            frame_url: host.authenticated_url(&window.url),
             status: window.status,
         })
         .collect::<Vec<_>>();

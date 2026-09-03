@@ -7,6 +7,7 @@ import { resolveFrameUrl, resolveRefreshAction } from "./useDesktopApp";
 const window: WindowSnapshot = {
   label: "main",
   url: "http://127.0.0.1:3080",
+  frameUrl: "http://127.0.0.1:3080/?token=launch-token",
   status: "running",
 };
 
@@ -17,8 +18,13 @@ describe("resolveFrameUrl", () => {
     expect(resolveFrameUrl(window, "failed")).toBe("about:blank");
   });
 
-  it("loads the window URL after the DSH service is running", () => {
-    expect(resolveFrameUrl(window, "running")).toBe(window.url);
+  it("loads the authenticated frame URL after the DSH service is running", () => {
+    expect(resolveFrameUrl(window, "running")).toBe(window.frameUrl);
+  });
+
+  it("falls back to the plain URL when no launch token is present", () => {
+    const unauthenticated: WindowSnapshot = { ...window, frameUrl: window.url };
+    expect(resolveFrameUrl(unauthenticated, "running")).toBe(window.url);
   });
 });
 

@@ -64,6 +64,7 @@ export interface GlobalSettingsPatch {
 export interface WindowSnapshot {
   label: string;
   url: string;
+  frameUrl: string;
   status: ServiceStatus;
 }
 
