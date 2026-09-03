@@ -2,8 +2,8 @@ use crate::endpoint::{dsh_url, normalize_dsh_url};
 use crate::error::{AppError, AppResult};
 use crate::model::{
     AppMetadataSnapshot, BootstrapPayload, GlobalSettings, GlobalSettingsPatch, HostSnapshot,
-    LOCAL_DSH_HOST, RuntimeUpdateResult, RuntimeUpdateSnapshot, ServiceStatus,
-    StartupAttemptFailure, WindowSnapshot, WindowStartupAttempt, WindowStartupResult,
+    LOCAL_DSH_HOST, RuntimeUpdateResult, RuntimeUpdateSnapshot, StartupAttemptFailure,
+    WindowStartupAttempt, WindowStartupResult,
 };
 use crate::service::{self, ProbeResult};
 use crate::state::AppState;
@@ -34,21 +34,6 @@ pub fn get_desktop_snapshot(state: &AppState, label: &str) -> AppResult<Bootstra
         host,
         system_color_scheme: state.system_color_scheme(),
     })
-}
-
-pub fn set_window_target(
-    window_label: &str,
-    url: String,
-    state: &AppState,
-) -> AppResult<WindowSnapshot> {
-    state.ensure_running()?;
-    let url = normalize_dsh_url(&url)?;
-    let probe = service::probe(&url);
-    let status = match probe {
-        ProbeResult::Dsh => ServiceStatus::Running,
-        ProbeResult::Unreachable | ProbeResult::OtherHttp => ServiceStatus::Unreachable,
-    };
-    state.assign_external_endpoint(window_label, &url, status, probe == ProbeResult::Dsh)
 }
 
 pub fn start_window(state: &AppState, window_label: &str) -> AppResult<WindowStartupResult> {
@@ -107,10 +92,7 @@ fn run_attempt(
     resolved_runtime: &mut Option<AppResult<service::ResolvedDshRuntime>>,
 ) -> AppResult<()> {
     match attempt {
-        WindowStartupAttempt::KnownServices => connect_known_service(state, window_label),
-        WindowStartupAttempt::ConnectFixed { host, port } => {
-            connect_endpoint(state, window_label, &dsh_url(host, *port))
-        }
+        WindowStartupAttempt::KnownServices => attach_known_service(state, window_label),
         WindowStartupAttempt::StartFixed { host, port } => {
             start_fixed(state, window_label, settings, host, *port, resolved_runtime)
         }
@@ -130,7 +112,7 @@ fn run_attempt(
     }
 }
 
-fn connect_known_service(state: &AppState, window_label: &str) -> AppResult<()> {
+fn attach_known_service(state: &AppState, window_label: &str) -> AppResult<()> {
     let urls = state.known_endpoint_urls()?;
     if urls.is_empty() {
         return Err(AppError::new("service.error.noKnownServices"));
@@ -138,28 +120,16 @@ fn connect_known_service(state: &AppState, window_label: &str) -> AppResult<()> 
 
     let mut errors = Vec::new();
     for url in urls {
-        match connect_endpoint(state, window_label, &url) {
+        if service::probe(&url) != ProbeResult::Dsh {
+            errors.push(format!("{url}: unreachable"));
+            continue;
+        }
+        match state.attach_window_to_endpoint(window_label, &url) {
             Ok(()) => return Ok(()),
             Err(error) => errors.push(format!("{url}: {}", error.code)),
         }
     }
     Err(AppError::new("service.error.knownServicesUnavailable").technical(errors.join("\n")))
-}
-
-fn connect_endpoint(state: &AppState, window_label: &str, url: &str) -> AppResult<()> {
-    let probe = service::probe(url);
-    let status = if probe == ProbeResult::Dsh {
-        ServiceStatus::Running
-    } else {
-        ServiceStatus::Unreachable
-    };
-    state.assign_external_endpoint(window_label, url, status, probe == ProbeResult::Dsh)?;
-    let result = match probe {
-        ProbeResult::Dsh => Ok(()),
-        ProbeResult::Unreachable => Err(AppError::new("service.error.unreachable").arg("url", url)),
-        ProbeResult::OtherHttp => Err(AppError::new("service.error.notDsh").arg("url", url)),
-    };
-    result
 }
 
 fn start_fixed(

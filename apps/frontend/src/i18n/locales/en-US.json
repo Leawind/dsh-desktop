@@ -26,16 +26,10 @@
   },
   "window": {
     "current": "Current window",
-    "url": "DSH URL",
-    "urlHint": "Only HTTP and HTTPS addresses are supported.",
-    "urlPlaceholder": "host:port",
-    "noTarget": "No DSH URL assigned",
+    "noTarget": "No DSH service assigned",
     "refresh": "Refresh current window",
     "settings": "Open settings",
     "error": {
-      "invalidUrl": "The URL is invalid.",
-      "unsupportedUrl": "Only HTTP and HTTPS URLs are supported.",
-      "urlCredentials": "The URL cannot contain a username or password.",
       "createFailed": "The new window could not be created.",
       "notFound": "The current window could not be found.",
       "focusFailed": "The window could not be focused.",
@@ -88,7 +82,6 @@
       "dragHandle": "Drag to reorder",
       "type": {
         "known-services": "Connect to a known service",
-        "connect-fixed": "Connect to a specific IP and port",
         "start-fixed": "Start a service on a fixed port",
         "start-range": "Start a service in a port range"
       }
@@ -108,8 +101,6 @@
     }
   },
   "service": {
-    "external": "External",
-    "managed": "Managed by the app",
     "stop": "Stop",
     "restart": "Restart",
     "logs": "Recent logs",
@@ -136,9 +127,7 @@
       "builtInUnavailable": "This distribution file does not include a built-in DSH runtime.",
       "noKnownServices": "No DSH service has been connected successfully during this run.",
       "knownServicesUnavailable": "All known DSH services are currently unavailable.",
-      "unreachable": "Unable to reach {url}.",
       "connectionLost": "The DSH service for this window at {url} is no longer available.",
-      "notDsh": "{url} is reachable, but it is not a supported DSH service.",
       "noFreePort": "No available port was found between {startPort} and {endPort}.",
       "unsupportedBindAddress": "The current DSH version cannot start a service on {host}.",
       "notManaged": "{url} is not managed by this app.",

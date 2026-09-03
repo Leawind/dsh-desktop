@@ -6,7 +6,6 @@ import type {
   HostSnapshot,
   RuntimeUpdateResult,
   RuntimeUpdateSnapshot,
-  WindowSnapshot,
   WindowStartupResult,
 } from "@/types/desktop";
 
@@ -171,7 +170,6 @@ export const desktopBridge = {
   initializeWindow: (): Promise<BootstrapPayload> => command("initialize_window"),
   getDesktopSnapshot: (): Promise<BootstrapPayload> => command("get_desktop_snapshot"),
   startWindow: (): Promise<WindowStartupResult> => command("start_window"),
-  setWindowTarget: (url: string): Promise<WindowSnapshot> => command("set_window_target", { url }),
   stopService: (url: string): Promise<HostSnapshot> => command("stop_service", { url }),
   restartService: (url: string): Promise<HostSnapshot> => command("restart_service", { url }),
   checkBuiltInRuntimeUpdate: (): Promise<RuntimeUpdateSnapshot> =>

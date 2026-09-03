@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 
 use crate::error::{AppError, AppResult};
 use crate::model::{
-    DistributionVariant, DshHome, EndpointOwnership, EndpointSnapshot, GlobalSettings,
-    GlobalSettingsPatch, HostSnapshot, ServiceStatus, SystemColorScheme, WindowSnapshot,
+    DistributionVariant, DshHome, EndpointSnapshot, GlobalSettings, GlobalSettingsPatch,
+    HostSnapshot, ServiceStatus, SystemColorScheme, WindowSnapshot,
 };
 use crate::process_supervisor::ProcessSupervisor;
 use crate::runtime::RuntimeManager;
@@ -50,7 +50,6 @@ struct EndpointRecord {
     runtime_version: Option<String>,
     last_error: Option<String>,
     last_successful_connection: Option<u64>,
-    managed: bool,
     launch: Option<crate::service::ManagedLaunch>,
     logs: Vec<String>,
     idle_since: Option<Instant>,
@@ -79,22 +78,6 @@ impl BuiltInRuntimeUpdateTarget {
     pub fn stop(&mut self) {
         if let Some(process) = self.process.as_mut() {
             process.stop();
-        }
-    }
-}
-
-impl EndpointRecord {
-    fn external(status: ServiceStatus) -> Self {
-        Self {
-            status,
-            process: None,
-            runtime_version: None,
-            last_error: None,
-            last_successful_connection: None,
-            managed: false,
-            launch: None,
-            logs: Vec::new(),
-            idle_since: None,
         }
     }
 }
@@ -235,29 +218,18 @@ impl AppState {
         Ok(self.host_state()?.known_endpoint_urls())
     }
 
-    pub fn assign_external_endpoint(
-        &self,
-        window_label: &str,
-        url: &str,
-        status: ServiceStatus,
-        record_connection: bool,
-    ) -> AppResult<WindowSnapshot> {
+    pub fn attach_window_to_endpoint(&self, window_label: &str, url: &str) -> AppResult<()> {
         let idle_timeout = self.managed_service_idle_timeout_seconds();
         let mut host = self.host_state()?;
-        if !host.assign_window(window_label, url, status) {
+        if !host.endpoints.contains_key(url) {
+            return Err(AppError::new("service.error.notManaged").arg("url", url));
+        }
+        if !host.assign_window(window_label, url, ServiceStatus::Running) {
             return Err(AppError::new("window.error.notFound"));
         }
-        let endpoint = host
-            .endpoints
-            .entry(url.to_owned())
-            .or_insert_with(|| EndpointRecord::external(status));
-        endpoint.status = status;
-        if record_connection {
-            host.record_connection(url);
-        }
+        host.record_connection(url);
         host.reap_idle_services(idle_timeout);
-        host.window_snapshot(window_label)
-            .ok_or_else(|| AppError::new("window.error.notFound"))
+        Ok(())
     }
 
     pub fn mark_window_startup_failed(&self, window_label: &str) -> AppResult<()> {
@@ -299,7 +271,6 @@ impl AppState {
                 runtime_version: Some(runtime_version),
                 last_error: None,
                 last_successful_connection: None,
-                managed: true,
                 launch: Some(launch),
                 logs: Vec::new(),
                 idle_since: None,
@@ -315,7 +286,6 @@ impl AppState {
         let endpoint = host
             .endpoints
             .get_mut(url)
-            .filter(|endpoint| endpoint.managed)
             .ok_or_else(|| AppError::new("service.error.notManaged").arg("url", url))?;
         let process = endpoint
             .process
@@ -350,7 +320,6 @@ impl AppState {
         let endpoint = host
             .endpoints
             .get_mut(url)
-            .filter(|endpoint| endpoint.managed)
             .ok_or_else(|| AppError::new("service.error.notManaged").arg("url", url))?;
         let launch = endpoint
             .launch
@@ -671,9 +640,7 @@ impl HostState {
         let used = self.windows.values().any(|window| window.url == url);
         if !used {
             if let Some(endpoint) = self.endpoints.get_mut(url) {
-                if endpoint.managed {
-                    endpoint.idle_since.get_or_insert_with(Instant::now);
-                }
+                endpoint.idle_since.get_or_insert_with(Instant::now);
             }
         }
     }
@@ -717,11 +684,6 @@ fn snapshot_locked(host: &HostState) -> HostSnapshot {
                 EndpointSnapshot {
                     url: url.clone(),
                     status: endpoint.status,
-                    ownership: if endpoint.managed {
-                        EndpointOwnership::Managed
-                    } else {
-                        EndpointOwnership::External
-                    },
                     connected_windows,
                     pid: endpoint.process.as_ref().map(ManagedService::pid),
                     runtime_version: endpoint.runtime_version.clone(),
@@ -729,8 +691,7 @@ fn snapshot_locked(host: &HostState) -> HostSnapshot {
                     known: endpoint.last_successful_connection.is_some(),
                     can_stop: endpoint.process.is_some()
                         && matches!(endpoint.status, ServiceStatus::Running),
-                    can_restart: endpoint.managed
-                        && endpoint.launch.is_some()
+                    can_restart: endpoint.launch.is_some()
                         && !matches!(
                             endpoint.status,
                             ServiceStatus::Starting
@@ -815,6 +776,19 @@ fn reap_idle_services(host: &mut HostState, timeout_seconds: u64) {
 mod tests {
     use super::*;
 
+    fn endpoint_record(status: ServiceStatus) -> EndpointRecord {
+        EndpointRecord {
+            status,
+            process: None,
+            runtime_version: None,
+            last_error: None,
+            last_successful_connection: None,
+            launch: None,
+            logs: Vec::new(),
+            idle_since: None,
+        }
+    }
+
     #[test]
     fn known_endpoints_follow_most_recent_connection_order() {
         let mut host = HostState {
@@ -822,11 +796,11 @@ mod tests {
             endpoints: HashMap::from([
                 (
                     "http://127.0.0.1:3080".to_owned(),
-                    EndpointRecord::external(ServiceStatus::Running),
+                    endpoint_record(ServiceStatus::Running),
                 ),
                 (
                     "http://127.0.0.1:3081".to_owned(),
-                    EndpointRecord::external(ServiceStatus::Running),
+                    endpoint_record(ServiceStatus::Running),
                 ),
             ]),
             next_connection_order: 1,
@@ -841,8 +815,7 @@ mod tests {
 
     #[test]
     fn zero_idle_timeout_reaps_an_idle_endpoint_immediately() {
-        let mut endpoint = EndpointRecord::external(ServiceStatus::Running);
-        endpoint.managed = true;
+        let mut endpoint = endpoint_record(ServiceStatus::Running);
         endpoint.idle_since = Some(Instant::now());
         let mut host = HostState {
             windows: HashMap::new(),
@@ -861,7 +834,33 @@ mod tests {
     }
 
     #[test]
-    fn assigning_an_external_endpoint_updates_its_window_and_snapshot_together() {
+    fn attaching_a_window_records_the_connection_and_updates_the_snapshot() {
+        let state = AppState::new(
+            PathBuf::from("config"),
+            GlobalSettings::default(),
+            RuntimeManager::new(PathBuf::from("seed"), PathBuf::from("data")),
+        );
+        state.register_window("main");
+        state.host.lock().expect("host state").endpoints.insert(
+            "http://127.0.0.1:3080".to_owned(),
+            endpoint_record(ServiceStatus::Unreachable),
+        );
+
+        state
+            .attach_window_to_endpoint("main", "http://127.0.0.1:3080")
+            .expect("known endpoint accepts the window");
+
+        let snapshot = state.snapshot();
+        assert_eq!(snapshot.windows.len(), 1);
+        assert_eq!(snapshot.windows[0].url, "http://127.0.0.1:3080");
+        assert_eq!(snapshot.windows[0].status, ServiceStatus::Running);
+        assert_eq!(snapshot.endpoints.len(), 1);
+        assert_eq!(snapshot.endpoints[0].status, ServiceStatus::Running);
+        assert!(snapshot.endpoints[0].known);
+    }
+
+    #[test]
+    fn attach_rejects_urls_without_a_registered_endpoint() {
         let state = AppState::new(
             PathBuf::from("config"),
             GlobalSettings::default(),
@@ -869,33 +868,21 @@ mod tests {
         );
         state.register_window("main");
 
-        let window = state
-            .assign_external_endpoint(
-                "main",
-                "http://127.0.0.1:3080",
-                ServiceStatus::Running,
-                true,
-            )
-            .expect("registered window accepts an endpoint");
+        let error = state
+            .attach_window_to_endpoint("main", "http://127.0.0.1:3080")
+            .expect_err("unknown endpoints cannot be attached");
 
-        assert_eq!(window.status, ServiceStatus::Running);
-        let snapshot = state.snapshot();
-        assert_eq!(snapshot.windows.len(), 1);
-        assert_eq!(snapshot.windows[0].label, window.label);
-        assert_eq!(snapshot.windows[0].url, window.url);
-        assert_eq!(snapshot.windows[0].status, window.status);
-        assert_eq!(snapshot.endpoints.len(), 1);
-        assert_eq!(snapshot.endpoints[0].status, ServiceStatus::Running);
-        assert!(snapshot.endpoints[0].known);
+        assert_eq!(error.code, "service.error.notManaged");
     }
 
     #[test]
     fn does_not_count_a_reaped_managed_endpoint_as_a_running_service() {
-        let mut endpoint = EndpointRecord::external(ServiceStatus::Unreachable);
-        endpoint.managed = true;
         let host = HostState {
             windows: HashMap::new(),
-            endpoints: HashMap::from([("http://127.0.0.1:3080".to_owned(), endpoint)]),
+            endpoints: HashMap::from([(
+                "http://127.0.0.1:3080".to_owned(),
+                endpoint_record(ServiceStatus::Unreachable),
+            )]),
             next_connection_order: 1,
         };
 

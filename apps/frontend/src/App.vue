@@ -89,7 +89,6 @@ onMounted(() => {
       :message="statusMessage()"
       @settings="desktop.settingsOpen.value = true"
       @refresh="desktop.refreshCurrentWindow"
-      @set-target="desktop.setTarget"
     />
   </div>
 </template>

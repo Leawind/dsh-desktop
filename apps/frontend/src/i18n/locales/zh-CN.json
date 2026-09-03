@@ -26,16 +26,10 @@
   },
   "window": {
     "current": "当前窗口",
-    "url": "DSH URL",
-    "urlHint": "仅支持 HTTP 和 HTTPS 地址。",
-    "urlPlaceholder": "host:port",
-    "noTarget": "尚未分配 DSH URL",
+    "noTarget": "尚未分配 DSH 服务",
     "refresh": "刷新当前窗口",
     "settings": "打开设置",
     "error": {
-      "invalidUrl": "URL 格式无效。",
-      "unsupportedUrl": "仅支持 HTTP 和 HTTPS URL。",
-      "urlCredentials": "URL 中不能包含用户名或密码。",
       "createFailed": "无法创建新窗口。",
       "notFound": "找不到当前窗口。",
       "focusFailed": "无法聚焦窗口。",
@@ -88,7 +82,6 @@
       "dragHandle": "拖拽以调整顺序",
       "type": {
         "known-services": "连接已知服务",
-        "connect-fixed": "连接指定 IP 和端口",
         "start-fixed": "在指定端口启动服务",
         "start-range": "在端口范围内启动服务"
       }
@@ -108,8 +101,6 @@
     }
   },
   "service": {
-    "external": "外部",
-    "managed": "由应用管理",
     "stop": "停止",
     "restart": "重启",
     "logs": "最近日志",
@@ -136,9 +127,7 @@
       "builtInUnavailable": "当前发行文件不包含内置 DSH。",
       "noKnownServices": "运行期间还没有成功连接过任何 DSH 服务。",
       "knownServicesUnavailable": "已知的 DSH 服务当前均不可用。",
-      "unreachable": "无法访问 {url}。",
       "connectionLost": "当前窗口对应的 DSH 服务 {url} 已不可用。",
-      "notDsh": "{url} 可访问，但它不是受支持的 DSH 服务。",
       "noFreePort": "端口范围 {startPort}–{endPort} 中没有可用端口。",
       "unsupportedBindAddress": "当前 DSH 版本不支持在 {host} 上启动服务。",
       "notManaged": "{url} 不是由应用管理的服务。",

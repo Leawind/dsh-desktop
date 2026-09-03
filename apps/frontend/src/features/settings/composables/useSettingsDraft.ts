@@ -99,7 +99,6 @@ export function useSettingsDraft(
   ]);
   const attemptOptions = computed(() => [
     { value: "known-services", label: t("settings.attempt.type.known-services") },
-    { value: "connect-fixed", label: t("settings.attempt.type.connect-fixed") },
     { value: "start-fixed", label: t("settings.attempt.type.start-fixed") },
     { value: "start-range", label: t("settings.attempt.type.start-range") },
   ]);

@@ -42,7 +42,6 @@ const desktopSnapshot = {
       {
         url: "http://127.0.0.1:3080",
         status: "running",
-        ownership: "managed",
         connectedWindows: 1,
         pid: 42,
         runtimeVersion: "0.1.0",

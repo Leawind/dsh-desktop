@@ -41,7 +41,6 @@ export function useDesktopApp() {
     dshHome: { type: "environment" },
     windowStartupAttempts: [
       { type: "known-services" },
-      { type: "connect-fixed", host: "127.0.0.1", port: 3080 },
       { type: "start-range", host: "127.0.0.1", startPort: 3080, endPort: 3090 },
     ],
     managedServiceIdleTimeoutSeconds: 0,
@@ -76,20 +75,6 @@ export function useDesktopApp() {
     } catch (cause) {
       error.value = cause as AppError;
       startupStatus.value = "failed";
-    }
-  }
-
-  async function setTarget(url: string): Promise<void> {
-    error.value = null;
-    try {
-      currentWindow.value = await desktopBridge.setWindowTarget(url);
-      frameRevision.value += 1;
-      startupStatus.value = currentWindow.value.status;
-      if (currentWindow.value.status !== "running") {
-        error.value = { code: "service.error.unreachable", args: { url } };
-      }
-    } catch (cause) {
-      error.value = cause as AppError;
     }
   }
 
@@ -229,7 +214,6 @@ export function useDesktopApp() {
     frameUrl,
     refreshAction,
     initialize,
-    setTarget,
     retryStartup,
     refreshCurrentWindow,
     saveGlobalSettings,

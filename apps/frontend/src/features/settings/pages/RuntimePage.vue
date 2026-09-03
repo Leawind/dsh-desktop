@@ -27,10 +27,7 @@ const updating = ref(false);
 const canUpdateBuiltIn = computed(() => props.distribution.variant === "bundled");
 
 function endpointHint(endpoint: HostSnapshot["endpoints"][number]): string {
-  const details = [
-    t(`service.${endpoint.ownership}`),
-    t("service.windows", endpoint.connectedWindows),
-  ];
+  const details = [t("service.windows", endpoint.connectedWindows)];
   if (endpoint.runtimeVersion) details.push(`DSH ${endpoint.runtimeVersion}`);
   if (endpoint.pid) details.push(`PID ${endpoint.pid}`);
   return details.join(" · ");
@@ -139,7 +136,6 @@ async function updateRuntime(): Promise<void> {
             {{ $t(`service.status.${endpoint.status}`) }}
           </UiStatus>
           <UiButton
-            v-if="endpoint.ownership === 'managed'"
             size="small"
             :disabled="!endpoint.canRestart"
             @click="$emit('restartService', endpoint.url)"
@@ -147,7 +143,6 @@ async function updateRuntime(): Promise<void> {
             {{ $t("service.restart") }}
           </UiButton>
           <UiButton
-            v-if="endpoint.ownership === 'managed'"
             variant="ghost"
             size="small"
             :disabled="!endpoint.canStop"

@@ -87,8 +87,7 @@ pub fn validate(
     for attempt in &mut settings.window_startup_attempts {
         match attempt {
             WindowStartupAttempt::KnownServices => {}
-            WindowStartupAttempt::ConnectFixed { host, port }
-            | WindowStartupAttempt::StartFixed { host, port } => {
+            WindowStartupAttempt::StartFixed { host, port } => {
                 validate_host(host)?;
                 validate_port(*port)?;
             }

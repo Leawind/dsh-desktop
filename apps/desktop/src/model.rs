@@ -87,10 +87,6 @@ impl GlobalSettings {
 pub fn default_window_startup_attempts() -> Vec<WindowStartupAttempt> {
     vec![
         WindowStartupAttempt::KnownServices,
-        WindowStartupAttempt::ConnectFixed {
-            host: LOCAL_DSH_HOST.to_owned(),
-            port: DEFAULT_DSH_PORT,
-        },
         WindowStartupAttempt::StartRange {
             host: LOCAL_DSH_HOST.to_owned(),
             start_port: DEFAULT_DSH_PORT,
@@ -124,10 +120,6 @@ pub enum DshHome {
 )]
 pub enum WindowStartupAttempt {
     KnownServices,
-    ConnectFixed {
-        host: String,
-        port: u16,
-    },
     StartFixed {
         host: String,
         port: u16,
@@ -172,7 +164,6 @@ pub struct WindowSnapshot {
 pub struct EndpointSnapshot {
     pub url: String,
     pub status: ServiceStatus,
-    pub ownership: EndpointOwnership,
     pub connected_windows: usize,
     pub pid: Option<u32>,
     pub runtime_version: Option<String>,
@@ -181,13 +172,6 @@ pub struct EndpointSnapshot {
     pub can_stop: bool,
     pub can_restart: bool,
     pub logs: Vec<String>,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum EndpointOwnership {
-    External,
-    Managed,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -315,10 +299,6 @@ mod tests {
             default_window_startup_attempts(),
             vec![
                 WindowStartupAttempt::KnownServices,
-                WindowStartupAttempt::ConnectFixed {
-                    host: "127.0.0.1".to_owned(),
-                    port: 3080,
-                },
                 WindowStartupAttempt::StartRange {
                     host: "127.0.0.1".to_owned(),
                     start_port: 3080,
@@ -453,7 +433,6 @@ mod tests {
                 endpoints: vec![EndpointSnapshot {
                     url: "http://127.0.0.1:3080".to_owned(),
                     status: ServiceStatus::Running,
-                    ownership: EndpointOwnership::Managed,
                     connected_windows: 1,
                     pid: Some(42),
                     runtime_version: Some("0.1.0".to_owned()),
@@ -507,7 +486,6 @@ mod tests {
                     "endpoints": [{
                         "url": "http://127.0.0.1:3080",
                         "status": "running",
-                        "ownership": "managed",
                         "connectedWindows": 1,
                         "pid": 42,
                         "runtimeVersion": "0.1.0",

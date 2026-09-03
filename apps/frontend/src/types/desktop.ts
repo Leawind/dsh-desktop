@@ -3,8 +3,6 @@ export type AppLocale = "zh-CN" | "en-US";
 export type ServiceStatus =
   "unreachable" | "starting" | "stopping" | "restarting" | "updating" | "running" | "failed";
 
-export type EndpointOwnership = "external" | "managed";
-
 export type DistributionVariant = "bundled" | "slim";
 
 export type SystemColorScheme = "light" | "dark";
@@ -39,7 +37,6 @@ export type DshHome = { type: "environment" } | { type: "custom"; path: string }
 
 export type WindowStartupAttempt =
   | { type: "known-services" }
-  | { type: "connect-fixed"; host: string; port: number }
   | { type: "start-fixed"; host: string; port: number }
   | {
       type: "start-range";
@@ -73,7 +70,6 @@ export interface WindowSnapshot {
 export interface EndpointSnapshot {
   url: string;
   status: ServiceStatus;
-  ownership: EndpointOwnership;
   connectedWindows: number;
   pid: number | null;
   runtimeVersion: string | null;

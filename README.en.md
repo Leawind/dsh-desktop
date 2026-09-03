@@ -18,8 +18,8 @@ A lightweight cross-platform desktop wrapper for [DeepSeek Harness (DSH)](https:
 ## Why This?
 
 - **Cross‑platform** — Provides installers and portable packages for Windows, Linux, and macOS.
-- **Lightweight distribution** — The `slim` variant is only ~7–10 MB, ideal if you already have a DSH environment or only need to connect to a remote service.
-- **Flexible DSH sources** — Choose from bundled runtime, system `dsh`, custom path, npx launcher, or direct connection to an existing DSH service.
+- **Lightweight distribution** — The `slim` variant is only ~7–10 MB, ideal if you already have a DSH environment.
+- **Flexible DSH sources** — Choose from bundled runtime, system `dsh`, custom path, or npx launcher.
 
 ## Variants
 
@@ -55,7 +55,6 @@ You can run DSH in any of the following ways:
   ```
 - **Custom executable or script** — manually specify the DSH launcher path.
 - **npx launcher** — requires Node.js; automatically downloads the specified DSH version on first run.
-- **Connect to an existing DSH web service** — enter the service URL directly; no local process is started.
 
 The `bundled` variant uses the bundled runtime by default but supports all other methods as well. The `slim` variant does not include a bundled runtime, but all other methods work.
 

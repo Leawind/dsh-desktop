@@ -38,7 +38,6 @@ function changeAttemptType(index: number, type: string): void {
   const host = "127.0.0.1";
   const replacements: Record<WindowStartupAttempt["type"], WindowStartupAttempt> = {
     "known-services": { type: "known-services" },
-    "connect-fixed": { type: "connect-fixed", host, port: 3080 },
     "start-fixed": { type: "start-fixed", host, port: 3080 },
     "start-range": { type: "start-range", host, startPort: 3080, endPort: 3090 },
   };
@@ -59,7 +58,7 @@ function setPort(
 }
 
 function addAttempt(): void {
-  attempts.value.push({ type: "connect-fixed", host: "127.0.0.1", port: 3080 });
+  attempts.value.push({ type: "start-fixed", host: "127.0.0.1", port: 3080 });
 }
 
 function rowHalf(event: DragEvent): "before" | "after" {

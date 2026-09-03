@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { RefreshRight, Setting } from "@element-plus/icons-vue";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
-import { UiButton, UiInput, UiStatus } from "@dsh-desktop/ui";
+import { UiButton, UiStatus } from "@dsh-desktop/ui";
 
-import { useWindowTarget } from "@/composables/useWindowTarget";
 import type { ServiceStatus } from "@/types/desktop";
 
 const props = defineProps<{
@@ -15,24 +14,12 @@ const props = defineProps<{
   message: string | null;
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
   settings: [];
   refresh: [];
-  setTarget: [url: string];
 }>();
 
 const { t } = useI18n();
-const editing = ref(false);
-const targetEditor = ref<HTMLElement | null>(null);
-const targetInput = ref<{ focus: () => void } | null>(null);
-const {
-  url,
-  error: urlError,
-  flush: flushTarget,
-} = useWindowTarget(
-  () => props.targetUrl,
-  (target) => emit("setTarget", target),
-);
 
 const targetLabel = computed(() => {
   if (!props.targetUrl) return t("window.noTarget");
@@ -44,7 +31,6 @@ const targetLabel = computed(() => {
     return props.targetUrl;
   }
 });
-const targetEditable = computed(() => Boolean(props.targetUrl) || props.refreshAction === "retry");
 const statusTone = computed(() => {
   switch (props.status) {
     case "running":
@@ -56,27 +42,6 @@ const statusTone = computed(() => {
       return "info";
   }
 });
-
-function beginEditing(): void {
-  if (!targetEditable.value) return;
-  editing.value = true;
-  void nextTick(() => targetInput.value?.focus());
-}
-
-function finishEditing(): void {
-  flushTarget();
-  if (!urlError.value) editing.value = false;
-}
-
-function finishEditingWhenClickedOutside(event: PointerEvent): void {
-  if (!editing.value || targetEditor.value?.contains(event.target as Node)) return;
-  finishEditing();
-}
-
-onMounted(() => document.addEventListener("pointerdown", finishEditingWhenClickedOutside, true));
-onBeforeUnmount(() =>
-  document.removeEventListener("pointerdown", finishEditingWhenClickedOutside, true),
-);
 </script>
 
 <template>
@@ -109,34 +74,9 @@ onBeforeUnmount(() =>
     </div>
 
     <div class="statusbar__right">
-      <div v-if="editing" ref="targetEditor" class="statusbar__target-editor">
-        <UiInput
-          ref="targetInput"
-          v-model="url"
-          type="url"
-          content-sized
-          :disabled="!targetEditable"
-          :placeholder="t('window.urlPlaceholder')"
-          :aria-label="t('window.url')"
-          :aria-invalid="Boolean(urlError)"
-          :title="urlError || undefined"
-          @blur="finishEditing"
-          @keydown.enter.prevent="finishEditing"
-        />
-      </div>
-      <button
-        v-else
-        class="statusbar__target-button"
-        type="button"
-        :aria-disabled="!targetEditable"
-        :aria-label="t('window.url')"
-        :tabindex="targetEditable ? undefined : -1"
-        @click="beginEditing"
-        @keydown.enter.prevent="beginEditing"
-        @keydown.space.prevent="beginEditing"
-      >
+      <span class="statusbar__target" :title="props.targetUrl || undefined">
         {{ targetLabel }}
-      </button>
+      </span>
       <UiStatus :tone="statusTone" :animated="status === 'starting'">
         {{ t(`service.status.${status}`) }}
       </UiStatus>
@@ -206,35 +146,16 @@ onBeforeUnmount(() =>
   padding: 1em;
 }
 
-.statusbar__target-editor {
-  min-width: 10rem;
-  max-width: min(24rem, 35vw);
-}
-
-.statusbar__target-button {
+.statusbar__target {
   max-width: min(24rem, 35vw);
   padding: var(--space-1) var(--space-2);
   overflow: hidden;
   color: var(--color-text-primary);
-  border: 0.0625rem solid transparent;
   border-radius: var(--radius-control);
-  background: transparent;
-  font: inherit;
   font-size: var(--font-size-xs);
   line-height: var(--line-height-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.statusbar__target-button:hover:not([aria-disabled="true"]),
-.statusbar__target-button:focus-visible {
-  border-color: var(--color-border);
-  background: var(--color-interactive-hover);
-  outline: none;
-}
-
-.statusbar__target-button[aria-disabled="true"] {
-  opacity: 0.5;
 }
 
 @media (max-width: 42rem) {
@@ -246,8 +167,7 @@ onBeforeUnmount(() =>
     display: none;
   }
 
-  .statusbar__target-editor,
-  .statusbar__target-button {
+  .statusbar__target {
     max-width: 58vw;
   }
 }

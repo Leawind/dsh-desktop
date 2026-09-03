@@ -390,11 +390,6 @@ fn dispatch(state: &AppState, label: &str, request: CommandRequest) -> AppResult
     match request.name.as_str() {
         "initialize_window" => value(commands::initialize_window(state, label)?),
         "get_desktop_snapshot" => value(commands::get_desktop_snapshot(state, label)?),
-        "set_window_target" => value(commands::set_window_target(
-            label,
-            string(&args, "url")?,
-            state,
-        )?),
         "start_window" => value(commands::start_window(state, label)?),
         "stop_service" => value(commands::stop_service(state, string(&args, "url")?)?),
         "restart_service" => value(commands::restart_service(state, string(&args, "url")?)?),
