@@ -175,6 +175,7 @@ export const desktopBridge = {
   checkBuiltInRuntimeUpdate: (): Promise<RuntimeUpdateSnapshot> =>
     command("check_built_in_runtime_update"),
   updateBuiltInRuntime: (): Promise<RuntimeUpdateResult> => command("update_built_in_runtime"),
+  openTerminal: (): Promise<null> => command<null>("open_terminal"),
   updateGlobalSettings: (patch: GlobalSettingsPatch): Promise<GlobalSettings> =>
     command("update_global_settings", { patch }),
   onDesktopSnapshotChanged: (listener: (payload: BootstrapPayload) => void): Promise<UnlistenFn> =>

@@ -51,6 +51,12 @@
     "idleTimeout": "受管服务空闲回收",
     "idleTimeoutHint": "服务没有关联窗口后等待多少分钟再停止；设为 0 时立即停止。",
     "idleTimeoutUnit": "分钟",
+    "terminal": {
+      "label": "DSH 终端",
+      "hint": "打开系统终端，使用当前 DSH 来源的 dsh 命令，包括插件管理。",
+      "open": "打开终端",
+      "opening": "正在打开…"
+    },
     "source": {
       "label": "DSH 来源",
       "hint": "仅在启动新服务时使用，不影响连接已有服务。",
@@ -192,5 +198,11 @@
   "locale": {
     "zh-CN": "简体中文",
     "en-US": "English"
+  },
+  "terminal": {
+    "error": {
+      "launchFailed": "无法打开系统终端。",
+      "unavailable": "系统中没有可用的终端模拟器。"
+    }
   }
 }

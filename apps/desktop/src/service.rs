@@ -101,6 +101,12 @@ impl ResolvedDshRuntime {
     pub fn version(&self) -> &str {
         &self.runtime_version
     }
+
+    /// Complete PATH value that makes this runtime's `dsh` and its pnpm
+    /// launcher resolve ahead of the system environment.
+    pub fn path_env(&self) -> Option<&OsStr> {
+        self.runtime_path.as_deref()
+    }
 }
 
 impl ManagedService {

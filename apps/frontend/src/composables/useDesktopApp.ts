@@ -150,6 +150,16 @@ export function useDesktopApp() {
     }
   }
 
+  async function openTerminal(): Promise<void> {
+    error.value = null;
+    try {
+      await desktopBridge.openTerminal();
+    } catch (cause) {
+      error.value = cause as AppError;
+      throw cause;
+    }
+  }
+
   function applyDesktopSnapshot(payload: BootstrapPayload): void {
     appMetadata.value = payload.app;
     settings.value = payload.settings;
@@ -220,5 +230,6 @@ export function useDesktopApp() {
     stopService,
     restartService,
     updateBuiltInRuntime,
+    openTerminal,
   };
 }

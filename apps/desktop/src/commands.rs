@@ -1,12 +1,17 @@
+use std::env;
+use std::ffi::OsStr;
+use std::path::PathBuf;
+
 use crate::endpoint::{dsh_url, normalize_dsh_url};
 use crate::error::{AppError, AppResult};
 use crate::model::{
-    AppMetadataSnapshot, BootstrapPayload, GlobalSettings, GlobalSettingsPatch, HostSnapshot,
-    LOCAL_DSH_HOST, RuntimeUpdateResult, RuntimeUpdateSnapshot, StartupAttemptFailure,
-    WindowStartupAttempt, WindowStartupResult,
+    AppMetadataSnapshot, BootstrapPayload, DshHome, GlobalSettings, GlobalSettingsPatch,
+    HostSnapshot, LOCAL_DSH_HOST, RuntimeUpdateResult, RuntimeUpdateSnapshot,
+    StartupAttemptFailure, WindowStartupAttempt, WindowStartupResult,
 };
 use crate::service::{self, ProbeResult};
 use crate::state::AppState;
+use crate::terminal;
 
 pub fn initialize_window(state: &AppState, label: &str) -> AppResult<BootstrapPayload> {
     state.ensure_running()?;
@@ -446,4 +451,44 @@ pub fn update_global_settings(
     state: &AppState,
 ) -> AppResult<GlobalSettings> {
     state.update_global_settings(patch)
+}
+
+/// Opens a user-owned terminal wired to the resolved runtime so upstream
+/// CLI capabilities (including `dsh plugin`) stay reachable in every
+/// distribution variant.
+pub fn open_terminal(state: &AppState) -> AppResult<()> {
+    state.ensure_running()?;
+    let settings = state.settings_snapshot()?;
+    let runtime = service::resolve_runtime(
+        &settings.dsh_source,
+        state.runtime_manager(),
+        state.process_supervisor(),
+    )?;
+    let dsh_home = match &settings.dsh_home {
+        DshHome::Environment => None,
+        DshHome::Custom { path } => Some(path.clone()),
+    };
+    terminal::open(&terminal::TerminalEnvironment {
+        path: runtime.path_env().map(OsStr::to_os_string),
+        dsh_home,
+        working_directory: terminal_working_directory(&settings.dsh_home),
+    })
+}
+
+fn terminal_working_directory(dsh_home: &DshHome) -> Option<PathBuf> {
+    if let DshHome::Custom { path } = dsh_home {
+        if !path.starts_with('~') {
+            let directory = PathBuf::from(path);
+            if directory.is_dir() {
+                return Some(directory);
+            }
+        }
+    }
+    home_directory()
+}
+
+fn home_directory() -> Option<PathBuf> {
+    let variable = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    let directory = PathBuf::from(env::var_os(variable)?);
+    directory.is_dir().then_some(directory)
 }

@@ -1,18 +1,42 @@
 <script setup lang="ts">
 import { ElSelect } from "element-plus";
+import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 
-import { UiInput, UiSettingRow } from "@dsh-desktop/ui";
+import { UiButton, UiInput, UiSettingRow } from "@dsh-desktop/ui";
 
 import type { DshHome, DshSource } from "@/types/desktop";
 
 const props = defineProps<{
   sourceOptions: { value: string; label: string; disabled?: boolean }[];
   homeOptions: { value: string; label: string }[];
+  openTerminal: () => Promise<void>;
 }>();
 
 const emit = defineEmits<{
   select: [];
 }>();
+
+const { t } = useI18n();
+const openingTerminal = ref(false);
+const terminalError = ref<string | null>(null);
+
+async function openTerminal(): Promise<void> {
+  if (openingTerminal.value) return;
+  openingTerminal.value = true;
+  terminalError.value = null;
+  try {
+    await props.openTerminal();
+  } catch (cause) {
+    const code =
+      typeof cause === "object" && cause !== null && "code" in cause
+        ? String((cause as { code: unknown }).code)
+        : "app.error.unknown";
+    terminalError.value = t(code);
+  } finally {
+    openingTerminal.value = false;
+  }
+}
 
 const sourceType = defineModel<DshSource["type"]>("sourceType", { required: true });
 const customExecutable = defineModel<string>("customExecutable", { required: true });
@@ -95,6 +119,14 @@ const idleTimeoutMinutes = defineModel<number>("idleTimeoutMinutes", { required:
         />
       </div>
     </UiSettingRow>
+    <UiSettingRow :label="$t('settings.terminal.label')" :hint="$t('settings.terminal.hint')">
+      <div class="settings-page__inline-control">
+        <UiButton size="small" :disabled="openingTerminal" @click="openTerminal">
+          {{ openingTerminal ? $t("settings.terminal.opening") : $t("settings.terminal.open") }}
+        </UiButton>
+      </div>
+    </UiSettingRow>
+    <p v-if="terminalError" class="settings-page__error">{{ terminalError }}</p>
   </section>
 </template>
 
@@ -110,5 +142,19 @@ const idleTimeoutMinutes = defineModel<number>("idleTimeoutMinutes", { required:
 .settings-page__wide-control {
   width: 17.5rem;
   max-width: 100%;
+}
+
+.settings-page__inline-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.settings-page__error {
+  margin: 0;
+  padding: var(--space-3) 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
 }
 </style>

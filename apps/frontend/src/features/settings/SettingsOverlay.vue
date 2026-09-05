@@ -26,6 +26,7 @@ const props = defineProps<{
   host: HostSnapshot;
   distribution: DistributionSnapshot;
   updateBuiltInRuntime: () => Promise<void>;
+  openTerminal: () => Promise<void>;
   saveSettings: (settings: GlobalSettingsPatch) => Promise<GlobalSettings>;
 }>();
 
@@ -209,6 +210,7 @@ onBeforeUnmount(() => {
             v-model:idle-timeout-minutes="idleTimeoutMinutes"
             :source-options="sourceOptions"
             :home-options="homeOptions"
+            :open-terminal="openTerminal"
             @select="flushSettings"
           />
           <StartupSettingsPage

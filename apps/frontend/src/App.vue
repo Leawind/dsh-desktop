@@ -75,6 +75,7 @@ onMounted(() => {
         :host="desktop.host.value"
         :distribution="desktop.distribution.value"
         :update-built-in-runtime="desktop.updateBuiltInRuntime"
+        :open-terminal="desktop.openTerminal"
         :save-settings="desktop.saveGlobalSettings"
         @close="desktop.settingsOpen.value = false"
         @stop-service="desktop.stopService"

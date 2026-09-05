@@ -13,6 +13,7 @@ mod single_instance;
 mod state;
 mod storage;
 mod system_appearance;
+mod terminal;
 mod tray;
 mod webui;
 mod window_control;

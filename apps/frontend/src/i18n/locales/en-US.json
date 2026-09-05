@@ -51,6 +51,12 @@
     "idleTimeout": "Managed service idle cleanup",
     "idleTimeoutHint": "Minutes to wait after a service has no windows before stopping it; use 0 to stop it immediately.",
     "idleTimeoutUnit": "Minutes",
+    "terminal": {
+      "label": "DSH terminal",
+      "hint": "Open a system terminal using the dsh command of the current DSH source, including plugin management.",
+      "open": "Open terminal",
+      "opening": "Opening…"
+    },
     "source": {
       "label": "DSH source",
       "hint": "Used only to start new services; existing service connections are unaffected.",
@@ -192,5 +198,11 @@
   "locale": {
     "zh-CN": "简体中文",
     "en-US": "English"
+  },
+  "terminal": {
+    "error": {
+      "launchFailed": "Could not open a system terminal.",
+      "unavailable": "No terminal emulator is available on this system."
+    }
   }
 }
